@@ -1,0 +1,27 @@
+# Pre-commit: lint and format staged files only, then re-stage fixes.
+# Uses `npx --no --` so hooks work without a global pnpm (the `--` stops npm from eating --fix/--write).
+glob_matcher: doublestar
+
+pre-commit:
+  jobs:
+    - name: lint
+      glob: "**/*.{js,mjs,cjs,ts,mts,tsx}"
+      # Keep in sync with the ignores in eslint.config.mjs.
+      exclude:
+        - ".claude/**"
+        - "src/components/ui/**"
+        - "src/hooks/use-mobile.ts"
+      run: npx --no -- eslint --fix --no-warn-ignored {staged_files}
+      stage_fixed: true
+    - name: format
+      glob: "**/*.{js,mjs,cjs,ts,mts,tsx,json,md,css,yml,yaml}"
+      # Keep in sync with .prettierignore.
+      exclude:
+        - ".claude/**"
+        - "src/components/ui/**"
+        - "src/hooks/use-mobile.ts"
+        - "AGENTS.md"
+        - "pnpm-lock.yaml"
+        - "skills-lock.json"
+      run: npx --no -- prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
