@@ -10,8 +10,8 @@ discussed.
 - [Next.js 16](https://nextjs.org) (App Router, Turbopack, Cache Components), React 19, TypeScript
 - [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com), Geist fonts
 - Zod + [`@t3-oss/env-nextjs`](https://env.t3.gg) for env validation
-- Planned: [Neon](https://neon.com) Postgres + Drizzle + pgvector, [Clerk](https://clerk.com)
-  auth, [Vercel AI SDK](https://ai-sdk.dev) v7
+- [Neon](https://neon.com) Postgres + [Drizzle ORM](https://orm.drizzle.team) + pgvector
+- Planned: [Clerk](https://clerk.com) auth, [Vercel AI SDK](https://ai-sdk.dev) v7
 - Tooling: pnpm, ESLint, Prettier, lefthook, Vitest, GitHub Actions
 
 Architecture decisions are in [`docs/adr`](docs/adr). Conventions for contributors and coding agents
@@ -26,10 +26,15 @@ don't need a global install.
 # 1. Install dependencies (also installs the git hooks via lefthook)
 corepack pnpm install
 
-# 2. Create your local env file. Every variable is optional for now.
+# 2. Create your local env file, then set DATABASE_URL (pooled) and DATABASE_URL_UNPOOLED
+#    (direct) to your Neon "dev" branch. The other variables are optional for now.
 cp .env.example .env.local
 
-# 3. Start the dev server at http://localhost:3000
+# 3. Apply migrations and load sample data
+corepack pnpm db:migrate
+corepack pnpm db:seed
+
+# 4. Start the dev server at http://localhost:3000
 corepack pnpm dev
 ```
 
@@ -47,3 +52,7 @@ Tip: run `corepack enable pnpm` once if you'd rather type `pnpm` without `corepa
 | `pnpm format`       | Format with Prettier                        |
 | `pnpm format:check` | Check formatting (used in CI)               |
 | `pnpm test`         | Run unit tests with Vitest                  |
+| `pnpm db:generate`  | Generate a SQL migration from the schema    |
+| `pnpm db:migrate`   | Apply pending migrations                    |
+| `pnpm db:studio`    | Open Drizzle Studio                         |
+| `pnpm db:seed`      | Reset and insert sample data (dev only)     |
