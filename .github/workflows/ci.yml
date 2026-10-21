@@ -12,6 +12,10 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # CI has no database: skip env validation for the build, and leave DATABASE_URL unset
+    # so integration tests skip themselves.
+    env:
+      SKIP_ENV_VALIDATION: "1"
     steps:
       - uses: actions/checkout@v7
 

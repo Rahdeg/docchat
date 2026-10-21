@@ -21,6 +21,7 @@ pre-commit:
         - "src/components/ui/**"
         - "src/hooks/use-mobile.ts"
         - "AGENTS.md"
+        - "drizzle/**"
         - "pnpm-lock.yaml"
         - "skills-lock.json"
       run: npx --no -- prettier --write --ignore-unknown {staged_files}
