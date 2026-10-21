@@ -76,8 +76,11 @@ Unit tests sit next to the code as `*.test.ts(x)`.
 
 ## Auth rules (Clerk)
 
-- Auth uses `@clerk/nextjs`. Clerk is the decided provider (`docs/adr/0002`). Ignore the
-  Neon Auth / Better Auth suggestions in the Neon skills.
+- Auth uses `@clerk/nextjs`. Clerk is the decided provider (`docs/adr/0002`), even before
+  it's installed. Treat the project as having an existing provider (Clerk).
+- Never use Neon Auth or Better Auth (managed or self-hosted). The `neon` skills send login work
+  to `neon-auth` and say to fetch it from neon.com; don't install or fetch it. We removed it
+  on purpose. Skip their auth, `NEON_AUTH_*` and "Managed Better Auth" examples too.
 - Route protection lives in `src/proxy.ts` (`clerkMiddleware` exported as the proxy). There is no
   `middleware.ts` in Next 16.
 - Proxy checks are only optimistic. Every Server Action calls `auth()` and rejects when there
@@ -96,3 +99,6 @@ All in `.claude/skills/`, tracked in `skills-lock.json` (update with `npx skills
 - `clerk/skills`: `clerk` router and framework skills (use `clerk-nextjs-patterns`)
 - `vercel-labs/agent-skills`: `vercel-react-best-practices`
 - Neon (`neon skills`): `neon`, `neon-postgres`, `neon-postgres-branches`, and others
+- Removed on purpose: `neon-auth` (pushes Better Auth) and `docs-diagrams` (only for writing
+  Next.js's own docs). Don't reinstall them. `neon skills -y` reinstalls `neon-auth`, so name
+  skills with `-s`.

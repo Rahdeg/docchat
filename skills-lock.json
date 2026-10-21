@@ -127,12 +127,6 @@
       "skillPath": "skills/clerk-webhooks/SKILL.md",
       "computedHash": "7a9fd8c5c956ad8672eef0592e83df89ce1fc78080a0af9cb853abfe2e549b16"
     },
-    "docs-diagrams": {
-      "source": "vercel/next.js",
-      "sourceType": "github",
-      "skillPath": ".agents/skills/docs-diagrams/SKILL.md",
-      "computedHash": "75890e80436ba9fd0d8843497abf44ff4388921888ec52af20ddb186513d9870"
-    },
     "neon": {
       "source": "neondatabase/agent-skills",
       "sourceType": "github",
@@ -144,12 +138,6 @@
       "sourceType": "github",
       "skillPath": "skills/neon-ai-gateway/SKILL.md",
       "computedHash": "2e976c79ddd5d7e14d155970e6db3c373bb60627933bd184723ea4a6c54f4150"
-    },
-    "neon-auth": {
-      "source": "neondatabase/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/neon-auth/SKILL.md",
-      "computedHash": "5459d47c3fc325e09cb73641b15c48e5bc3e5d82a2059ba6ea8769bd73ff25e1"
     },
     "neon-functions": {
       "source": "neondatabase/agent-skills",
