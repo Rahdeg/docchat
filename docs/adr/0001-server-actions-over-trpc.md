@@ -46,3 +46,10 @@ Bad:
 
 If that happens, move the query and mutation logic in `src/server/` behind tRPC or a versioned
 REST API. Keeping the logic in `src/server/`, not inside the actions, keeps that move cheap.
+
+## Amendment (2026-10-21)
+
+Read queries now live in `src/features/<area>/queries.ts` (server-only, each taking `userId` first),
+not in `src/server/`. `src/server/` keeps shared infrastructure: the Drizzle client and schema
+(`src/server/db/`) and AI setup (`src/server/ai/`). The decision itself is unchanged. If we move to
+tRPC or REST later, it wraps the feature query modules instead of `src/server/`.
