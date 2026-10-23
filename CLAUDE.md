@@ -16,10 +16,12 @@ don't duplicate or hand-edit the managed block:
 - Zod 4 + `@t3-oss/env-nextjs` for env validation
 - Neon Postgres (project `docchat`, `aws-eu-central-1`) + Drizzle ORM + pgvector, via
   node-postgres (`pg`)
-- Planned: Clerk (`@clerk/nextjs`), Vercel AI SDK v7
+- Clerk (`@clerk/nextjs` 7) for auth, themed with the shadcn theme from `@clerk/ui`
+- Planned: Vercel AI SDK v7
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`), one route handler for chat streaming
-- Tooling: pnpm (pinned via `packageManager`), ESLint 9 flat config, Prettier, lefthook, Vitest
+- Tooling: pnpm (pinned via `packageManager`), ESLint 9 flat config, Prettier, lefthook, Vitest,
+  Playwright (e2e)
 
 ## Commands
 
@@ -36,10 +38,14 @@ or run `corepack enable pnpm` once if you want a bare `pnpm`.
 | `pnpm format`       | Prettier write                                   |
 | `pnpm format:check` | Prettier check (CI)                              |
 | `pnpm test`         | Vitest, single run                               |
+| `pnpm test:e2e`     | Playwright e2e (local only, not in CI yet)       |
 | `pnpm db:generate`  | Generate a SQL migration from the schema         |
 | `pnpm db:migrate`   | Apply pending migrations (direct connection)     |
 | `pnpm db:studio`    | Drizzle Studio against `DATABASE_URL_UNPOOLED`   |
 | `pnpm db:seed`      | Reset and insert sample data (development only)  |
+
+`pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
+up after signing in. It deletes that user's existing rows first.
 
 Before you call a change done: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build`.
 
@@ -52,17 +58,19 @@ src/components/ui/     shadcn-generated. Do not hand-edit.
 src/components/        shared app components built on ui/
 src/features/<name>/   feature modules: documents, chat, tasks (components, actions, schemas,
                        queries.ts for user-scoped reads)
+src/server/auth.ts     requireUserId() for Server Components
 src/server/db/         Drizzle client (index.ts) and schema/ (one file per area)
 src/server/ai/         AI SDK setup, retrieval, prompts, tools (server-only)
-src/lib/               framework-agnostic utilities (cn, env)
-src/proxy.ts           route protection (Next 16 replaces middleware.ts); added in the auth PR
+src/lib/               utilities (cn, env, format, routes) and authedAction() (action.ts)
+src/proxy.ts           clerkMiddleware with optimistic redirects (Next 16 replaces middleware.ts)
 docs/adr/              architecture decision records
 drizzle/               generated SQL migrations and snapshots (committed)
 scripts/               standalone scripts run with tsx (seed)
-tests/e2e/             end-to-end tests
+tests/e2e/             Playwright end-to-end tests (`*.spec.ts`)
 ```
 
-Unit tests sit next to the code as `*.test.ts(x)`.
+Unit tests sit next to the code as `*.test.ts(x)`. Playwright tests live in `tests/e2e/` and run
+against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 
 ## Rules
 
@@ -80,8 +88,10 @@ Unit tests sit next to the code as `*.test.ts(x)`.
 - Before writing UI, check the installed skills (`shadcn`, `vercel-react-best-practices`) and the
   shadcn MCP server (`.mcp.json`) for an existing component or pattern.
 - Before writing Next.js, AI SDK, Clerk or Neon code, read the matching skill in `.claude/skills/`.
-- Use theme tokens (`bg-background`, `text-muted-foreground`, `bg-highlight` for citations), not
-  raw colours.
+- Use theme tokens (`bg-background`, `text-muted-foreground`, `bg-highlight` for citations,
+  `text-success` / `text-info` for status), not raw colours.
+- Suspense fallbacks are prerendered, so they can't use `Math.random()` or the current time. That
+  rules out shadcn's `SidebarMenuSkeleton`; use `Skeleton` with fixed widths.
 - Make small, focused commits with Conventional Commit messages (`feat:`, `fix:`, `chore:`,
   `docs:`, `refactor:`, `test:`, `ci:`). The pre-commit hook lints and formats staged files.
 
@@ -109,17 +119,28 @@ Unit tests sit next to the code as `*.test.ts(x)`.
 
 ## Auth rules (Clerk)
 
-- Auth uses `@clerk/nextjs`. Clerk is the decided provider (`docs/adr/0002`), even before
-  it's installed. Treat the project as having an existing provider (Clerk).
+- Auth uses `@clerk/nextjs`, the decided provider (`docs/adr/0002`). Treat the project as having
+  an existing provider (Clerk).
 - Never use Neon Auth or Better Auth (managed or self-hosted). The `neon` skills send login work
   to `neon-auth` and say to fetch it from neon.com; don't install or fetch it. We removed it
   on purpose. Skip their auth, `NEON_AUTH_*` and "Managed Better Auth" examples too.
-- Route protection lives in `src/proxy.ts` (`clerkMiddleware` exported as the proxy). There is no
-  `middleware.ts` in Next 16.
-- Proxy checks are only optimistic. Every Server Action calls `auth()` and rejects when there
-  is no `userId`, before doing anything else.
+- `src/proxy.ts` exports `clerkMiddleware` (there is no `middleware.ts` in Next 16). It only does
+  optimistic redirects: signed-out visitors to `/sign-in`, signed-in visitors from `/` to
+  `/library`. Public pages are listed in `isPublicPath()` (`src/lib/routes.ts`). Don't use
+  `createRouteMatcher`; it's deprecated in `@clerk/nextjs` 7 (`docs/adr/0002`, amendment).
+- The real checks sit next to the data. Server Components that read user data call
+  `requireUserId()` (`src/server/auth.ts`) and pass the result to the feature query.
+- `auth()` reads the request, so with Cache Components anything that calls it, or
+  `requireUserId()`, must sit inside `<Suspense>` (the build fails otherwise). Keep it out of the
+  top level of layouts; put it in a streamed child component. Clerk's `<SignIn />` and `<SignUp />`
+  read the URL, so they need `<Suspense>` too (the `(auth)` layout provides it).
+- Server Actions are built with `authedAction(schema, handler)` from `src/lib/action.ts`. It
+  calls `auth()` first, then validates input with Zod, and returns
+  `{ ok: true, data } | { ok: false, error, fieldErrors? }`. Don't hand-roll actions without it.
 - Tables store Clerk's `userId` as `text`. There is no local `users` table; profile data stays in
   Clerk.
+- No Clerk webhooks yet. Deleting a user's data when Clerk sends `user.deleted` comes in a later
+  PR (TODO in `src/server/auth.ts`). Until then, deleting a user in Clerk leaves their rows behind.
 
 ## Installed agent skills
 

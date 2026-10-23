@@ -42,3 +42,11 @@ Use Clerk via `@clerk/nextjs`:
   code only sees a `userId` string.
 - We fetch display data (name, avatar) from Clerk at render time. We only add a synced profile table
   (via webhooks) if a feature needs SQL joins on it, and that would be a new ADR.
+
+## Amendment (2026-10-23)
+
+`@clerk/nextjs` 7 deprecates `createRouteMatcher()` and Clerk no longer recommends protecting
+routes in middleware. `src/proxy.ts` still runs `clerkMiddleware()`, but it only does optimistic
+redirects. Pages and streamed components call `requireUserId()` (`src/server/auth.ts`), and Server
+Actions go through `authedAction()` (`src/lib/action.ts`), which calls `auth()` before anything
+else. The choice of Clerk is unchanged.
