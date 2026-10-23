@@ -3,7 +3,7 @@ import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/server/db";
-import { document, type Document } from "@/server/db/schema";
+import { document, type Document, type DocumentStatus } from "@/server/db/schema";
 
 export async function listDocuments(userId: string): Promise<Document[]> {
   return db
@@ -20,4 +20,11 @@ export async function getDocument(userId: string, documentId: string): Promise<D
     .where(and(eq(document.userId, userId), eq(document.id, documentId)))
     .limit(1);
   return row ?? null;
+}
+
+export async function countDocuments(userId: string, status?: DocumentStatus): Promise<number> {
+  return db.$count(
+    document,
+    and(eq(document.userId, userId), status ? eq(document.status, status) : undefined),
+  );
 }
