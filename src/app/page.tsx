@@ -1,36 +1,42 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 
+import { Logo } from "@/components/logo";
+import { Button } from "@/components/ui/button";
+import { routes } from "@/lib/routes";
+
+// Signed-in visitors never see this page: the proxy redirects them to /library.
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-8 px-6 py-24">
-      <div className="flex flex-col gap-3">
-        <Badge variant="outline" className="font-mono">
-          theme preview
-        </Badge>
-        <h1 className="text-4xl font-semibold tracking-tight">DocChat</h1>
-        <p className="text-lg text-muted-foreground">
-          Upload documents, ask questions, and get answers with cited sources.
-        </p>
-      </div>
+    <div className="flex flex-1 flex-col">
+      <header className="mx-auto flex w-full max-w-5xl px-4 py-4 md:px-8">
+        <Logo />
+      </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sample answer</CardTitle>
-        </CardHeader>
-        <CardContent className="leading-7">
-          Refunds are processed within 14 days of the request{" "}
-          <span className="inline-flex items-center rounded-sm bg-highlight px-1.5 py-0.5 font-mono text-xs text-highlight-foreground">
-            [1] refund-policy.pdf · p. 3
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-6 px-4 py-16 text-center">
+        <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+          Answers from your documents,{" "}
+          <span className="rounded-sm bg-highlight box-decoration-clone px-1 text-highlight-foreground">
+            with the sources to prove it.
           </span>
-        </CardContent>
-      </Card>
-
-      <div className="flex gap-3">
-        <Button>Upload document</Button>
-        <Button variant="outline">Secondary</Button>
-      </div>
-    </main>
+        </h1>
+        <p className="max-w-xl text-lg text-pretty text-muted-foreground">
+          Upload your files, ask questions in plain language, and see the exact passage behind every
+          answer.
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button size="lg" nativeButton={false} render={<Link href={routes.signUp} />}>
+            Get started
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={routes.signIn} />}
+          >
+            Sign in
+          </Button>
+        </div>
+      </main>
+    </div>
   );
 }

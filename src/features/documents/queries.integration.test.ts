@@ -43,6 +43,12 @@ describe.skipIf(!process.env.DATABASE_URL)("document queries (integration)", () 
     expect(docs.every((d) => d.userId === alice)).toBe(true);
   });
 
+  it("countDocuments counts only the caller's rows", async () => {
+    expect(await queries.countDocuments(alice)).toBe(2);
+    expect(await queries.countDocuments(bob)).toBe(1);
+    expect(await queries.countDocuments(alice, "ready")).toBe(0);
+  });
+
   it("getDocument does not return another user's document", async () => {
     expect(await queries.getDocument(alice, bobDocumentId)).toBeNull();
     expect((await queries.getDocument(bob, bobDocumentId))?.name).toBe("bob-1.txt");

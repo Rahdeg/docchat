@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import { task, type Task } from "@/server/db/schema";
@@ -12,4 +12,8 @@ export async function listTasks(userId: string): Promise<Task[]> {
     .from(task)
     .where(eq(task.userId, userId))
     .orderBy(asc(task.done), desc(task.createdAt));
+}
+
+export async function countOpenTasks(userId: string): Promise<number> {
+  return db.$count(task, and(eq(task.userId, userId), eq(task.done, false)));
 }
