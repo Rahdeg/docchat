@@ -8,9 +8,11 @@ import { chat, chunk, document, message, task } from "@/server/db/schema";
 
 import { assertDevelopment } from "./lib/assert-development";
 import { fakeEmbedding } from "./lib/fake-embedding";
+import { resolveSeedUserId } from "./lib/seed-user";
 
-// Not a real Clerk user. Seeding deletes and recreates only this user's rows.
-const SEED_USER_ID = "user_seed_dev";
+// Seeding deletes and recreates only this user's rows. Pass your own Clerk user ID to see the
+// sample data after signing in: `pnpm db:seed --user user_…` or SEED_USER_ID=user_….
+const SEED_USER_ID = resolveSeedUserId(process.argv.slice(2), process.env.SEED_USER_ID);
 
 const documents = [
   {
