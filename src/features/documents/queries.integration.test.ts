@@ -40,7 +40,7 @@ describe.skipIf(!process.env.DATABASE_URL)("document queries (integration)", () 
     const docs = await queries.listDocuments(alice);
 
     expect(docs.map((d) => d.name).sort()).toEqual(["alice-1.txt", "alice-2.txt"]);
-    expect(docs.every((d) => d.userId === alice)).toBe(true);
+    expect(docs.map((d) => d.id)).not.toContain(bobDocumentId);
   });
 
   it("countDocuments counts only the caller's rows", async () => {

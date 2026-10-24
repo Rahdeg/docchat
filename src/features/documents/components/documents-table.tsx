@@ -10,11 +10,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatBytes, formatDate } from "@/lib/format";
-import type { Document } from "@/server/db/schema";
+import type { LibraryDocument } from "../library-document";
 
 import { DocumentStatusBadge } from "./document-status-badge";
 
-export function DocumentsTable({ documents }: { documents: Document[] }) {
+export function DocumentsTable({ documents }: { documents: LibraryDocument[] }) {
   return (
     <div className="rounded-xl border bg-card">
       <Table>
