@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { countChats } from "@/features/chat/queries";
 import { RecentChats } from "@/features/chat/components/recent-chats";
+import { DocumentsUsage } from "@/features/documents/components/documents-usage";
 import { countDocuments } from "@/features/documents/queries";
 import { countOpenTasks } from "@/features/tasks/queries";
 import { routes } from "@/lib/routes";
@@ -78,7 +79,10 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t p-3">
+      <SidebarFooter className="gap-3 border-t p-3">
+        <Suspense fallback={<Skeleton className="h-[58px] rounded-[10px]" />}>
+          <DocumentsUsage />
+        </Suspense>
         <UserButton showName />
       </SidebarFooter>
     </Sidebar>
