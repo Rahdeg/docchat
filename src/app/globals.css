@@ -11,10 +11,27 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
+  /* Newsreader: only for document names and document text, never UI labels. */
+  --font-serif: var(--font-newsreader);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
-  --color-success: var(--success);
-  --color-info: var(--info);
+  --color-secondary-text: var(--secondary-text);
+  --color-border-strong: var(--border-strong);
+  --color-border-dashed: var(--border-dashed);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-drop: var(--drop);
+  --color-status-ready: var(--status-ready);
+  --color-status-ready-foreground: var(--status-ready-foreground);
+  --color-status-reading: var(--status-reading);
+  --color-status-reading-foreground: var(--status-reading-foreground);
+  --color-status-reading-bar: var(--status-reading-bar);
+  --color-status-problem: var(--status-problem);
+  --color-status-problem-foreground: var(--status-problem-foreground);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-neutral-foreground: var(--status-neutral-foreground);
+  /* A sheet of paper resting on the desk, and lifted on hover. */
+  --shadow-sheet: 0 10px 22px -16px rgb(29 36 51 / 0.35);
+  --shadow-sheet-raised: 0 18px 30px -18px rgb(29 36 51 / 0.45);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -53,26 +70,27 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* DocChat light theme (stone palette). Dark tokens below are still shadcn defaults. */
+/* DocChat light theme: white paper on a grey "desk", ink text. Dark mode isn't wired up yet
+   (no theme provider); the .dark tokens below are still shadcn defaults. */
 :root {
-  --background: #fafaf9;
-  --foreground: #1c1917;
+  --background: #e8ebee;
+  --foreground: #1d2433;
   --card: #ffffff;
-  --card-foreground: #1c1917;
+  --card-foreground: #1d2433;
   --popover: #ffffff;
-  --popover-foreground: #1c1917;
-  --primary: #1c1917;
+  --popover-foreground: #1d2433;
+  --primary: #1d2433;
   --primary-foreground: #ffffff;
-  --secondary: #f5f5f4;
-  --secondary-foreground: #1c1917;
-  --muted: #f5f5f4;
-  --muted-foreground: #57534e;
-  --accent: #f5f5f4;
-  --accent-foreground: #1c1917;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #e7e5e4;
-  --input: #e7e5e4;
-  --ring: #a8a29e;
+  --secondary: #eef1f4;
+  --secondary-foreground: #1d2433;
+  --muted: #eef1f4;
+  --muted-foreground: #5a6272;
+  --accent: #eef1f4;
+  --accent-foreground: #1d2433;
+  --destructive: #7f1d3a;
+  --border: #d5dae0;
+  --input: #d5dae0;
+  --ring: #1d2433;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -80,19 +98,35 @@
   --chart-5: oklch(0.269 0 0);
   --radius: 0.5rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #1c1917;
-  --sidebar-primary: #1c1917;
+  --sidebar-foreground: #1d2433;
+  --sidebar-primary: #1d2433;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e7e5e4;
-  --sidebar-accent-foreground: #1c1917;
-  --sidebar-border: #e7e5e4;
-  --sidebar-ring: #a8a29e;
-  /* Citation highlight. Not overridden in .dark: the chip keeps dark text in both modes. */
-  --highlight: #fde68a;
-  --highlight-foreground: #1c1917;
-  /* Status colours (document badges). Use as text-*, and at /10 opacity as a background. */
-  --success: #15803d;
-  --info: #1d4ed8;
+  --sidebar-accent: #eef1f4;
+  --sidebar-accent-foreground: #1d2433;
+  --sidebar-border: #d5dae0;
+  --sidebar-ring: #1d2433;
+  /* Body text a step softer than ink (document previews, descriptions). */
+  --secondary-text: #3b4250;
+  /* Paper edges: a sheet's own border, the dashed "Add files" sheet, and the back layers. */
+  --border-strong: #c7ced7;
+  --border-dashed: #9aa3b0;
+  --surface-sunken: #f4f6f8;
+  /* "Drop to upload" sheet. */
+  --drop: #fff6c4;
+  /* Quoted passages. Not overridden in .dark: the mark keeps dark text in both modes. */
+  --highlight: #ffe45c;
+  --highlight-foreground: #1d2433;
+  /* Status marks (background / text). Reading also has a progress bar colour. */
+  --status-ready: #b8f0c9;
+  --status-ready-foreground: #14532d;
+  --status-reading: #c2e0ff;
+  --status-reading-foreground: #1e3a5f;
+  --status-reading-bar: #3b82c4;
+  --status-problem: #ffccd8;
+  --status-problem-foreground: #7f1d3a;
+  /* Uploading and waiting. */
+  --status-neutral: #dde1e6;
+  --status-neutral-foreground: #1d2433;
 }
 
 .dark {
@@ -127,8 +161,12 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --success: #4ade80;
-  --info: #60a5fa;
+}
+
+/* A paper surface. shadcn controls fill with bg-background, which is the grey desk in this
+   theme; on or inside a `paper` element they fill with white paper, as the designs show. */
+@utility paper {
+  --background: var(--card);
 }
 
 @layer base {

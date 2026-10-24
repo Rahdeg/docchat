@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DocChat – Library, first visit</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;display=swap">
+<style>
+body{margin:0;background:#E8EBEE}
+a{color:#1D2433}a:hover{color:#5A6272}
+button:focus-visible,a:focus-visible{outline:2px solid #1D2433;outline-offset:2px}
+</style>
+</helmet>
+<div style="font-family: Geist, system-ui, sans-serif; color: #1D2433; background: #E8EBEE; min-height: 900px; display: flex; flex-wrap: wrap; font-size: 14px; line-height: 1.5">
+
+<nav aria-label="Primary" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #D5DAE0; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<div style="width: 28px; height: 28px; border-radius: 7px; background: #1D2433; display: flex; align-items: center; justify-content: center"><div style="width: 13px; height: 5px; border-radius: 2px; background: #FFE45C"></div></div>
+<span style="font-weight: 600; font-size: 16px; letter-spacing: -0.01em">DocChat</span>
+</div>
+<a href="#" style="height: 40px; box-sizing: border-box; border-radius: 8px; border: 1px solid #D5DAE0; display: flex; align-items: center; gap: 8px; padding: 0 12px; text-decoration: none; font-weight: 500">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New chat</a>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="#" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; text-decoration: none; color: #3B4250">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</a>
+<a href="library.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; background: #EEF1F4; text-decoration: none; font-weight: 500">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>Library</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; text-decoration: none; color: #3B4250">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>Tasks</a>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px 8px 0">
+<div style="width: 32px; height: 32px; border-radius: 50%; background: #D5DAE0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px">RA</div>
+<span style="font-weight: 500">[Your name]</span>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 40px 48px 56px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Library</h1>
+<p style="margin: 0; color: #5A6272">Add a document, then ask questions about it in Chat.</p>
+</div>
+
+<div style="flex: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 56px">
+
+<div style="position: relative; width: 400px; max-width: 100%; height: 500px">
+<div aria-hidden="true" style="position: absolute; inset: 14px 6px 0 14px; background: #F4F6F8; border: 1px solid #D5DAE0; border-radius: 4px; transform: rotate(3deg)"></div>
+<div aria-hidden="true" style="position: absolute; inset: 8px 10px 6px 8px; background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 4px; transform: rotate(-2deg)"></div>
+<div style="position: absolute; inset: 0 14px 14px 0; background: #FFFFFF; border: 1px solid #C7CED7; border-radius: 4px; box-shadow: 0 24px 40px -24px rgba(29,36,51,0.45); padding: 18px; box-sizing: border-box">
+<div style="height: 100%; box-sizing: border-box; border: 1.5px dashed #9AA3B0; border-radius: 3px; padding: 36px 32px; display: flex; flex-direction: column; justify-content: center; gap: 18px">
+<h2 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 30px; font-weight: 500; line-height: 1.15; letter-spacing: -0.01em">Add your first document</h2>
+<p style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 16px; line-height: 1.6; color: #3B4250">Drop a PDF, Markdown or text file on this page. DocChat reads it page by page, so every answer can point to the exact passage it came from.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+<button type="button" style="font-family: inherit; font-size: 14px; font-weight: 500; height: 40px; padding: 0 16px; border-radius: 8px; border: none; background: #1D2433; color: #FFFFFF; cursor: pointer; display: flex; align-items: center; gap: 8px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path></svg>Browse files</button>
+</div>
+<p style="margin: 0; font-size: 13px; color: #5A6272">Up to 10 MB each, 20 documents in total. Scanned PDFs aren't supported yet.</p>
+</div>
+</div>
+</div>
+
+<div style="width: 300px; max-width: 100%; display: flex; flex-direction: column; gap: 14px">
+<h3 style="margin: 0; font-size: 15px; font-weight: 600">What works well</h3>
+<p style="margin: 0; color: #3B4250">Documents with rules, dates and obligations you'd otherwise have to search through yourself.</p>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: Newsreader, Georgia, serif; font-size: 16px; font-weight: 500">A tenancy agreement</span>
+<span style="font-size: 13px; color: #5A6272">"When can my landlord raise the rent?"</span>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: Newsreader, Georgia, serif; font-size: 16px; font-weight: 500">An employment contract</span>
+<span style="font-size: 13px; color: #5A6272">"How much notice do I have to give?"</span>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: Newsreader, Georgia, serif; font-size: 16px; font-weight: 500">A course syllabus</span>
+<span style="font-size: 13px; color: #5A6272">"What's due before the end of November?"</span>
+</div>
+</div>
+</div>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

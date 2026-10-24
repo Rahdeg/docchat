@@ -12,6 +12,8 @@ discussed.
 - Zod + [`@t3-oss/env-nextjs`](https://env.t3.gg) for env validation
 - [Neon](https://neon.com) Postgres + [Drizzle ORM](https://orm.drizzle.team) + pgvector
 - [Clerk](https://clerk.com) for sign-in, sign-up and sessions
+- [Vercel Blob](https://vercel.com/docs/vercel-blob) (private store) for uploaded files,
+  [unpdf](https://github.com/unjs/unpdf) to read PDF text
 - Planned: [Vercel AI SDK](https://ai-sdk.dev) v7
 - Tooling: pnpm, ESLint, Prettier, lefthook, Vitest, Playwright, GitHub Actions
 
@@ -30,6 +32,7 @@ corepack pnpm install
 # 2. Create your local env file, then fill in:
 #    - DATABASE_URL (pooled) and DATABASE_URL_UNPOOLED (direct) for your Neon "dev" branch
 #    - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY (see "Clerk setup" below)
+#    - BLOB_READ_WRITE_TOKEN (see "Vercel Blob setup" below)
 cp .env.example .env.local
 
 # 3. Apply migrations
@@ -52,6 +55,42 @@ corepack pnpm dev
 The sign-in and sign-up pages live in the app (`/sign-in`, `/sign-up`), so there's nothing else to
 configure. After signing in you land on `/library`.
 
+### Vercel Blob setup
+
+Uploaded files are stored in a **private** Vercel Blob store. Nothing in it is publicly readable;
+the app streams files to their owner through `/api/documents/[id]/file`.
+
+1. In the Vercel dashboard, open the project's **Storage** tab, choose **Create Storage → Blob**,
+   and set the access to **Private**. (Or from the linked project directory:
+   `vercel blob create-store docchat-files --access private --yes`.)
+2. Connect the store to the project **including the Development environment**. If you created it
+   without Development, open the store's **Projects** tab, then **⋯ → Update Project Connection**,
+   and tick **Development**. `vercel env pull` only reads Development.
+3. Pull the variables into `.env.local`:
+
+   ```bash
+   vercel env pull .env.local
+   ```
+
+   This adds `BLOB_READ_WRITE_TOKEN` (required; the build fails without it), plus `BLOB_STORE_ID`
+   and a short-lived `VERCEL_OIDC_TOKEN`. The app always uses `BLOB_READ_WRITE_TOKEN`: it's what
+   browser uploads need, and the pulled OIDC token expires after a few hours. No webhook or tunnel
+   is needed locally.
+
+### Uploading and indexing
+
+- On `/library`, use **Upload files**, the **Add files** sheet, or drop files anywhere on the page.
+  PDF, Markdown (`.md`) and text (`.txt`) only, **up to 10 MB each and 20 documents per account**.
+  The browser checks these first; the server checks them again, including the file's real type.
+- Files go straight from the browser to Blob (Vercel functions limit request bodies to 4.5 MB),
+  then the app registers the document and starts reading it in the background.
+- Reading ("indexing") extracts the text page by page (Markdown and text count as one page), splits
+  each page into ~500-token passages with ~15% overlap, and stores the pages and passages with the
+  exact character range each passage came from (`docs/adr/0004`). The Library updates every few
+  seconds: **Reading page X of Y**, then **Ready** with page and passage counts.
+- Scanned PDFs (images, no text) fail with "No text found". A document that makes no progress for
+  10 minutes shows **Reading stopped** with **Try again**. Embeddings come in a later PR.
+
 ### See sample data for your own account
 
 1. Start the app, sign up, and copy your user ID (`user_…`) from the Clerk dashboard under **Users**.
@@ -63,7 +102,8 @@ configure. After signing in you land on `/library`.
    ```
 
    This first deletes any existing data for that user in your dev database. Without `--user` it
-   seeds a placeholder user (`user_seed_dev`) you can't sign in as.
+   seeds a placeholder user (`user_seed_dev`) you can't sign in as. Sample documents have no
+   stored file, so they can't be opened or retried. Re-run the seed after pulling new migrations.
 
 3. Reload `/library`.
 
@@ -95,4 +135,8 @@ Tip: run `corepack enable pnpm` once if you'd rather type `pnpm` without `corepa
   or starts one. To test a production build, run `pnpm build && pnpm start` and set
   `E2E_BASE_URL=http://localhost:3000`. It needs the Clerk keys in `.env.local`. The first time,
   run `corepack pnpm exec playwright install chromium`.
+- The PDF fixtures in `tests/fixtures/` (two text pages, and a page with no text) come from
+  `node tests/fixtures/make-pdfs.mjs`. The indexing integration test reads them from disk, so it
+  needs a database but not Blob.
 - **E2E tests don't run in CI yet.** CI runs typecheck, lint, format check, unit tests and the build.
+  The signed-in upload flow isn't covered by e2e yet (it needs Clerk testing tokens).

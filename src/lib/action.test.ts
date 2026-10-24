@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { authedAction } from "./action";
+import { ActionError, authedAction } from "./action";
 
 const { auth } = vi.hoisted(() => ({ auth: vi.fn() }));
 vi.mock("@clerk/nextjs/server", () => ({ auth }));
@@ -63,6 +63,20 @@ describe("authedAction", () => {
       ok: false,
       error: "Something went wrong. Please try again.",
     });
+    consoleError.mockRestore();
+  });
+
+  it("returns an ActionError's message to the caller", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const refusing = authedAction(schema, async () => {
+      throw new ActionError("That document was already removed.");
+    });
+
+    expect(await refusing({ title: "x" })).toEqual({
+      ok: false,
+      error: "That document was already removed.",
+    });
+    expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 

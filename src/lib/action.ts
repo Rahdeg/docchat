@@ -10,6 +10,12 @@ export type ActionResult<T> =
 
 type ActionContext = { userId: string };
 
+// Throw from a handler to fail with a message the user should see. Any other error becomes the
+// generic "Something went wrong".
+export class ActionError extends Error {
+  override name = "ActionError";
+}
+
 // Wraps a Server Action: auth first, then Zod validation, then the handler. Export the result
 // from a "use server" file. Input is typed for callers, but it still arrives untrusted.
 export function authedAction<Schema extends z.ZodType, Data>(
@@ -34,6 +40,7 @@ export function authedAction<Schema extends z.ZodType, Data>(
     } catch (error) {
       // Let redirect() and notFound() through to Next.
       unstable_rethrow(error);
+      if (error instanceof ActionError) return { ok: false, error: error.message };
       console.error(error);
       return { ok: false, error: "Something went wrong. Please try again." };
     }

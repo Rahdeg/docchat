@@ -12,14 +12,18 @@ don't duplicate or hand-edit the managed block:
 
 - Next.js 16 (App Router, `src/`, Turbopack, Cache Components on), React 19, TypeScript strict
 - Tailwind CSS v4 (CSS-first config in `src/app/globals.css`, no `tailwind.config`)
-- shadcn/ui (`base-nova` style, Base UI primitives), Geist + Geist Mono via the `geist` package
+- shadcn/ui (`base-nova` style, Base UI primitives), Geist + Geist Mono via the `geist` package,
+  Newsreader (`next/font/google`, `font-serif`) for document names and document text only
 - Zod 4 + `@t3-oss/env-nextjs` for env validation
 - Neon Postgres (project `docchat`, `aws-eu-central-1`) + Drizzle ORM + pgvector, via
   node-postgres (`pg`)
 - Clerk (`@clerk/nextjs` 7) for auth, themed with the shadcn theme from `@clerk/ui`
+- Vercel Blob (private store) for uploaded files; `unpdf` for PDF text; `gpt-tokenizer` (cl100k)
+  for chunk sizes
 - Planned: Vercel AI SDK v7
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
-  `docs/adr/0001`), one route handler for chat streaming
+  `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
+  serving stored files (`src/app/api/documents/`), and later chat streaming
 - Tooling: pnpm (pinned via `packageManager`), ESLint 9 flat config, Prettier, lefthook, Vitest,
   Playwright (e2e)
 
@@ -60,13 +64,17 @@ src/features/<name>/   feature modules: documents, chat, tasks (components, acti
                        queries.ts for user-scoped reads)
 src/server/auth.ts     requireUserId() for Server Components
 src/server/db/         Drizzle client (index.ts) and schema/ (one file per area)
-src/server/ai/         AI SDK setup, retrieval, prompts, tools (server-only)
+src/server/ai/         AI SDK setup, chunking, retrieval, prompts, tools (server-only)
+src/server/ingest/     text extraction and the indexing pipeline (server-only)
+src/server/blob.ts     the only place that calls the Vercel Blob SDK
 src/lib/               utilities (cn, env, format, routes) and authedAction() (action.ts)
 src/proxy.ts           clerkMiddleware with optimistic redirects (Next 16 replaces middleware.ts)
 docs/adr/              architecture decision records
+docs/design/           HTML design mockups per area; match them when building that UI
 drizzle/               generated SQL migrations and snapshots (committed)
 scripts/               standalone scripts run with tsx (seed)
 tests/e2e/             Playwright end-to-end tests (`*.spec.ts`)
+tests/fixtures/        test files (PDFs) and the script that generates them
 ```
 
 Unit tests sit next to the code as `*.test.ts(x)`. Playwright tests live in `tests/e2e/` and run
@@ -88,8 +96,13 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Before writing UI, check the installed skills (`shadcn`, `vercel-react-best-practices`) and the
   shadcn MCP server (`.mcp.json`) for an existing component or pattern.
 - Before writing Next.js, AI SDK, Clerk or Neon code, read the matching skill in `.claude/skills/`.
-- Use theme tokens (`bg-background`, `text-muted-foreground`, `bg-highlight` for citations,
-  `text-success` / `text-info` for status), not raw colours.
+- Use theme tokens, not raw colours: `bg-background` (the grey desk), `bg-card` (white paper),
+  `text-secondary-text`, `bg-highlight` for quoted passages, and the status marks
+  (`bg-status-ready`, `-reading`, `-problem`, `-neutral`, each with a `-foreground` text colour).
+  shadcn controls fill with `bg-background`, so on a white surface add the `paper` utility (it
+  sets `--background` to the card colour) rather than overriding the control's colours.
+- `font-serif` (Newsreader) is only for document names and document text. All UI stays Geist;
+  don't use Geist Mono for UI labels.
 - Suspense fallbacks are prerendered, so they can't use `Math.random()` or the current time. That
   rules out shadcn's `SidebarMenuSkeleton`; use `Skeleton` with fixed widths.
 - Make small, focused commits with Conventional Commit messages (`feat:`, `fix:`, `chore:`,
@@ -116,6 +129,32 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   outside Next. The `db:*` scripts already do this.
 - Integration tests (`*.integration.test.ts`) use `describe.skipIf(!process.env.DATABASE_URL)` and
   import database modules lazily. CI has no database and sets `SKIP_ENV_VALIDATION`.
+
+## Files and indexing rules (Vercel Blob)
+
+- Files live in a **private** Blob store. Never send a raw Blob URL to the browser. Files are
+  served only by `GET /api/documents/[id]/file`, which checks ownership and responds with
+  `Cache-Control: private, no-cache`. Never cache private files on the CDN (`s-maxage`).
+- Call Blob only through `src/server/blob.ts`. It passes `BLOB_READ_WRITE_TOKEN` explicitly;
+  otherwise the SDK prefers OIDC, and the OIDC token in `.env.local` expires after a few hours.
+- Browsers upload straight to Blob (functions cap request bodies at 4.5 MB):
+  `POST /api/documents/upload` issues a token, then the client calls `registerDocument`. There is
+  no upload-completed webhook (it can't reach localhost).
+- Blob paths are `users/<userId>/<uuid>-<name>`. The server checks the userId segment against the
+  session in both the token route and `registerDocument`.
+- Limits live in `src/features/documents/upload-rules.ts`, shared by client and server: PDF, `.md`
+  and `.txt`, 10 MB, 20 documents per user. The server checks the stored file's real size and its
+  leading bytes, not the browser's claims.
+- Indexing runs in `after()` from the Library page's Server Actions, so it gets that page's
+  **`maxDuration` (300 s, `src/app/(app)/library/page.tsx`)**. Work that might take longer doesn't
+  belong there. An `uploaded`/`indexing` document with no progress for 10 minutes shows as stuck
+  ("Reading stopped"); keep `maxDuration` under that. A durable queue is a TODO (`docs/adr/0004`).
+- `indexDocument` only claims documents in `uploaded`, and replaces a document's pages and chunks
+  in one transaction. A retry puts the document back to `uploaded`; never insert chunks elsewhere.
+- Chunks: ~500 tokens, ~15% overlap, whole sentences, never across pages. `startOffset` and
+  `endOffset` index into `document_page.text`, and `text.slice(start, end) === content` must hold
+  (`docs/adr/0004`). `chunk.embedding` is nullable until embeddings land (PR 5).
+- Regenerate the PDF fixtures with `node tests/fixtures/make-pdfs.mjs`.
 
 ## Auth rules (Clerk)
 
