@@ -11,6 +11,9 @@ export const env = createEnv({
     DATABASE_URL_UNPOOLED: z.url().optional(),
     // Clerk Backend API key (sk_test_… / sk_live_…). Server only.
     CLERK_SECRET_KEY: z.string().startsWith("sk_"),
+    // Private Vercel Blob store for uploaded files. handleUpload() needs this static token to sign
+    // browser uploads (OIDC isn't enough), and src/server/blob.ts passes it on every call.
+    BLOB_READ_WRITE_TOKEN: z.string().startsWith("vercel_blob_rw_"),
     // TODO(ai): make required when the AI SDK lands.
     AI_API_KEY: z.string().min(1).optional(),
   },
@@ -22,6 +25,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     AI_API_KEY: process.env.AI_API_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
