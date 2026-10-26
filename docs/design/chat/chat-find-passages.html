@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DocChat – Find passages</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;display=swap">
+<style>
+body{margin:0;background:#E8EBEE}
+a{color:#1D2433}a:hover{color:#5A6272}
+button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid #1D2433;outline-offset:2px}
+</style>
+</helmet>
+<div style="font-family: Geist, system-ui, sans-serif; color: #1D2433; background: #E8EBEE; min-height: 1120px; display: flex; flex-wrap: wrap; font-size: 14px; line-height: 1.5">
+
+<nav aria-label="Primary" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #D5DAE0; padding: 20px 16px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<div style="width: 28px; height: 28px; border-radius: 7px; background: #1D2433; display: flex; align-items: center; justify-content: center"><div style="width: 13px; height: 5px; border-radius: 2px; background: #FFE45C"></div></div>
+<span style="font-weight: 600; font-size: 16px; letter-spacing: -0.01em">DocChat</span>
+</div>
+<a href="chat-find-passages.html" style="height: 40px; box-sizing: border-box; border-radius: 8px; border: 1px solid #D5DAE0; display: flex; align-items: center; gap: 8px; padding: 0 12px; text-decoration: none; font-weight: 500">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New chat</a>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="chat-find-passages.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; background: #EEF1F4; text-decoration: none; font-weight: 500">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Chat</a>
+<a href="../library/library.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; text-decoration: none; color: #3B4250">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>Library<span style="margin-left: auto; font-size: 12px; color: #5A6272">4</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; text-decoration: none; color: #3B4250">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>Tasks</a>
+</div>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: #F4F6F8">
+<div style="display: flex; justify-content: space-between; font-size: 12px"><span style="font-weight: 500">Documents</span><span style="color: #5A6272">4 of 20</span></div>
+<div style="height: 4px; border-radius: 999px; background: #D5DAE0; overflow: hidden"><div style="width: 20%; height: 100%; background: #1D2433"></div></div>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0">
+<div style="width: 32px; height: 32px; border-radius: 50%; background: #D5DAE0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px">RA</div>
+<span style="font-weight: 500">[Your name]</span>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<div style="flex: 1; width: 100%; max-width: 800px; box-sizing: border-box; margin: 0 auto; padding: 40px 32px 24px; display: flex; flex-direction: column; gap: 22px">
+
+<div style="align-self: flex-end; max-width: 78%; background: #1D2433; color: #FFFFFF; padding: 12px 16px; border-radius: 14px 14px 4px 14px; font-size: 15px">How much notice does my landlord need to give before raising the rent?</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">5 passages from 2 documents</h2>
+<label style="margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: #3B4250; cursor: pointer">
+<span>Show match scores</span>
+<span role="switch" aria-checked="true" tabindex="0" style="width: 36px; height: 20px; border-radius: 999px; background: #1D2433; position: relative; display: inline-block"><span style="position: absolute; top: 2px; left: 18px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF"></span></span>
+</label>
+</div>
+<p style="margin: -10px 0 0; color: #5A6272">Answers are coming soon. For now, these are the passages DocChat would use, best match first.</p>
+
+<article style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 3px; box-shadow: 0 10px 22px -16px rgba(29,36,51,0.35); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 5px; border: 1px solid #1D2433; background: #FFE45C; font-size: 12px; font-weight: 600">1</span>
+<h3 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500">Tenancy agreement</h3>
+<span style="color: #5A6272; font-size: 13px">Page 3</span>
+<span style="margin-left: auto; font-size: 12px; font-weight: 500; background: #EEF1F4; color: #3B4250; padding: 2px 8px; border-radius: 999px">71% match</span>
+</header>
+<p style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 15px; line-height: 1.7; color: #3B4250">7.3 Any increase applies from the next rent payment date after notice is given. <mark style="background: #FFE45C; color: #1D2433; padding: 1px 2px; border-radius: 2px">7.4 The Landlord must give the Tenant not less than one month's notice in writing of any rent increase, stating the new rent and the date it takes effect.</mark> 7.5 If a notice does not follow this clause, the Tenant may write to the Landlord asking for it to be withdrawn…</p>
+<a href="../library/library.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none">Open page 3
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>
+</article>
+
+<article style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 3px; box-shadow: 0 10px 22px -16px rgba(29,36,51,0.35); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 5px; border: 1px solid #C7CED7; background: #FFFFFF; font-size: 12px; font-weight: 600">2</span>
+<h3 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500">Tenancy agreement</h3>
+<span style="color: #5A6272; font-size: 13px">Page 3</span>
+<span style="margin-left: auto; font-size: 12px; font-weight: 500; background: #EEF1F4; color: #3B4250; padding: 2px 8px; border-radius: 999px">64% match</span>
+</header>
+<p style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 15px; line-height: 1.7; color: #3B4250">7. Rent review. 7.1 The rent stated in clause 2.1 applies from the start date. <mark style="background: #FFE45C; color: #1D2433; padding: 1px 2px; border-radius: 2px">7.2 The Landlord may increase the rent once during the fixed term, no earlier than six months after the start date, by no more than the Consumer Prices Index rate plus one per cent.</mark></p>
+<a href="../library/library.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none">Open page 3
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>
+</article>
+
+<article style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 3px; box-shadow: 0 10px 22px -16px rgba(29,36,51,0.35); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 5px; border: 1px solid #C7CED7; background: #FFFFFF; font-size: 12px; font-weight: 600">3</span>
+<h3 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500">Tenancy agreement</h3>
+<span style="color: #5A6272; font-size: 13px">Page 4</span>
+<span style="margin-left: auto; font-size: 12px; font-weight: 500; background: #EEF1F4; color: #3B4250; padding: 2px 8px; border-radius: 999px">49% match</span>
+</header>
+<p style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 15px; line-height: 1.7; color: #3B4250"><mark style="background: #FFE45C; color: #1D2433; padding: 1px 2px; border-radius: 2px">11.1 The Tenant may end the tenancy at the end of the fixed term by giving at least one month's written notice, ending on the last day of the fixed term.</mark> 11.2 After the fixed term, the Tenant may end the periodic tenancy by giving at least one month's written notice…</p>
+<a href="../library/library.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none">Open page 4
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>
+</article>
+
+<article style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 3px; box-shadow: 0 10px 22px -16px rgba(29,36,51,0.35); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 5px; border: 1px solid #C7CED7; background: #FFFFFF; font-size: 12px; font-weight: 600">4</span>
+<h3 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500">Tenancy agreement</h3>
+<span style="color: #5A6272; font-size: 13px">Page 4</span>
+<span style="margin-left: auto; font-size: 12px; font-weight: 500; background: #EEF1F4; color: #3B4250; padding: 2px 8px; border-radius: 999px">42% match</span>
+</header>
+<p style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 15px; line-height: 1.7; color: #3B4250">9. Access and inspections. <mark style="background: #FFE45C; color: #1D2433; padding: 1px 2px; border-radius: 2px">9.1 The Landlord or their agent may enter the Property to inspect its condition or carry out repairs at reasonable times, after giving at least 24 hours' written notice.</mark></p>
+<a href="../library/library.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none">Open page 4
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>
+</article>
+
+<article style="background: #FFFFFF; border: 1px solid #D5DAE0; border-radius: 3px; box-shadow: 0 10px 22px -16px rgba(29,36,51,0.35); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<span style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 5px; border: 1px solid #C7CED7; background: #FFFFFF; font-size: 12px; font-weight: 600">5</span>
+<h3 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500">Employment contract</h3>
+<span style="color: #5A6272; font-size: 13px">Page 3</span>
+<span style="margin-left: auto; font-size: 12px; font-weight: 500; background: #EEF1F4; color: #3B4250; padding: 2px 8px; border-radius: 999px">31% match</span>
+</header>
+<p style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 15px; line-height: 1.7; color: #3B4250"><mark style="background: #FFE45C; color: #1D2433; padding: 1px 2px; border-radius: 2px">8.1 After probation, either party may end your employment by giving four weeks' notice in writing.</mark> 8.2 After five years of service, the notice the Company must give increases by one week for each further complete year…</p>
+<a href="../library/library.html" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-decoration: none">Open page 3
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>
+</article>
+
+<p style="margin: 0; font-size: 13px; color: #5A6272">Weaker matches are hidden. Try more specific words if the right passage isn't here.</p>
+</div>
+
+<form style="position: sticky; bottom: 0; width: 100%; max-width: 800px; box-sizing: border-box; margin: 0 auto; padding: 0 32px 24px">
+<label for="composer" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Ask about your documents</label>
+<div style="background: #FFFFFF; border: 1px solid #C7CED7; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 12px 30px -18px rgba(29,36,51,0.4)">
+<textarea id="composer" rows="2" placeholder="Ask about your documents" style="font-family: inherit; font-size: 15px; border: none; outline: none; resize: none; background: transparent; color: #1D2433"></textarea>
+<div style="display: flex; align-items: center; gap: 8px">
+<button type="button" style="font-family: inherit; font-size: 13px; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #D5DAE0; background: #FFFFFF; color: #1D2433; cursor: pointer; display: flex; align-items: center; gap: 6px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>All documents (4)
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<button type="submit" aria-label="Find passages" style="margin-left: auto; width: 38px; height: 38px; border-radius: 10px; border: none; background: #1D2433; color: #FFFFFF; cursor: pointer; display: flex; align-items: center; justify-content: center">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg></button>
+</div>
+</div>
+</form>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
