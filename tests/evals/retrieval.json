@@ -1,0 +1,131 @@
+{
+  "fixtures": [
+    { "file": "tenancy-agreement.pdf", "name": "Tenancy agreement.pdf" },
+    { "file": "employment-contract.pdf", "name": "Employment contract.pdf" }
+  ],
+  "questions": [
+    {
+      "id": "rent-amount",
+      "kind": "direct",
+      "question": "What is the monthly rent?",
+      "document": "Tenancy agreement.pdf",
+      "page": 2,
+      "quote": "The rent is 1,150 pounds per calendar month"
+    },
+    {
+      "id": "deposit-amount",
+      "kind": "direct",
+      "question": "How much is the deposit?",
+      "document": "Tenancy agreement.pdf",
+      "page": 2,
+      "quote": "the Tenant pays a deposit of 1,326 pounds"
+    },
+    {
+      "id": "salary",
+      "kind": "direct",
+      "question": "What is my annual salary?",
+      "document": "Employment contract.pdf",
+      "page": 2,
+      "quote": "Your salary is 68,500 pounds a year"
+    },
+    {
+      "id": "holiday-days",
+      "kind": "direct",
+      "question": "How many days of paid holiday do I get each year?",
+      "document": "Employment contract.pdf",
+      "page": 4,
+      "quote": "You are entitled to 25 days of paid holiday"
+    },
+    {
+      "id": "pension",
+      "kind": "direct",
+      "question": "How much does the company contribute to my pension?",
+      "document": "Employment contract.pdf",
+      "page": 2,
+      "quote": "The Company contributes 5 per cent of your basic salary"
+    },
+    {
+      "id": "pets",
+      "kind": "paraphrase",
+      "question": "Can I bring my pet with me when I move in?",
+      "document": "Tenancy agreement.pdf",
+      "page": 3,
+      "quote": "The Tenant must not keep any animal at the Property"
+    },
+    {
+      "id": "boiler",
+      "kind": "paraphrase",
+      "question": "My boiler broke and there's no hot water. How quickly does it have to be fixed?",
+      "document": "Tenancy agreement.pdf",
+      "page": 4,
+      "quote": "within 24 hours of being told about it"
+    },
+    {
+      "id": "rent-increase-notice",
+      "kind": "paraphrase",
+      "question": "How much warning do I get before the rent goes up?",
+      "document": "Tenancy agreement.pdf",
+      "page": 3,
+      "quote": "not less than one month's notice in writing of any rent increase"
+    },
+    {
+      "id": "short-sickness",
+      "kind": "paraphrase",
+      "question": "I was ill for three days. Do I need a note from my GP?",
+      "document": "Employment contract.pdf",
+      "page": 5,
+      "quote": "For absences of up to seven calendar days you must complete a self-certification form"
+    },
+    {
+      "id": "remote-work",
+      "kind": "paraphrase",
+      "question": "Am I allowed to work from home?",
+      "document": "Employment contract.pdf",
+      "page": 1,
+      "quote": "at least two days a week"
+    },
+    {
+      "id": "unused-holiday",
+      "kind": "paraphrase",
+      "question": "What happens to leave I haven't used by the end of the year?",
+      "document": "Employment contract.pdf",
+      "page": 4,
+      "quote": "You may carry over up to five days of unused holiday"
+    },
+    {
+      "id": "long-service-notice",
+      "kind": "paraphrase",
+      "question": "If they let me go after eight years there, how much notice am I owed?",
+      "document": "Employment contract.pdf",
+      "page": 3,
+      "quote": "increases by one week for each further complete year of employment"
+    },
+    {
+      "id": "guest-stays",
+      "kind": "boundary",
+      "question": "Can a friend stay with me for a month, and do I need permission?",
+      "document": "Tenancy agreement.pdf",
+      "page": 1,
+      "quote": "Guests who stay longer need the Landlord's written consent",
+      "note": "Clause 4.2 straddles the end of page 1's first chunk: the fourteen-night rule is in both chunks, the consent rule only in the second (short) one."
+    },
+    {
+      "id": "service-charge",
+      "kind": "boundary",
+      "question": "Who pays the council tax and the service charge for the communal areas?",
+      "document": "Tenancy agreement.pdf",
+      "page": 2,
+      "quote": "The Landlord pays the building insurance and the service charge",
+      "note": "Clause 6.7 straddles the end of page 2's first chunk: council tax is in both chunks, the service charge only in the second."
+    },
+    {
+      "id": "company-car",
+      "kind": "none",
+      "question": "Do I get a company car or a car allowance?",
+      "document": null,
+      "page": null,
+      "quote": null,
+      "note": "Neither document mentions cars. Its best score calibrates MIN_SIMILARITY."
+    }
+  ]
+}
