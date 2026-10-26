@@ -3,12 +3,11 @@ import "./lib/load-env";
 import { eq } from "drizzle-orm";
 
 import { chunkPages } from "@/server/ai/chunk";
-import { EMBEDDING_DIMENSIONS } from "@/server/ai/constants";
+import { embedChunks } from "@/server/ai/embed";
 import { db } from "@/server/db";
 import { chat, chunk, document, documentPage, message, task } from "@/server/db/schema";
 
 import { assertDevelopment } from "./lib/assert-development";
-import { fakeEmbedding } from "./lib/fake-embedding";
 import { resolveSeedUserId } from "./lib/seed-user";
 
 // Seeding deletes and recreates only this user's rows. Pass your own Clerk user ID to see the
@@ -39,6 +38,19 @@ const documents = [
 
 async function main() {
   assertDevelopment(process.env.NODE_ENV);
+
+  // The real chunker and real embeddings (through AI Gateway, so AI_GATEWAY_API_KEY must be
+  // set), so seeded documents behave like uploads in search. Embedded before the transaction,
+  // as indexing does; a few hundred tokens, a fraction of a cent.
+  const chunked = documents.map((doc) => chunkPages(doc.pages));
+  const embeddings = await Promise.all(
+    chunked.map((chunks) => embedChunks(SEED_USER_ID, chunks)),
+  ).catch((error: unknown) => {
+    throw new Error(
+      "Couldn't embed the sample chunks. Set AI_GATEWAY_API_KEY in .env.local (README, AI Gateway setup).",
+      { cause: error },
+    );
+  });
 
   await db.transaction(async (tx) => {
     // Cascades remove chunks and messages; tasks' source_chunk_id is set null first.
@@ -71,11 +83,10 @@ async function main() {
         })),
       );
 
-      // The real chunker, so offsets resolve against the page text like uploaded documents.
       const inserted = await tx
         .insert(chunk)
         .values(
-          chunkPages(doc.pages).map((c) => ({
+          chunked[docIndex]!.map((c, i) => ({
             documentId: created.id,
             userId: SEED_USER_ID,
             content: c.content,
@@ -84,7 +95,7 @@ async function main() {
             tokenCount: c.tokenCount,
             startOffset: c.startOffset,
             endOffset: c.endOffset,
-            embedding: fakeEmbedding(docIndex * 100 + c.position, EMBEDDING_DIMENSIONS),
+            embedding: embeddings[docIndex]![i]!,
           })),
         )
         .returning({ id: chunk.id });
