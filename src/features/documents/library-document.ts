@@ -46,6 +46,17 @@ export function isInProgress(doc: Pick<LibraryDocument, "status" | "stuck">): bo
   return state === "queued" || state === "reading";
 }
 
+// The reading status mark's text. Once every page is read, the chunks are being embedded: the
+// last step before Ready.
+export function readingLabel(
+  doc: Pick<LibraryDocument, "status" | "pagesRead" | "pageCount">,
+): string {
+  if (!doc.pageCount) return "Reading";
+  if (doc.status === "indexing" && doc.pagesRead >= doc.pageCount) return "Almost ready";
+  // pagesRead counts finished pages; the one being read is the next.
+  return `Reading page ${Math.min(doc.pagesRead + 1, doc.pageCount)} of ${doc.pageCount}`;
+}
+
 export function needsAttention(doc: Pick<LibraryDocument, "status" | "stuck">): boolean {
   const state = displayState(doc);
   return state === "failed" || state === "stopped";
