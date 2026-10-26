@@ -1,75 +1,42 @@
-import { ArrowUpIcon, MessageSquareIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupText,
-  InputGroupTextarea,
-} from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { countDocuments } from "@/features/documents/queries";
+import { FindPassages } from "@/features/chat/components/find-passages";
+import { listReadyDocuments } from "@/features/documents/queries";
 import { requireUserId } from "@/server/auth";
 
 export const metadata: Metadata = { title: "Chat · DocChat" };
 
+// TODO(chat, PR 6): stream answers with citations; this "find passages" mode is temporary.
 export default function ChatPage() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
-      <Empty className="flex-1">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <MessageSquareIcon />
-          </EmptyMedia>
-          <EmptyTitle>Ask anything about your documents</EmptyTitle>
-          <Suspense fallback={<Skeleton className="h-5 w-64" />}>
-            <ReadyDocuments />
-          </Suspense>
-        </EmptyHeader>
-      </Empty>
-
-      {/* TODO(ai): enable the composer when streaming chat lands. */}
-      <InputGroup data-disabled>
-        <InputGroupTextarea
-          disabled
-          aria-label="Message"
-          placeholder="Ask a question about your documents…"
-        />
-        <InputGroupAddon align="block-end">
-          <InputGroupText className="text-xs">Chat is coming soon</InputGroupText>
-          <InputGroupButton
-            variant="default"
-            size="icon-sm"
-            className="ml-auto"
-            disabled
-            aria-label="Send"
-          >
-            <ArrowUpIcon />
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
+    <div className="flex flex-1 flex-col">
+      <Suspense fallback={<ChatSkeleton />}>
+        <Chat />
+      </Suspense>
     </div>
   );
 }
 
-async function ReadyDocuments() {
+async function Chat() {
   const userId = await requireUserId();
-  const ready = await countDocuments(userId, "ready");
+  const documents = await listReadyDocuments(userId);
+  return <FindPassages documents={documents} />;
+}
 
+// Prerendered, so fixed sizes only.
+function ChatSkeleton() {
   return (
-    <EmptyDescription>
-      {ready === 0
-        ? "Add documents to your library first. Answers cite the passages they come from."
-        : `Answers come from your ${ready} ready ${ready === 1 ? "document" : "documents"}, with a citation for every claim.`}
-    </EmptyDescription>
+    <>
+      <div className="mx-auto flex w-full max-w-[800px] flex-1 flex-col items-center justify-center gap-3 px-4 py-10">
+        <Skeleton className="size-10 rounded-lg" />
+        <Skeleton className="h-6 w-72" />
+        <Skeleton className="h-5 w-80" />
+      </div>
+      <div className="mx-auto w-full max-w-[800px] px-4 pb-4 md:px-8 md:pb-6">
+        <Skeleton className="h-[118px] w-full rounded-[14px]" />
+      </div>
+    </>
   );
 }
