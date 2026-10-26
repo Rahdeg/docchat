@@ -14,8 +14,10 @@ export const env = createEnv({
     // Private Vercel Blob store for uploaded files. handleUpload() needs this static token to sign
     // browser uploads (OIDC isn't enough), and src/server/blob.ts passes it on every call.
     BLOB_READ_WRITE_TOKEN: z.string().startsWith("vercel_blob_rw_"),
-    // TODO(ai): make required when the AI SDK lands.
-    AI_API_KEY: z.string().min(1).optional(),
+    // Vercel AI Gateway key, for embeddings and (later) chat. Optional because deployments on
+    // Vercel authenticate with the project's OIDC token instead. Locally, set it: the pulled
+    // OIDC token expires after 12 hours. A key always wins over OIDC, even an invalid one.
+    AI_GATEWAY_API_KEY: z.string().min(1).optional(),
   },
   client: {
     // Clerk Frontend API key (pk_test_… / pk_live_…).
@@ -26,7 +28,7 @@ export const env = createEnv({
     DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
-    AI_API_KEY: process.env.AI_API_KEY,
+    AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
   // CI builds and tests run without a database. Never set this in a deployed environment.

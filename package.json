@@ -23,6 +23,7 @@
     "@clerk/ui": "1.41.1",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@vercel/blob": "2.8.2",
+    "ai": "7.0.153",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
     "drizzle-orm": "0.45.4",
