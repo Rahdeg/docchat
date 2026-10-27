@@ -10,7 +10,8 @@ import { EMBEDDING_MODEL, hasEmbeddingKey } from "@/server/ai/models";
 // set; CI skips it. Database modules load lazily so CI never connects.
 const canRun = !!process.env.DATABASE_URL && hasEmbeddingKey;
 
-describe.skipIf(!canRun)("indexDocument (integration)", () => {
+// Real embedding calls are paced (src/server/ai/embed.ts), so allow more than the default 5 s.
+describe.skipIf(!canRun)("indexDocument (integration)", { timeout: 60_000 }, () => {
   const alice = `test_alice_${randomUUID()}`;
   const bob = `test_bob_${randomUUID()}`;
   const fixture = (name: string) => new Uint8Array(readFileSync(`tests/fixtures/${name}`));

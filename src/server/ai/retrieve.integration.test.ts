@@ -175,74 +175,79 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
   });
 });
 
-describe.skipIf(!canEmbed)("searchPassages (integration, live embeddings)", () => {
-  const alice = `test_alice_${randomUUID()}`;
-  const bob = `test_bob_${randomUUID()}`;
-  const question = "How much notice do I need to give to end the tenancy?";
-  let m: Modules;
-  let indexDocument: typeof import("@/server/ingest/index-document").indexDocument;
-  const documents: Record<string, string> = {};
+// Real embedding calls are paced (src/server/ai/embed.ts), so allow more than the default 5 s.
+describe.skipIf(!canEmbed)(
+  "searchPassages (integration, live embeddings)",
+  { timeout: 60_000 },
+  () => {
+    const alice = `test_alice_${randomUUID()}`;
+    const bob = `test_bob_${randomUUID()}`;
+    const question = "How much notice do I need to give to end the tenancy?";
+    let m: Modules;
+    let indexDocument: typeof import("@/server/ingest/index-document").indexDocument;
+    const documents: Record<string, string> = {};
 
-  beforeAll(async () => {
-    m = await loadModules();
-    ({ indexDocument } = await import("@/server/ingest/index-document"));
-    const bytes = new Uint8Array(readFileSync("tests/fixtures/two-pages.pdf"));
+    beforeAll(async () => {
+      m = await loadModules();
+      ({ indexDocument } = await import("@/server/ingest/index-document"));
+      const bytes = new Uint8Array(readFileSync("tests/fixtures/two-pages.pdf"));
 
-    // The same file for both users.
-    for (const userId of [alice, bob]) {
-      const [doc] = await m.db
-        .insert(m.schema.document)
-        .values({
-          userId,
-          name: "Tenancy agreement.pdf",
-          mimeType: "application/pdf",
-          sizeBytes: bytes.length,
-          blobPathname: `users/${userId}/${randomUUID()}-Tenancy agreement.pdf`,
-        })
-        .returning({ id: m.schema.document.id });
-      documents[userId] = doc!.id;
-      await indexDocument(userId, doc!.id, { load: async () => bytes });
-    }
-  }, 120_000);
+      // The same file for both users.
+      for (const userId of [alice, bob]) {
+        const [doc] = await m.db
+          .insert(m.schema.document)
+          .values({
+            userId,
+            name: "Tenancy agreement.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: bytes.length,
+            blobPathname: `users/${userId}/${randomUUID()}-Tenancy agreement.pdf`,
+          })
+          .returning({ id: m.schema.document.id });
+        documents[userId] = doc!.id;
+        await indexDocument(userId, doc!.id, { load: async () => bytes });
+      }
+    }, 120_000);
 
-  afterAll(async () => {
-    const users = [alice, bob];
-    await m.db.delete(m.schema.document).where(m.orm.inArray(m.schema.document.userId, users));
-    await m.db.delete(m.schema.aiUsage).where(m.orm.inArray(m.schema.aiUsage.userId, users));
-  });
-
-  it("never returns another user's passages, even for an identical document and query", async () => {
-    const forBob = await m.retrieve.searchPassages({ userId: bob, query: question });
-    const forAlice = await m.retrieve.searchPassages({ userId: alice, query: question });
-
-    expect(forBob.length).toBeGreaterThan(0);
-    expect(forBob.every((p) => p.documentId === documents[bob])).toBe(true);
-    expect(forAlice.every((p) => p.documentId === documents[alice])).toBe(true);
-    // PDF extraction turns ' into ’.
-    expect(forBob[0]!.content).toMatch(/two months[’'] notice/);
-  });
-
-  it("returns nothing when asked to search another user's document", async () => {
-    const passages = await m.retrieve.searchPassages({
-      userId: bob,
-      query: question,
-      documentIds: [documents[alice]!],
+    afterAll(async () => {
+      const users = [alice, bob];
+      await m.db.delete(m.schema.document).where(m.orm.inArray(m.schema.document.userId, users));
+      await m.db.delete(m.schema.aiUsage).where(m.orm.inArray(m.schema.aiUsage.userId, users));
     });
 
-    expect(passages).toEqual([]);
-  });
+    it("never returns another user's passages, even for an identical document and query", async () => {
+      const forBob = await m.retrieve.searchPassages({ userId: bob, query: question });
+      const forAlice = await m.retrieve.searchPassages({ userId: alice, query: question });
 
-  it("records the query's embedding usage", async () => {
-    const rows = await m.db
-      .select()
-      .from(m.schema.aiUsage)
-      .where(
-        m.orm.and(
-          m.orm.eq(m.schema.aiUsage.userId, bob),
-          m.orm.eq(m.schema.aiUsage.kind, "embed-query"),
-        ),
-      );
+      expect(forBob.length).toBeGreaterThan(0);
+      expect(forBob.every((p) => p.documentId === documents[bob])).toBe(true);
+      expect(forAlice.every((p) => p.documentId === documents[alice])).toBe(true);
+      // PDF extraction turns ' into ’.
+      expect(forBob[0]!.content).toMatch(/two months[’'] notice/);
+    });
 
-    expect(rows.length).toBeGreaterThanOrEqual(1);
-  });
-});
+    it("returns nothing when asked to search another user's document", async () => {
+      const passages = await m.retrieve.searchPassages({
+        userId: bob,
+        query: question,
+        documentIds: [documents[alice]!],
+      });
+
+      expect(passages).toEqual([]);
+    });
+
+    it("records the query's embedding usage", async () => {
+      const rows = await m.db
+        .select()
+        .from(m.schema.aiUsage)
+        .where(
+          m.orm.and(
+            m.orm.eq(m.schema.aiUsage.userId, bob),
+            m.orm.eq(m.schema.aiUsage.kind, "embed-query"),
+          ),
+        );
+
+      expect(rows.length).toBeGreaterThanOrEqual(1);
+    });
+  },
+);
