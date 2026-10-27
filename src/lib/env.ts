@@ -14,9 +14,16 @@ export const env = createEnv({
     // Private Vercel Blob store for uploaded files. handleUpload() needs this static token to sign
     // browser uploads (OIDC isn't enough), and src/server/blob.ts passes it on every call.
     BLOB_READ_WRITE_TOKEN: z.string().startsWith("vercel_blob_rw_"),
-    // Vercel AI Gateway key, for embeddings and (later) chat. Optional because deployments on
-    // Vercel authenticate with the project's OIDC token instead. Locally, set it: the pulled
-    // OIDC token expires after 12 hours. A key always wins over OIDC, even an invalid one.
+    // Who embeds chunks and queries (docs/adr/0005). "google" is the Gemini API's free tier: for
+    // development with fictional documents only. Production switches to "gateway" before launch.
+    // Changing it means re-embedding: run `pnpm db:backfill-embeddings`.
+    EMBEDDING_PROVIDER: z.enum(["google", "gateway"]).default("google"),
+    // Gemini API key (Google AI Studio), used when EMBEDDING_PROVIDER is "google".
+    GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
+    // Vercel AI Gateway key, for embeddings when EMBEDDING_PROVIDER is "gateway" and (later)
+    // chat. Optional because deployments on Vercel authenticate with the project's OIDC token
+    // instead. Locally, set it: the pulled OIDC token expires after 12 hours. A key always wins
+    // over OIDC, even an invalid one.
     AI_GATEWAY_API_KEY: z.string().min(1).optional(),
   },
   client: {
@@ -28,6 +35,8 @@ export const env = createEnv({
     DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
+    EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER,
+    GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },

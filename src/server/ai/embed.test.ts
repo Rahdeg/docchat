@@ -5,20 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMBEDDING_DIMENSIONS } from "./constants";
 
 const state = vi.hoisted(() => ({
-  model: undefined as unknown,
+  config: {
+    model: undefined as unknown,
+    providerOptions: (task: "document" | "query") => ({ test: { task } }),
+    limits: { maxValues: 100, maxTokens: 50_000, parallel: 3, minIntervalMs: 0, maxRetries: 3 },
+  },
   recordUsage: vi.fn(),
 }));
 
 vi.mock("./models", () => ({
   EMBEDDING_MODEL: "test/embedding",
-  get embeddingModel() {
-    return state.model;
-  },
+  embeddingConfig: state.config,
 }));
 vi.mock("./usage", () => ({ recordUsage: state.recordUsage }));
 
-const { BATCH_MAX_TOKENS, BATCH_MAX_VALUES, embedChunks, embedQuery, toBatches } =
-  await import("./embed");
+const { callModel, embedChunks, embedQuery, retryDelayMs, toBatches } = await import("./embed");
+
+const BATCH_MAX_VALUES = state.config.limits.maxValues;
+const BATCH_MAX_TOKENS = state.config.limits.maxTokens;
 
 // What the fake provider returns for one request.
 type Reply = { embeddings: number[][]; usage?: { tokens: number } };
@@ -33,7 +37,7 @@ function useModel(reply: (options: { values: string[] }) => Promise<Reply>) {
     maxEmbeddingsPerCall: 2048,
     doEmbed: async (options) => ({ ...(await reply(options)), warnings: [] }),
   });
-  state.model = model;
+  state.config.model = model;
   return model;
 }
 
@@ -43,7 +47,21 @@ const texts = (count: number, tokenCount = 10) =>
 beforeEach(() => {
   vi.clearAllMocks();
   state.recordUsage.mockResolvedValue(undefined);
+  state.config.limits = { ...state.config.limits, parallel: 3, minIntervalMs: 0, maxRetries: 3 };
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
+
+function rateLimited(options: { headers?: Record<string, string>; body?: string } = {}) {
+  return new APICallError({
+    message: "Rate limited",
+    url: "https://example.test",
+    requestBodyValues: {},
+    statusCode: 429,
+    isRetryable: true,
+    responseHeaders: options.headers,
+    responseBody: options.body,
+  });
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -133,15 +151,7 @@ describe("embedChunks", () => {
     let attempts = 0;
     useModel(async ({ values }) => {
       attempts += 1;
-      if (attempts === 1) {
-        throw new APICallError({
-          message: "Rate limited",
-          url: "https://ai-gateway.vercel.sh",
-          requestBodyValues: {},
-          statusCode: 429,
-          isRetryable: true,
-        });
-      }
+      if (attempts === 1) throw rateLimited();
       return { embeddings: values.map(vectorFor) };
     });
 
@@ -150,6 +160,29 @@ describe("embedChunks", () => {
 
     expect((await pending).map((v) => v[0])).toEqual([0, 1]);
     expect(attempts).toBe(2);
+  });
+
+  it("sends the provider's document options", async () => {
+    const model = useModel(async ({ values }) => ({ embeddings: values.map(vectorFor) }));
+
+    await embedChunks("user_a", texts(2));
+
+    expect(model.doEmbedCalls[0]!.providerOptions).toEqual({ test: { task: "document" } });
+  });
+
+  it("gives up after maxRetries", async () => {
+    vi.useFakeTimers();
+    state.config.limits.maxRetries = 2;
+    let attempts = 0;
+    useModel(async () => {
+      attempts += 1;
+      throw rateLimited();
+    });
+
+    const pending = expect(embedChunks("user_a", texts(2))).rejects.toThrow("Rate limited");
+    await vi.runAllTimersAsync();
+    await pending;
+    expect(attempts).toBe(3);
   });
 
   it("fails when the model returns vectors of the wrong size", async () => {
@@ -167,16 +200,77 @@ describe("embedChunks", () => {
 
 describe("embedQuery", () => {
   it("embeds the query and records embed-query usage", async () => {
-    useModel(async () => ({ embeddings: [vectorFor("3")], usage: { tokens: 5 } }));
+    const model = useModel(async () => ({ embeddings: [vectorFor("3")], usage: { tokens: 5 } }));
 
     const vector = await embedQuery("user_b", "notice period");
 
     expect(vector).toHaveLength(EMBEDDING_DIMENSIONS);
+    expect(model.doEmbedCalls[0]!.providerOptions).toEqual({ test: { task: "query" } });
     expect(state.recordUsage).toHaveBeenCalledWith({
       userId: "user_b",
       kind: "embed-query",
       model: "test/embedding",
       tokens: 5,
     });
+  });
+});
+
+describe("retryDelayMs", () => {
+  it("waits as long as a retry-after header asks", () => {
+    expect(retryDelayMs(rateLimited({ headers: { "retry-after": "12" } }), 0)).toBe(12_000);
+  });
+
+  it("reads Google's retryDelay from the error body", () => {
+    const body = JSON.stringify({
+      error: {
+        code: 429,
+        details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "37s" }],
+      },
+    });
+    expect(retryDelayMs(rateLimited({ body }), 0)).toBe(37_000);
+  });
+
+  it("backs off from 5 s, doubling up to a minute, without a hint", () => {
+    expect([0, 1, 2, 3, 4].map((attempt) => retryDelayMs(rateLimited(), attempt))).toEqual([
+      5_000, 10_000, 20_000, 40_000, 60_000,
+    ]);
+  });
+
+  it("retries other retryable errors sooner, and not the rest", () => {
+    const serverError = new APICallError({
+      message: "Unavailable",
+      url: "https://example.test",
+      requestBodyValues: {},
+      statusCode: 503,
+      isRetryable: true,
+    });
+    const badRequest = new APICallError({
+      message: "Bad request",
+      url: "https://example.test",
+      requestBodyValues: {},
+      statusCode: 400,
+      isRetryable: false,
+    });
+    expect(retryDelayMs(serverError, 1)).toBe(2_000);
+    expect(retryDelayMs(badRequest, 0)).toBeNull();
+    expect(retryDelayMs(new Error("boom"), 0)).toBeNull();
+  });
+});
+
+describe("callModel", () => {
+  it("spaces requests out by minIntervalMs", async () => {
+    vi.useFakeTimers();
+    state.config.limits.minIntervalMs = 700;
+    const started: number[] = [];
+    const call = async () => {
+      started.push(Date.now());
+    };
+
+    const all = Promise.all([callModel(call), callModel(call), callModel(call)]);
+    await vi.runAllTimersAsync();
+    await all;
+
+    expect(started[1]! - started[0]!).toBeGreaterThanOrEqual(700);
+    expect(started[2]! - started[1]!).toBeGreaterThanOrEqual(700);
   });
 });
