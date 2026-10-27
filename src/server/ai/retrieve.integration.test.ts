@@ -74,7 +74,7 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
       .from(m.schema.chunk)
       .where(m.orm.eq(m.schema.chunk.userId, me))
       .limit(1);
-    query = mine!.embedding!;
+    query = mine!.embedding;
   }, 120_000);
 
   afterAll(async () => {
@@ -156,7 +156,7 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
       .where(m.orm.eq(m.schema.chunk.documentId, other))
       .limit(1);
 
-    const passages = await m.retrieve.searchByEmbedding(chunkFromOther!.embedding!, {
+    const passages = await m.retrieve.searchByEmbedding(chunkFromOther!.embedding, {
       userId: me,
     });
 
