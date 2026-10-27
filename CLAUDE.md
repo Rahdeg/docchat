@@ -20,8 +20,9 @@ don't duplicate or hand-edit the managed block:
 - Clerk (`@clerk/nextjs` 7) for auth, themed with the shadcn theme from `@clerk/ui`
 - Vercel Blob (private store) for uploaded files; `unpdf` for PDF text; `gpt-tokenizer` (cl100k)
   for chunk sizes
-- Vercel AI SDK v7 (`ai`) through Vercel AI Gateway; embeddings with
-  `openai/text-embedding-3-small` (1536 dimensions, `docs/adr/0005`)
+- Vercel AI SDK v7 (`ai`). Embeddings (1536 dimensions, `docs/adr/0005`) from
+  `EMBEDDING_PROVIDER`: `google` (default; `@ai-sdk/google`, `gemini-embedding-001`, free tier,
+  development only) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`, production)
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
   serving stored files (`src/app/api/documents/`), and later chat streaming
@@ -48,7 +49,7 @@ or run `corepack enable pnpm` once if you want a bare `pnpm`.
 | `pnpm db:migrate`             | Apply pending migrations (direct connection)     |
 | `pnpm db:studio`              | Drizzle Studio against `DATABASE_URL_UNPOOLED`   |
 | `pnpm db:seed`                | Reset and insert sample data (development only)  |
-| `pnpm db:backfill-embeddings` | Embed chunks of ready documents that have none   |
+| `pnpm db:backfill-embeddings` | (Re-)embed chunks missing a current-model vector |
 | `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration    |
 
 `pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
@@ -119,6 +120,10 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   direct string; drizzle-kit uses it, since migrations can break through PgBouncer.
 - Schema changes: edit `src/server/db/schema/`, run `pnpm db:generate`, read the SQL, then
   `pnpm db:migrate`. Commit the migration and its snapshot. Never use `drizzle-kit push`.
+- `pnpm db:migrate` applies all pending migrations in one transaction: if one fails, the ones
+  before it roll back too. A migration that needs a data backfill first (like 0005, embeddings
+  `NOT NULL`) only works on branches where that backfill can run beforehand; on others, remove
+  the old rows first.
 - Anything Drizzle can't express (extensions) goes in a custom migration:
   `pnpm db:generate --custom --name=<name>`.
 - Queries live in `src/features/<area>/queries.ts`, start with `import "server-only"`, take
@@ -127,15 +132,15 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Every user-data table has a `user_id` column with an index. Child tables (`chunk`, `message`)
   copy it from their parent so they can be filtered without a join.
 - Multi-row writes that must succeed together (a document's chunks) use `db.transaction`.
-- `EMBEDDING_DIMENSIONS` in `src/server/ai/constants.ts` must match the embedding model
-  (`EMBEDDING_MODEL_DIMENSIONS` in `src/server/ai/models.ts`; a unit test checks both). Changing
-  it needs a migration and re-embedding; a unit test fails if the migration is missing.
+- `EMBEDDING_DIMENSIONS` in `src/server/ai/constants.ts` must match every embedding model's
+  output (`EMBEDDING_CONFIGS` in `src/server/ai/models.ts`; a unit test checks them). Changing it
+  needs a migration and re-embedding; a unit test fails if the migration is missing.
 - Scripts and drizzle-kit run with `--conditions=react-server` so `server-only` imports resolve
   outside Next. The `db:*` scripts already do this.
 - Integration tests (`*.integration.test.ts`) use `describe.skipIf(!process.env.DATABASE_URL)` and
-  import database modules lazily. Tests that call AI Gateway (anything that indexes or searches
-  with a real query) also skip without `AI_GATEWAY_API_KEY`. CI has neither and sets
-  `SKIP_ENV_VALIDATION`.
+  import database modules lazily. Tests that embed for real (anything that indexes or searches
+  with a real query) also skip unless `hasEmbeddingKey` (`src/server/ai/models.ts`): the
+  configured provider's key is set. CI has neither and sets `SKIP_ENV_VALIDATION`.
 
 ## Files and indexing rules (Vercel Blob)
 
@@ -160,30 +165,41 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   in one transaction. A retry puts the document back to `uploaded`; never insert chunks elsewhere.
 - Chunks: ~500 tokens, ~15% overlap, whole sentences, never across pages. `startOffset` and
   `endOffset` index into `document_page.text`, and `text.slice(start, end) === content` must hold
-  (`docs/adr/0004`). `chunk.embedding` is `NOT NULL`: chunks are embedded before the transaction
-  that stores them, and a document is `ready` only when all of them are. While embedding, the
-  Library shows "Almost ready".
+  (`docs/adr/0004`). `chunk.embedding` and `chunk.embedding_model` are `NOT NULL`: chunks are
+  embedded before the transaction that stores them, and a document is `ready` only when all of
+  them are. While embedding, the Library shows "Almost ready".
 - Regenerate the PDF fixtures with `node tests/fixtures/make-pdfs.mjs`.
 
-## AI rules (AI SDK + AI Gateway)
+## AI rules (AI SDK, Gemini free tier, AI Gateway)
 
-- Read `.claude/skills/ai-sdk` and the installed docs in `node_modules/ai/docs/` before writing AI
-  SDK code; don't write it from memory.
-- Every model call goes through the gateway instance in `src/server/ai/models.ts`
-  (`createGateway({ apiKey: env.AI_GATEWAY_API_KEY })`), with `provider/model` IDs. Don't install
-  provider packages or read keys from `process.env`.
-- `AI_GATEWAY_API_KEY` is optional in env: Vercel deployments authenticate with OIDC. Locally it's
-  required (indexing, search, the seed and the eval). A key always wins over OIDC, even an invalid
-  one. The model needs paid gateway credits; the free tier answers 403.
-- Embed only through `src/server/ai/embed.ts` (`embedChunks`, `embedQuery`). It batches (100
-  texts, 50k tokens), retries, validates every vector's size, and writes an `ai_usage` row after
+- Read `.claude/skills/ai-sdk` and the installed docs in `node_modules/ai/docs/` (and
+  `node_modules/@ai-sdk/google/docs/`) before writing AI SDK code; don't write it from memory.
+- **The Gemini free tier (`EMBEDDING_PROVIDER=google`, the default) is for development with
+  fictional documents only**: seed data, eval fixtures, sample uploads. Google may use free-tier
+  content to improve its products. Never point it at real users' documents. Production switches
+  to `EMBEDDING_PROVIDER=gateway` before launch (`docs/adr/0005`).
+- Models and providers are configured only in `src/server/ai/models.ts`: `embeddingConfig` (model,
+  task-type options, request limits, similarity floor) for the current provider, and the `gateway`
+  instance for chat later. Keys come from `env`, never `process.env`. Don't add other provider
+  packages.
+- Keys: `GOOGLE_GENERATIVE_AI_API_KEY` for `google`. `AI_GATEWAY_API_KEY` for `gateway`, optional
+  on Vercel (OIDC); a key always wins over OIDC, even an invalid one. The gateway needs paid
+  credits for this model; its free tier answers 403.
+- Embed only through `src/server/ai/embed.ts` (`embedChunks`, `embedQuery`). It batches within the
+  provider's limits, spaces requests out (Gemini: one at a time, 700 ms apart), retries 429s as
+  long as the provider asks, validates every vector's size, and writes an `ai_usage` row after
   each call. Don't call `embed`/`embedMany` directly.
+- Every chunk stores `embedding_model`. Search only uses chunks from the current
+  `EMBEDDING_MODEL`. After changing `EMBEDDING_PROVIDER`, run `pnpm db:backfill-embeddings` (it
+  re-embeds every other-model chunk) and `pnpm eval:retrieval`, then set that provider's
+  `minSimilarity`.
 - Vector search lives in `src/server/ai/retrieve.ts`: raw SQL with
   `set local hnsw.iterative_scan = relaxed_order` inside its own transaction, so the user filter
   can't cut results short (`docs/adr/0005`). Never use a session-wide `set` (the pooled connection
   is shared).
 - `searchPassages` has no similarity floor by default; callers that show results pass
-  `MIN_SIMILARITY` (`findPassages` does). The eval relies on the raw ranking.
+  `MIN_SIMILARITY` (`findPassages` does), which is per model (Gemini 0.55, calibrated). The eval
+  relies on the raw ranking.
 - Before and after changing the embedding model, chunking or search, run `pnpm eval:retrieval`
   and commit both results files. If the fixtures or chunker change, `retrieval-cases.test.ts` says
   which questions need new pages or quotes.
