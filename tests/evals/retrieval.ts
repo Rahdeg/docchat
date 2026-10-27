@@ -206,7 +206,10 @@ async function main() {
 
   // Save.
   const gitSha = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
-  const dirty = execSync("git status --porcelain", { encoding: "utf8" }).trim().length > 0;
+  // Uncommitted changes other than earlier results files.
+  const dirty =
+    execSync("git status --porcelain -- . ':!tests/evals/results'", { encoding: "utf8" }).trim()
+      .length > 0;
   const output = {
     date: startedAt.toISOString(),
     git: { sha: gitSha, dirty },
