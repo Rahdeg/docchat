@@ -109,6 +109,13 @@ async function main() {
   }
   const searchMs = Math.round(performance.now() - searchStart);
 
+  // Off-topic probes: not scored, only their best score is kept, for the floor.
+  const offTopic: { question: string; bestSimilarity: number }[] = [];
+  for (const question of cases.offTopic) {
+    const [best] = await searchPassages({ userId: EVAL_USER_ID, query: question, limit: 1 });
+    offTopic.push({ question, bestSimilarity: round(best?.similarity ?? 0) });
+  }
+
   // Metrics over the questions that have a right answer.
   const answerable = results.filter((r) => r.kind !== "none");
   const hitAt = (k: number) =>
@@ -122,7 +129,11 @@ async function main() {
     mrr: round(mrr),
   };
 
-  // Floor calibration: irrelevant passages should score below the floor, right ones above it.
+  // Floor calibration: the floor belongs above what a question the documents can't answer
+  // scores, and below every right passage. When the no-answer question is on-topic (it shares
+  // vocabulary with a document), it can score as high as right passages; then the floor can
+  // only hide unrelated questions, so it goes between the off-topic probes and the right ones.
+  const offTopicBest = Math.max(...offTopic.map((o) => o.bestSimilarity));
   const noAnswerBest = Math.max(
     ...results.filter((r) => r.kind === "none").map((r) => r.top[0]?.similarity ?? 0),
   );
@@ -131,15 +142,19 @@ async function main() {
   const belowFloor = answerable.filter(
     (r) => r.hitSimilarity !== null && r.hitSimilarity < MIN_SIMILARITY,
   );
+  const below = (score: number) => lowestHit !== null && score < lowestHit;
+  const separates = below(noAnswerBest) ? "no-answer" : below(offTopicBest) ? "off-topic" : null;
+  const floorFrom = separates === "no-answer" ? noAnswerBest : offTopicBest;
   const calibration = {
     minSimilarity: MIN_SIMILARITY,
     noAnswerBestSimilarity: noAnswerBest,
+    offTopicBestSimilarity: offTopicBest,
     lowestHitSimilarity: lowestHit,
-    suggestedFloor:
-      lowestHit !== null && noAnswerBest < lowestHit
-        ? round((noAnswerBest + lowestHit) / 2, 2)
-        : null,
+    // Halfway between the highest score that should be hidden and the lowest right passage.
+    suggestedFloor: separates && lowestHit !== null ? round((floorFrom + lowestHit) / 2, 2) : null,
+    separates,
     hitsBelowFloor: belowFloor.map((r) => r.id),
+    offTopic,
   };
 
   // Report.
@@ -166,18 +181,22 @@ async function main() {
   }
 
   console.log("\nSimilarity floor");
+  console.log(`  best score, off-topic questions  ${offTopicBest.toFixed(3)}`);
   console.log(`  best score, no-answer question   ${noAnswerBest.toFixed(3)}`);
   console.log(`  lowest score of a right passage  ${lowestHit?.toFixed(3) ?? "n/a"}`);
   console.log(`  MIN_SIMILARITY                   ${MIN_SIMILARITY}`);
-  if (calibration.suggestedFloor !== null) {
-    console.log(`  a floor between them, e.g.       ${calibration.suggestedFloor}`);
-  } else {
+  if (separates === "no-answer") {
+    console.log(`  suggested floor                  ${calibration.suggestedFloor}`);
+  } else if (separates === "off-topic") {
     console.log(
-      "  The no-answer question scores as high as a right passage: no floor separates them.",
+      `  suggested floor                  ${calibration.suggestedFloor} (hides off-topic ` +
+        "questions; the no-answer question is on-topic and scores like a right passage)",
     );
+  } else {
+    console.log("  No floor separates wrong passages from right ones.");
   }
-  if (noAnswerBest >= MIN_SIMILARITY) {
-    console.warn(`  ! The no-answer question's best passage (${noAnswerBest}) passes the floor.`);
+  if (offTopicBest >= MIN_SIMILARITY) {
+    console.warn(`  ! An off-topic question's best passage (${offTopicBest}) passes the floor.`);
   }
   for (const r of belowFloor) {
     console.warn(

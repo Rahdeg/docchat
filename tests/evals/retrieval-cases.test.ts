@@ -65,6 +65,10 @@ describe("retrieval eval cases", () => {
     },
   );
 
+  it("has off-topic probes for calibrating the floor", () => {
+    expect(cases.offTopic.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("has no expected passage for the unanswerable question", () => {
     const none = cases.questions.filter((q) => q.kind === "none");
     expect(none).toHaveLength(1);

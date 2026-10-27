@@ -1,7 +1,18 @@
 {
   "fixtures": [
-    { "file": "tenancy-agreement.pdf", "name": "Tenancy agreement.pdf" },
-    { "file": "employment-contract.pdf", "name": "Employment contract.pdf" }
+    {
+      "file": "tenancy-agreement.pdf",
+      "name": "Tenancy agreement.pdf"
+    },
+    {
+      "file": "employment-contract.pdf",
+      "name": "Employment contract.pdf"
+    }
+  ],
+  "offTopic": [
+    "What's a good recipe for banana bread?",
+    "Who won the 1998 World Cup?",
+    "How do I reset my router?"
   ],
   "questions": [
     {

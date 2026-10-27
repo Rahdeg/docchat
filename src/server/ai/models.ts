@@ -60,7 +60,10 @@ export const EMBEDDING_CONFIGS: Record<EmbeddingProvider, EmbeddingConfig> = {
       } satisfies GoogleEmbeddingModelOptions,
     }),
     limits: { maxValues: 20, maxTokens: 10_000, parallel: 1, minIntervalMs: 700, maxRetries: 6 },
-    minSimilarity: 0.25,
+    // Gemini's scores sit in a narrow, high band. First eval run (2026-10-27): right passages
+    // 0.599 to 0.745, off-topic questions at most 0.503, the on-topic no-answer question 0.640.
+    // 0.55 hides unrelated questions and keeps every right passage (docs/adr/0005).
+    minSimilarity: 0.55,
   },
   // Vercel AI Gateway (paid credits): production. OpenAI caps a request at 2048 inputs and about
   // 300k tokens; smaller batches keep a retry cheap.
@@ -70,6 +73,7 @@ export const EMBEDDING_CONFIGS: Record<EmbeddingProvider, EmbeddingConfig> = {
     model: gateway.embeddingModel("openai/text-embedding-3-small"),
     providerOptions: () => undefined,
     limits: { maxValues: 100, maxTokens: 50_000, parallel: 3, minIntervalMs: 0, maxRetries: 3 },
+    // Not calibrated yet: run the eval with EMBEDDING_PROVIDER=gateway before launch.
     minSimilarity: 0.25,
   },
 };

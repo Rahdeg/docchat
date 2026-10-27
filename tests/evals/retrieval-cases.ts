@@ -30,6 +30,9 @@ const unanswerable = z.object({
 
 export const evalCasesSchema = z.object({
   fixtures: z.array(z.object({ file: z.string(), name: z.string() })).min(1),
+  // Questions nothing like the documents. Not scored; their best scores show what an unrelated
+  // question looks like, for setting MIN_SIMILARITY when the no-answer question is on-topic.
+  offTopic: z.array(z.string().min(3).max(500)).min(1),
   questions: z.array(z.discriminatedUnion("kind", [answerable, unanswerable])).min(1),
 });
 
