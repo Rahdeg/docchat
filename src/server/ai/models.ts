@@ -83,3 +83,8 @@ export const embeddingConfig = EMBEDDING_CONFIGS[EMBEDDING_PROVIDER];
 export const EMBEDDING_MODEL = embeddingConfig.id;
 
 export const MIN_SIMILARITY = embeddingConfig.minSimilarity;
+
+// Whether the configured provider has a key here. Tests that embed for real skip without one.
+// (On Vercel the gateway can authenticate with OIDC instead.)
+export const hasEmbeddingKey =
+  EMBEDDING_PROVIDER === "google" ? !!env.GOOGLE_GENERATIVE_AI_API_KEY : !!env.AI_GATEWAY_API_KEY;

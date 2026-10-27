@@ -71,8 +71,12 @@ export const chunk = pgTable(
     // text.slice(startOffset, endOffset).
     startOffset: integer("start_offset").notNull(),
     endOffset: integer("end_offset").notNull(),
-    // TODO(embeddings, PR 5): make this notNull again once indexing embeds every chunk.
+    // TODO(embeddings, PR 5): make both notNull once existing chunks are backfilled.
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
+    // The model that made `embedding` (EMBEDDING_MODEL, e.g. "google/gemini-embedding-001").
+    // Vectors from different models can't be compared: search skips chunks from other models,
+    // and `pnpm db:backfill-embeddings` re-embeds them.
+    embeddingModel: text("embedding_model"),
     createdAt: createdAt(),
   },
   (t) => [

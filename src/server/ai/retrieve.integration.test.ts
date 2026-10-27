@@ -3,17 +3,20 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { hasEmbeddingKey } from "./models";
+
 // Vector search against the real database. Modules load lazily so CI (no database) never
 // connects. The first block uses made-up vectors and needs only DATABASE_URL; the second
-// indexes a fixture through AI Gateway and also needs AI_GATEWAY_API_KEY.
+// indexes a fixture with EMBEDDING_PROVIDER and also needs that provider's key.
 const hasDatabase = !!process.env.DATABASE_URL;
-const hasGateway = hasDatabase && !!process.env.AI_GATEWAY_API_KEY;
+const canEmbed = hasDatabase && hasEmbeddingKey;
 
 type Modules = {
   db: typeof import("@/server/db").db;
   schema: typeof import("@/server/db/schema");
   orm: typeof import("drizzle-orm");
   retrieve: typeof import("./retrieve");
+  model: string;
 };
 
 async function loadModules(): Promise<Modules> {
@@ -22,6 +25,7 @@ async function loadModules(): Promise<Modules> {
     schema: await import("@/server/db/schema"),
     orm: await import("drizzle-orm"),
     retrieve: await import("./retrieve"),
+    model: (await import("./models")).EMBEDDING_MODEL,
   };
 }
 
@@ -39,8 +43,10 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
   // Points at one of my chunks, so it has a clear nearest neighbour.
   let query: number[];
 
-  // Inserts a ready document with `count` chunks whose vectors Postgres draws at random.
-  async function seedDocument(userId: string, count: number, status = "ready" as const) {
+  // Inserts a ready document with `count` chunks whose vectors Postgres draws at random, made by
+  // the current embedding model unless `model` says otherwise.
+  async function seedDocument(userId: string, count: number, model = m.model) {
+    const status = "ready" as const;
     const { db, schema, orm } = m;
     const [doc] = await db
       .insert(schema.document)
@@ -48,9 +54,10 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
       .returning({ id: schema.document.id });
     await db.execute(orm.sql`
       insert into chunk (document_id, user_id, content, page, position, token_count,
-        start_offset, end_offset, embedding)
+        start_offset, end_offset, embedding, embedding_model)
       select ${doc!.id}, ${userId}, 'chunk ' || g, 1, g, 2, 0, 7,
-        (select array_agg(random() - 0.5) from generate_series(1, 1536) where g > 0)::vector
+        (select array_agg(random() - 0.5) from generate_series(1, 1536) where g > 0)::vector,
+        ${model}
       from generate_series(1, ${count}) g`);
     return doc!.id;
   }
@@ -141,6 +148,22 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
       .where(m.orm.eq(m.schema.document.id, myDocument));
   });
 
+  it("skips chunks embedded by a different model", async () => {
+    const other = await seedDocument(me, 5, "other/old-model");
+    const [chunkFromOther] = await m.db
+      .select({ embedding: m.schema.chunk.embedding })
+      .from(m.schema.chunk)
+      .where(m.orm.eq(m.schema.chunk.documentId, other))
+      .limit(1);
+
+    const passages = await m.retrieve.searchByEmbedding(chunkFromOther!.embedding!, {
+      userId: me,
+    });
+
+    expect(passages.some((p) => p.documentId === other)).toBe(false);
+    await m.db.delete(m.schema.document).where(m.orm.eq(m.schema.document.id, other));
+  });
+
   it("drops passages below minSimilarity", async () => {
     const passages = await m.retrieve.searchByEmbedding(query, {
       userId: me,
@@ -152,7 +175,7 @@ describe.skipIf(!hasDatabase)("searchByEmbedding (integration)", () => {
   });
 });
 
-describe.skipIf(!hasGateway)("searchPassages (integration, AI Gateway)", () => {
+describe.skipIf(!canEmbed)("searchPassages (integration, live embeddings)", () => {
   const alice = `test_alice_${randomUUID()}`;
   const bob = `test_bob_${randomUUID()}`;
   const question = "How much notice do I need to give to end the tenancy?";
@@ -195,7 +218,8 @@ describe.skipIf(!hasGateway)("searchPassages (integration, AI Gateway)", () => {
     expect(forBob.length).toBeGreaterThan(0);
     expect(forBob.every((p) => p.documentId === documents[bob])).toBe(true);
     expect(forAlice.every((p) => p.documentId === documents[alice])).toBe(true);
-    expect(forBob[0]!.content).toContain("two months' notice");
+    // PDF extraction turns ' into ’.
+    expect(forBob[0]!.content).toMatch(/two months[’'] notice/);
   });
 
   it("returns nothing when asked to search another user's document", async () => {

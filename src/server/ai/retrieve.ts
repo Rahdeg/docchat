@@ -6,6 +6,7 @@ import { db, type Db } from "@/server/db";
 import { chunk, document } from "@/server/db/schema";
 
 import { embedQuery } from "./embed";
+import { EMBEDDING_MODEL } from "./models";
 
 export type Passage = {
   chunkId: string;
@@ -35,7 +36,8 @@ type SearchOptions = {
 };
 
 // The user's passages closest to a question, best first. Embeds the query (recorded as
-// `embed-query` usage), then searches only the user's ready documents.
+// `embed-query` usage), then searches only the user's ready documents, and only chunks embedded
+// by the same model as the query.
 export async function searchPassages({
   query,
   ...options
@@ -106,6 +108,7 @@ export async function searchByEmbedding(
         inner join ${document}
           on ${document.id} = ${chunk.documentId} and ${document.userId} = ${userId}
         where ${chunk.userId} = ${userId}
+          and ${chunk.embeddingModel} = ${EMBEDDING_MODEL}
           and ${document.status} = 'ready'
           ${inDocuments}
         order by ${distance}

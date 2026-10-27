@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { EMBEDDING_MODEL, hasEmbeddingKey } from "@/server/ai/models";
+
 // Indexes the fixture PDFs into the real database (the file comes from disk, not Blob) and
-// embeds them through AI Gateway. Runs only when DATABASE_URL and AI_GATEWAY_API_KEY are set;
-// CI skips it. Modules load lazily so CI never connects.
-const canRun = !!process.env.DATABASE_URL && !!process.env.AI_GATEWAY_API_KEY;
+// embeds them with EMBEDDING_PROVIDER. Runs only when DATABASE_URL and that provider's key are
+// set; CI skips it. Database modules load lazily so CI never connects.
+const canRun = !!process.env.DATABASE_URL && hasEmbeddingKey;
 
 describe.skipIf(!canRun)("indexDocument (integration)", () => {
   const alice = `test_alice_${randomUUID()}`;
@@ -83,6 +85,7 @@ describe.skipIf(!canRun)("indexDocument (integration)", () => {
     for (const c of chunks) {
       expect(c.userId).toBe(alice);
       expect(c.embedding).toHaveLength(1536);
+      expect(c.embeddingModel).toBe(EMBEDDING_MODEL);
       const page = pages.find((p) => p.pageNumber === c.page)!;
       expect(page.text.slice(c.startOffset, c.endOffset)).toBe(c.content);
     }
@@ -92,7 +95,7 @@ describe.skipIf(!canRun)("indexDocument (integration)", () => {
       .from(schema.aiUsage)
       .where(orm.eq(schema.aiUsage.userId, alice));
     expect(usage.length).toBeGreaterThanOrEqual(1);
-    expect(usage[0]).toMatchObject({ kind: "embed-index", model: "openai/text-embedding-3-small" });
+    expect(usage[0]).toMatchObject({ kind: "embed-index", model: EMBEDDING_MODEL });
     expect(usage[0]!.tokens).toBeGreaterThan(0);
   });
 

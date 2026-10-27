@@ -5,6 +5,7 @@ import { and, eq, TransactionRollbackError } from "drizzle-orm";
 import { fileKindOf, fileKindOfMimeType } from "@/features/documents/upload-rules";
 import { chunkPages } from "@/server/ai/chunk";
 import { embedChunks } from "@/server/ai/embed";
+import { EMBEDDING_MODEL } from "@/server/ai/models";
 import { downloadBlob } from "@/server/blob";
 import { db } from "@/server/db";
 import { chunk, document, documentPage } from "@/server/db/schema";
@@ -112,6 +113,7 @@ export async function indexDocument(
         startOffset: c.startOffset,
         endOffset: c.endOffset,
         embedding: embeddings[i]!,
+        embeddingModel: EMBEDDING_MODEL,
       }));
       for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
         await tx.insert(chunk).values(chunkRows.slice(i, i + INSERT_BATCH));

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { chunkPages } from "@/server/ai/chunk";
 import { embedChunks } from "@/server/ai/embed";
+import { EMBEDDING_MODEL } from "@/server/ai/models";
 import { db } from "@/server/db";
 import { chat, chunk, document, documentPage, message, task } from "@/server/db/schema";
 
@@ -39,15 +40,15 @@ const documents = [
 async function main() {
   assertDevelopment(process.env.NODE_ENV);
 
-  // The real chunker and real embeddings (through AI Gateway, so AI_GATEWAY_API_KEY must be
-  // set), so seeded documents behave like uploads in search. Embedded before the transaction,
+  // The real chunker and real embeddings (from EMBEDDING_PROVIDER, so its key must be set),
+  // so seeded documents behave like uploads in search. Embedded before the transaction,
   // as indexing does; a few hundred tokens, a fraction of a cent.
   const chunked = documents.map((doc) => chunkPages(doc.pages));
   const embeddings = await Promise.all(
     chunked.map((chunks) => embedChunks(SEED_USER_ID, chunks)),
   ).catch((error: unknown) => {
     throw new Error(
-      "Couldn't embed the sample chunks. Set AI_GATEWAY_API_KEY in .env.local (README, AI Gateway setup).",
+      "Couldn't embed the sample chunks. Check EMBEDDING_PROVIDER and its key in .env.local (README, Embeddings setup).",
       { cause: error },
     );
   });
@@ -96,6 +97,7 @@ async function main() {
             startOffset: c.startOffset,
             endOffset: c.endOffset,
             embedding: embeddings[docIndex]![i]!,
+            embeddingModel: EMBEDDING_MODEL,
           })),
         )
         .returning({ id: chunk.id });
