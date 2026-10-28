@@ -129,14 +129,16 @@ const thinking = (thinkingLevel: "minimal" | "low") => ({
 
 export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
   // Gemini API free tier: fictional documents only, like embeddings. gemini-3.8-flash is the
-  // newest Flash model with a free tier (pricing page, 2026-10-28); Flash-Lite rewrites
-  // queries. The free tier answers 503 under load and 429 past its quota, so requests are
-  // spaced out and retried.
+  // newest Flash model with a free tier (pricing page, 2026-10-28), but its free tier was
+  // overloaded that day: 60 s timeouts and 503s. gemini-3.6-flash, the next newest, answered
+  // in about 3 s. Try 3.8 again later; it's a one-line change. Flash-Lite rewrites queries.
+  // The free tier answers 503 under load and 429 past its quota, so requests are spaced out
+  // and retried.
   google: {
     models: {
       answer: {
-        id: "google/gemini-3.8-flash",
-        model: google("gemini-3.8-flash"),
+        id: "google/gemini-3.6-flash",
+        model: google("gemini-3.6-flash"),
         providerOptions: thinking("low"),
       },
       rewrite: {
@@ -145,8 +147,8 @@ export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
         providerOptions: thinking("minimal"),
       },
       judge: {
-        id: "google/gemini-3.8-flash",
-        model: google("gemini-3.8-flash"),
+        id: "google/gemini-3.6-flash",
+        model: google("gemini-3.6-flash"),
         providerOptions: thinking("minimal"),
       },
     },
