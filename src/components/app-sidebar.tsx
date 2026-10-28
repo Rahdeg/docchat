@@ -70,7 +70,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Recent</SidebarGroupLabel>
+          <SidebarGroupLabel>Recent chats</SidebarGroupLabel>
           <SidebarGroupContent>
             <Suspense fallback={<RecentChatsSkeleton />}>
               <RecentChats />
