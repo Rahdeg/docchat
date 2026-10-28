@@ -113,6 +113,7 @@ export function chatTitle(question: string): string {
   const flat = question.replace(/\s+/g, " ").trim();
   if (flat.length <= TITLE_MAX_CHARS) return flat;
   const cut = flat.slice(0, TITLE_MAX_CHARS);
-  const space = cut.lastIndexOf(" ");
+  // Cut at the last space, unless the cut already falls between words.
+  const space = flat[TITLE_MAX_CHARS] === " " ? TITLE_MAX_CHARS : cut.lastIndexOf(" ");
   return `${(space > TITLE_MAX_CHARS / 2 ? cut.slice(0, space) : cut).replace(/[\s,.;:!?-]+$/, "")}…`;
 }
