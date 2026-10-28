@@ -3,11 +3,13 @@ import "server-only";
 import { index, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core";
 
 import { createdAt, id, updatedAt, userId } from "./columns";
-import { messageRole } from "./enums";
+import type { ChatMessagePart } from "@/features/chat/message";
 
-// Minimal stand-in so the column is typed before the AI SDK is installed.
-// TODO(ai): replace with the AI SDK's `UIMessage["parts"]` element type.
-export type MessagePart = { type: "text"; text: string };
+import { messageFeedback, messageRole, messageStatus } from "./enums";
+
+// AI SDK UIMessage parts (src/features/chat/message.ts): text, plus data-passages and
+// data-citations on answers. Validated when read (validateUIMessages).
+export type MessagePart = ChatMessagePart;
 
 export const chat = pgTable(
   "chat",
@@ -32,6 +34,10 @@ export const message = pgTable(
     userId: userId(),
     role: messageRole("role").notNull(),
     parts: jsonb("parts").$type<MessagePart[]>().notNull(),
+    // Answers: whether generation finished, was stopped, or failed. User messages are complete.
+    status: messageStatus("status").notNull().default("complete"),
+    // The user's thumbs up or down on an answer.
+    feedback: messageFeedback("feedback"),
     createdAt: createdAt(),
   },
   (t) => [

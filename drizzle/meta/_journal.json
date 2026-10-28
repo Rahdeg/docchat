@@ -43,6 +43,13 @@
       "when": 1793110563869,
       "tag": "0005_chunk_embedding_required",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793190072048,
+      "tag": "0006_answers",
+      "breakpoints": true
     }
   ]
 }
