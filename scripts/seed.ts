@@ -60,6 +60,7 @@ async function main() {
     await tx.delete(chat).where(eq(chat.userId, SEED_USER_ID));
 
     const chunkIds: string[] = [];
+    const documentIds: string[] = [];
     for (const [docIndex, doc] of documents.entries()) {
       const [created] = await tx
         .insert(document)
@@ -74,6 +75,7 @@ async function main() {
         })
         .returning({ id: document.id });
       if (!created) throw new Error(`Failed to insert ${doc.name}`);
+      documentIds.push(created.id);
 
       await tx.insert(documentPage).values(
         doc.pages.map((text, index) => ({
@@ -119,18 +121,62 @@ async function main() {
       .returning({ id: chat.id });
     if (!createdChat) throw new Error("Failed to insert chat");
 
+    const leaveQuestion = "How many days of leave do new starters get?";
+    const leaveSentence = "New starters get 25 days of annual leave plus bank holidays.";
+    const handbook = chunked[0]![0]!;
+    const leavePassage = {
+      chunkId: chunkIds[0]!,
+      documentId: documentIds[0]!,
+      name: documents[0].name,
+      mimeType: documents[0].mimeType,
+      hasFile: false,
+      page: handbook.page,
+      content: handbook.content,
+      startOffset: handbook.startOffset,
+      endOffset: handbook.endOffset,
+      similarity: 0.74,
+    };
+
     await tx.insert(message).values([
       {
         chatId: createdChat.id,
         userId: SEED_USER_ID,
         role: "user",
-        parts: [{ type: "text", text: "How many days of leave do new starters get?" }],
+        parts: [{ type: "text", text: leaveQuestion }],
+        // Messages are read oldest first; one insert would give both the same time.
+        createdAt: new Date(Date.now() - 60_000),
       },
       {
         chatId: createdChat.id,
         userId: SEED_USER_ID,
         role: "assistant",
-        parts: [{ type: "text", text: "New starters get 25 days plus bank holidays [1]." }],
+        // In the format POST /api/chat saves (src/features/chat/message.ts), citing the
+        // handbook's first chunk.
+        parts: [
+          {
+            type: "data-passages",
+            id: "passages",
+            data: { query: leaveQuestion, passages: [leavePassage] },
+          },
+          { type: "text", text: "New starters get **25 days** plus bank holidays [1]." },
+          {
+            type: "data-citations",
+            id: "citations",
+            data: {
+              final: true,
+              citations: [
+                {
+                  number: 1,
+                  source: 1,
+                  quote: leaveSentence,
+                  start: leavePassage.content.indexOf(leaveSentence),
+                  end: leavePassage.content.indexOf(leaveSentence) + leaveSentence.length,
+                  matched: true,
+                },
+              ],
+            },
+          },
+        ],
       },
     ]);
 
