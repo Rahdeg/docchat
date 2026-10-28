@@ -17,7 +17,8 @@
     "db:studio": "NODE_OPTIONS=--conditions=react-server drizzle-kit studio",
     "db:seed": "NODE_ENV=development tsx --conditions=react-server scripts/seed.ts",
     "db:backfill-embeddings": "tsx --conditions=react-server scripts/backfill-embeddings.ts",
-    "eval:retrieval": "NODE_ENV=development tsx --conditions=react-server tests/evals/retrieval.ts"
+    "eval:retrieval": "NODE_ENV=development tsx --conditions=react-server tests/evals/retrieval.ts",
+    "eval:answers": "NODE_ENV=development tsx --conditions=react-server tests/evals/answers.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "4.0.105",
