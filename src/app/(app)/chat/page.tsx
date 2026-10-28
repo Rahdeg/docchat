@@ -1,42 +1,26 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { Skeleton } from "@/components/ui/skeleton";
-import { FindPassages } from "@/features/chat/components/find-passages";
-import { listReadyDocuments } from "@/features/documents/queries";
+import { chatUrl } from "@/lib/routes";
 import { requireUserId } from "@/server/auth";
+
+import { ChatSkeleton } from "./chat-skeleton";
 
 export const metadata: Metadata = { title: "Chat · DocChat" };
 
-// TODO(chat, PR 6): stream answers with citations; this "find passages" mode is temporary.
-export default function ChatPage() {
+// "New chat": picks the new chat's id and opens it. The chat is stored with its first
+// question, so the page that answers it is the one it stays on (docs/adr/0006).
+export default function NewChatPage() {
   return (
-    <div className="flex flex-1 flex-col">
-      <Suspense fallback={<ChatSkeleton />}>
-        <Chat />
-      </Suspense>
-    </div>
+    <Suspense fallback={<ChatSkeleton />}>
+      <NewChat />
+    </Suspense>
   );
 }
 
-async function Chat() {
-  const userId = await requireUserId();
-  const documents = await listReadyDocuments(userId);
-  return <FindPassages documents={documents} />;
-}
-
-// Prerendered, so fixed sizes only.
-function ChatSkeleton() {
-  return (
-    <>
-      <div className="mx-auto flex w-full max-w-[800px] flex-1 flex-col items-center justify-center gap-3 px-4 py-10">
-        <Skeleton className="size-10 rounded-lg" />
-        <Skeleton className="h-6 w-72" />
-        <Skeleton className="h-5 w-80" />
-      </div>
-      <div className="mx-auto w-full max-w-[800px] px-4 pb-4 md:px-8 md:pb-6">
-        <Skeleton className="h-[118px] w-full rounded-[14px]" />
-      </div>
-    </>
-  );
+async function NewChat(): Promise<never> {
+  // Signed in, and past the prerender: a random id needs a request.
+  await requireUserId();
+  redirect(chatUrl(crypto.randomUUID()));
 }

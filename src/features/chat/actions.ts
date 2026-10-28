@@ -1,31 +1,50 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { z } from "zod";
 
-import { authedAction } from "@/lib/action";
-import { MIN_SIMILARITY } from "@/server/ai/models";
-import { searchPassages } from "@/server/ai/retrieve";
+import { ActionError, authedAction } from "@/lib/action";
 
-import { MAX_DOCUMENTS } from "../documents/upload-rules";
-import { PASSAGE_LIMIT, QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "./find-rules";
+import { feedbackValues, TITLE_MAX_CHARS } from "./message";
+import { deleteChat as deleteChatRow, renameChat as renameChatRow, setFeedback } from "./mutations";
 
-const findInput = z.object({
-  query: z
+// Answers stream from POST /api/chat; these are the chat's other writes.
+
+const renameInput = z.object({
+  id: z.uuid(),
+  title: z
     .string()
     .trim()
-    .min(QUERY_MIN_CHARS, `Ask with at least ${QUERY_MIN_CHARS} characters.`)
-    .max(QUERY_MAX_CHARS, `Keep it under ${QUERY_MAX_CHARS} characters.`),
-  // Leave out to search every ready document. An empty list would match nothing.
-  documentIds: z.array(z.uuid()).min(1).max(MAX_DOCUMENTS).optional(),
+    .min(1, "Give the chat a name.")
+    .max(TITLE_MAX_CHARS * 2, `Keep it under ${TITLE_MAX_CHARS * 2} characters.`),
 });
 
-// The passages DocChat would answer from, best first. Weak matches are dropped.
-export const findPassages = authedAction(findInput, async (input, { userId }) =>
-  searchPassages({
-    userId,
-    query: input.query,
-    documentIds: input.documentIds,
-    limit: PASSAGE_LIMIT,
-    minSimilarity: MIN_SIMILARITY,
-  }),
+export const renameChat = authedAction(renameInput, async ({ id, title }, { userId }) => {
+  if (!(await renameChatRow(userId, id, title))) throw new ActionError("This chat doesn't exist.");
+  refresh();
+  return { id, title };
+});
+
+const chatIdInput = z.object({ id: z.uuid() });
+
+export const deleteChat = authedAction(chatIdInput, async ({ id }, { userId }) => {
+  if (!(await deleteChatRow(userId, id))) throw new ActionError("This chat doesn't exist.");
+  refresh();
+  return { id };
+});
+
+const feedbackInput = z.object({
+  messageId: z.uuid(),
+  // null clears it (pressing the same thumb again).
+  feedback: z.enum(feedbackValues).nullable(),
+});
+
+export const rateAnswer = authedAction(
+  feedbackInput,
+  async ({ messageId, feedback }, { userId }) => {
+    if (!(await setFeedback(userId, messageId, feedback))) {
+      throw new ActionError("This answer doesn't exist.");
+    }
+    return { messageId, feedback };
+  },
 );
