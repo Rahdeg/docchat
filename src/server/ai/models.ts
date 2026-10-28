@@ -1,13 +1,23 @@
 import "server-only";
 
-import { createGoogleGenerativeAI, type GoogleEmbeddingModelOptions } from "@ai-sdk/google";
-import { createGateway, type embed, type EmbeddingModel } from "ai";
+import {
+  createGoogleGenerativeAI,
+  type GoogleEmbeddingModelOptions,
+  type GoogleLanguageModelOptions,
+} from "@ai-sdk/google";
+import {
+  createGateway,
+  type embed,
+  type EmbeddingModel,
+  type generateText,
+  type LanguageModel,
+} from "ai";
 
 import { env } from "@/lib/env";
 
 import { EMBEDDING_DIMENSIONS } from "./constants";
 
-// Chat (PR 6) and the "gateway" embedding provider go through Vercel AI Gateway
+// The "gateway" chat and embedding providers go through Vercel AI Gateway
 // (docs/adr/0005). With no key it falls back to the Vercel OIDC token, which is how deployments
 // on Vercel authenticate.
 export const gateway = createGateway({ apiKey: env.AI_GATEWAY_API_KEY });
@@ -92,3 +102,72 @@ export const MIN_SIMILARITY = embeddingConfig.minSimilarity;
 // (On Vercel the gateway can authenticate with OIDC instead.)
 export const hasEmbeddingKey =
   EMBEDDING_PROVIDER === "google" ? !!env.GOOGLE_GENERATIVE_AI_API_KEY : !!env.AI_GATEWAY_API_KEY;
+
+// Chat (docs/adr/0006). Three jobs, each with its own model: answering, rewriting a follow-up
+// into a standalone search query (small and cheap), and judging answers in the eval.
+export type ChatProvider = "google" | "gateway";
+export type ChatTask = "answer" | "rewrite" | "judge";
+
+export type ChatModel = {
+  // Stored in ai_usage.model.
+  id: string;
+  model: LanguageModel;
+  providerOptions?: Parameters<typeof generateText>[0]["providerOptions"];
+};
+
+export type ChatConfig = {
+  models: Record<ChatTask, ChatModel>;
+  // Shared by every chat request in this process (src/server/ai/call-model.ts).
+  limits: { minIntervalMs: number; maxRetries: number };
+};
+
+// Gemini 3 models think before answering; "low" keeps answers quick, "minimal" is enough for
+// rewriting a query or a yes/no judgement.
+const thinking = (thinkingLevel: "minimal" | "low") => ({
+  google: { thinkingConfig: { thinkingLevel } } satisfies GoogleLanguageModelOptions,
+});
+
+export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
+  // Gemini API free tier: fictional documents only, like embeddings. gemini-3.8-flash is the
+  // newest Flash model with a free tier (pricing page, 2026-10-28); Flash-Lite rewrites
+  // queries. The free tier answers 503 under load and 429 past its quota, so requests are
+  // spaced out and retried.
+  google: {
+    models: {
+      answer: {
+        id: "google/gemini-3.8-flash",
+        model: google("gemini-3.8-flash"),
+        providerOptions: thinking("low"),
+      },
+      rewrite: {
+        id: "google/gemini-3.5-flash-lite",
+        model: google("gemini-3.5-flash-lite"),
+        providerOptions: thinking("minimal"),
+      },
+      judge: {
+        id: "google/gemini-3.8-flash",
+        model: google("gemini-3.8-flash"),
+        providerOptions: thinking("minimal"),
+      },
+    },
+    limits: { minIntervalMs: 1_000, maxRetries: 3 },
+  },
+  // Vercel AI Gateway (paid credits): production.
+  gateway: {
+    models: {
+      answer: { id: "anthropic/claude-sonnet-5.5", model: gateway("anthropic/claude-sonnet-5.5") },
+      rewrite: { id: "anthropic/claude-haiku-5.5", model: gateway("anthropic/claude-haiku-5.5") },
+      judge: { id: "anthropic/claude-haiku-5.5", model: gateway("anthropic/claude-haiku-5.5") },
+    },
+    limits: { minIntervalMs: 0, maxRetries: 2 },
+  },
+};
+
+// Validated env defaults to "google"; the fallback covers CI, which skips validation.
+export const CHAT_PROVIDER: ChatProvider = env.CHAT_PROVIDER ?? "google";
+
+export const chatConfig = CHAT_CONFIGS[CHAT_PROVIDER];
+
+// Whether the chat provider has a key here. Tests that generate for real skip without one.
+export const hasChatKey =
+  CHAT_PROVIDER === "google" ? !!env.GOOGLE_GENERATIVE_AI_API_KEY : !!env.AI_GATEWAY_API_KEY;
