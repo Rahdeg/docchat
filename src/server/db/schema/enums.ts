@@ -10,3 +10,6 @@ export const documentStatus = pgEnum("document_status", [
 ]);
 
 export const messageRole = pgEnum("message_role", ["user", "assistant", "system", "tool"]);
+
+// What a model call in ai_usage was for: indexing a document, or embedding a search query.
+export const aiUsageKind = pgEnum("ai_usage_kind", ["embed-index", "embed-query"]);

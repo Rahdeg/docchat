@@ -1,0 +1,618 @@
+{
+  "date": "2026-10-27T14:20:23.271Z",
+  "git": {
+    "sha": "283cb90",
+    "dirty": false
+  },
+  "model": "google/gemini-embedding-001",
+  "dimensions": 1536,
+  "chunking": {
+    "targetTokens": 500,
+    "overlapTokens": 75
+  },
+  "limit": 5,
+  "metrics": {
+    "questions": 14,
+    "hitAt1": 0.9286,
+    "hitAt3": 0.9286,
+    "hitAt5": 1,
+    "mrr": 0.9464
+  },
+  "calibration": {
+    "minSimilarity": 0.55,
+    "noAnswerBestSimilarity": 0.6401,
+    "offTopicBestSimilarity": 0.5032,
+    "lowestHitSimilarity": 0.5993,
+    "suggestedFloor": 0.55,
+    "separates": "off-topic",
+    "hitsBelowFloor": [],
+    "offTopic": [
+      {
+        "question": "What's a good recipe for banana bread?",
+        "bestSimilarity": 0.5032
+      },
+      {
+        "question": "Who won the 1998 World Cup?",
+        "bestSimilarity": 0.4237
+      },
+      {
+        "question": "How do I reset my router?",
+        "bestSimilarity": 0.4902
+      }
+    ]
+  },
+  "timings": {
+    "indexMs": 5741,
+    "searchMs": 12087,
+    "searchMsPerQuestion": 806
+  },
+  "results": [
+    {
+      "id": "rent-amount",
+      "kind": "direct",
+      "question": "What is the monthly rent?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 2
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6694,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.6694
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.6218
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "similarity": 0.6097
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "similarity": 0.6072
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.6003
+        }
+      ]
+    },
+    {
+      "id": "deposit-amount",
+      "kind": "direct",
+      "question": "How much is the deposit?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 2
+      },
+      "rank": 1,
+      "hitSimilarity": 0.7025,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.7025
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.5927
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.5912
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.5909
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 6,
+          "similarity": 0.5794
+        }
+      ]
+    },
+    {
+      "id": "salary",
+      "kind": "direct",
+      "question": "What is my annual salary?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 2
+      },
+      "rank": 1,
+      "hitSimilarity": 0.647,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.647
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.5859
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 6,
+          "similarity": 0.5799
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.5761
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.5698
+        }
+      ]
+    },
+    {
+      "id": "holiday-days",
+      "kind": "direct",
+      "question": "How many days of paid holiday do I get each year?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 4
+      },
+      "rank": 1,
+      "hitSimilarity": 0.7447,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.7447
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.6431
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.636
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.6295
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 6,
+          "similarity": 0.5763
+        }
+      ]
+    },
+    {
+      "id": "pension",
+      "kind": "direct",
+      "question": "How much does the company contribute to my pension?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 2
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6374,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.6374
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.5888
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.577
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.5767
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.5575
+        }
+      ]
+    },
+    {
+      "id": "pets",
+      "kind": "paraphrase",
+      "question": "Can I bring my pet with me when I move in?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 3
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6536,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.6536
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.6033
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "similarity": 0.5863
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.5781
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.577
+        }
+      ]
+    },
+    {
+      "id": "boiler",
+      "kind": "paraphrase",
+      "question": "My boiler broke and there's no hot water. How quickly does it have to be fixed?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 4
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6464,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 4,
+          "similarity": 0.6464
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 4,
+          "similarity": 0.6348
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.5772
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.5685
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.5626
+        }
+      ]
+    },
+    {
+      "id": "rent-increase-notice",
+      "kind": "paraphrase",
+      "question": "How much warning do I get before the rent goes up?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 3
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6564,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.6564
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 6,
+          "similarity": 0.6202
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.6072
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 4,
+          "similarity": 0.605
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.6014
+        }
+      ]
+    },
+    {
+      "id": "short-sickness",
+      "kind": "paraphrase",
+      "question": "I was ill for three days. Do I need a note from my GP?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 5
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6707,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.6707
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.6067
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.5949
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.5792
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.5699
+        }
+      ]
+    },
+    {
+      "id": "remote-work",
+      "kind": "paraphrase",
+      "question": "Am I allowed to work from home?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 1
+      },
+      "rank": 4,
+      "hitSimilarity": 0.5993,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.6343
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.6215
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.6002
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 1,
+          "similarity": 0.5993
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.599
+        }
+      ]
+    },
+    {
+      "id": "unused-holiday",
+      "kind": "paraphrase",
+      "question": "What happens to leave I haven't used by the end of the year?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 4
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6643,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.6643
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.5984
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.5835
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.5761
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 6,
+          "similarity": 0.5426
+        }
+      ]
+    },
+    {
+      "id": "long-service-notice",
+      "kind": "paraphrase",
+      "question": "If they let me go after eight years there, how much notice am I owed?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 3
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6564,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.6564
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.6283
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.6096
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.6037
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 6,
+          "similarity": 0.589
+        }
+      ]
+    },
+    {
+      "id": "guest-stays",
+      "kind": "boundary",
+      "question": "Can a friend stay with me for a month, and do I need permission?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 1
+      },
+      "rank": 1,
+      "hitSimilarity": 0.7057,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "similarity": 0.7057
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "similarity": 0.6285
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.6248
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.6231
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.6109
+        }
+      ]
+    },
+    {
+      "id": "service-charge",
+      "kind": "boundary",
+      "question": "Who pays the council tax and the service charge for the communal areas?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 2
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6769,
+      "top": [
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.6769
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "similarity": 0.5816
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 4,
+          "similarity": 0.5684
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 5,
+          "similarity": 0.5599
+        },
+        {
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "similarity": 0.5388
+        }
+      ]
+    },
+    {
+      "id": "company-car",
+      "kind": "none",
+      "question": "Do I get a company car or a car allowance?",
+      "expected": null,
+      "rank": null,
+      "hitSimilarity": null,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.6401
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.6101
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.5912
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.5898
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 1,
+          "similarity": 0.5836
+        }
+      ]
+    }
+  ]
+}

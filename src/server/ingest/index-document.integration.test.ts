@@ -3,9 +3,15 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Indexes the fixture PDFs into the real database (the file comes from disk, not Blob). Runs
-// only when DATABASE_URL is set; CI skips it. Modules load lazily so CI never connects.
-describe.skipIf(!process.env.DATABASE_URL)("indexDocument (integration)", () => {
+import { EMBEDDING_MODEL, hasEmbeddingKey } from "@/server/ai/models";
+
+// Indexes the fixture PDFs into the real database (the file comes from disk, not Blob) and
+// embeds them with EMBEDDING_PROVIDER. Runs only when DATABASE_URL and that provider's key are
+// set; CI skips it. Database modules load lazily so CI never connects.
+const canRun = !!process.env.DATABASE_URL && hasEmbeddingKey;
+
+// Real embedding calls are paced (src/server/ai/embed.ts), so allow more than the default 5 s.
+describe.skipIf(!canRun)("indexDocument (integration)", { timeout: 60_000 }, () => {
   const alice = `test_alice_${randomUUID()}`;
   const bob = `test_bob_${randomUUID()}`;
   const fixture = (name: string) => new Uint8Array(readFileSync(`tests/fixtures/${name}`));
@@ -26,6 +32,9 @@ describe.skipIf(!process.env.DATABASE_URL)("indexDocument (integration)", () => 
     await dbModule.db
       .delete(schema.document)
       .where(orm.inArray(schema.document.userId, [alice, bob]));
+    await dbModule.db
+      .delete(schema.aiUsage)
+      .where(orm.inArray(schema.aiUsage.userId, [alice, bob]));
     await dbModule.db.$client.end();
   });
 
@@ -61,7 +70,7 @@ describe.skipIf(!process.env.DATABASE_URL)("indexDocument (integration)", () => 
     return { doc: doc!, pages, chunks };
   }
 
-  it("stores each page and its chunks, then marks the document ready", async () => {
+  it("stores each page and its embedded chunks, then marks the document ready", async () => {
     const created = await createUpload(alice, "two-pages.pdf");
 
     await indexDocument(alice, created.id, { load: async () => fixture("two-pages.pdf") });
@@ -76,10 +85,19 @@ describe.skipIf(!process.env.DATABASE_URL)("indexDocument (integration)", () => 
     expect(new Set(chunks.map((c) => c.page))).toEqual(new Set([1, 2]));
     for (const c of chunks) {
       expect(c.userId).toBe(alice);
-      expect(c.embedding).toBeNull();
+      expect(c.embedding).toHaveLength(1536);
+      expect(c.embeddingModel).toBe(EMBEDDING_MODEL);
       const page = pages.find((p) => p.pageNumber === c.page)!;
       expect(page.text.slice(c.startOffset, c.endOffset)).toBe(c.content);
     }
+
+    const usage = await dbModule.db
+      .select()
+      .from(schema.aiUsage)
+      .where(orm.eq(schema.aiUsage.userId, alice));
+    expect(usage.length).toBeGreaterThanOrEqual(1);
+    expect(usage[0]).toMatchObject({ kind: "embed-index", model: EMBEDDING_MODEL });
+    expect(usage[0]!.tokens).toBeGreaterThan(0);
   });
 
   it("re-indexes from scratch on retry, without duplicating pages or chunks", async () => {

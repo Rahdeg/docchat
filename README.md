@@ -14,7 +14,9 @@ discussed.
 - [Clerk](https://clerk.com) for sign-in, sign-up and sessions
 - [Vercel Blob](https://vercel.com/docs/vercel-blob) (private store) for uploaded files,
   [unpdf](https://github.com/unjs/unpdf) to read PDF text
-- Planned: [Vercel AI SDK](https://ai-sdk.dev) v7
+- [Vercel AI SDK](https://ai-sdk.dev) v7 through
+  [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (production) or Gemini's free tier
+  (development) for embeddings
 - Tooling: pnpm, ESLint, Prettier, lefthook, Vitest, Playwright, GitHub Actions
 
 Architecture decisions are in [`docs/adr`](docs/adr). Conventions for contributors and coding agents
@@ -33,6 +35,7 @@ corepack pnpm install
 #    - DATABASE_URL (pooled) and DATABASE_URL_UNPOOLED (direct) for your Neon "dev" branch
 #    - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY (see "Clerk setup" below)
 #    - BLOB_READ_WRITE_TOKEN (see "Vercel Blob setup" below)
+#    - GOOGLE_GENERATIVE_AI_API_KEY (see "Embeddings setup" below)
 cp .env.example .env.local
 
 # 3. Apply migrations
@@ -77,6 +80,46 @@ the app streams files to their owner through `/api/documents/[id]/file`.
    browser uploads need, and the pulled OIDC token expires after a few hours. No webhook or tunnel
    is needed locally.
 
+### Embeddings setup
+
+Passages and questions are turned into embeddings by the provider in `EMBEDDING_PROVIDER`
+(`docs/adr/0005`):
+
+| `EMBEDDING_PROVIDER` | Model                           | Key                            | Use                                |
+| -------------------- | ------------------------------- | ------------------------------ | ---------------------------------- |
+| `google` (default)   | `gemini-embedding-001` (1536)   | `GOOGLE_GENERATIVE_AI_API_KEY` | development, fictional files only  |
+| `gateway`            | `openai/text-embedding-3-small` | `AI_GATEWAY_API_KEY` or OIDC   | production (needs gateway credits) |
+
+**Development (default).** Create a key at [Google AI Studio](https://aistudio.google.com/apikey)
+and put it in `.env.local` as `GOOGLE_GENERATIVE_AI_API_KEY`. Indexing, search, `pnpm db:seed` and
+`pnpm eval:retrieval` all need it.
+
+> **The Gemini free tier is for development with fictional documents only** (the seed data, the
+> eval fixtures, sample uploads). Google may use free-tier content to improve its products, and
+> its rate limits are low (about 100 requests a minute; the app paces itself and backs off on
+> 429). Don't upload real documents while it's in use. Production switches to the gateway before
+> launch.
+
+**Production (AI Gateway).** Add credits to the team's AI Gateway in the Vercel dashboard (the free
+tier refuses this model with `403 Free tier users do not have access to this model`) and set
+`EMBEDDING_PROVIDER=gateway`. On Vercel no key is needed: deployments authenticate with the
+project's OIDC token, so leave `AI_GATEWAY_API_KEY` unset there (if set, it always wins over OIDC,
+even when it's wrong). Locally, use a key from **AI Gateway → API keys**; the `VERCEL_OIDC_TOKEN`
+that `vercel env pull` writes expires after 12 hours.
+
+**Switching providers** means re-embedding, since vectors from different models can't be compared.
+Each passage records the model that embedded it, and search ignores passages from other models
+until they're re-embedded:
+
+```bash
+# after changing EMBEDDING_PROVIDER (and its key)
+corepack pnpm db:backfill-embeddings   # re-embeds everything made by another model
+corepack pnpm eval:retrieval           # then set that provider's minSimilarity from the output
+```
+
+Every embedding call writes a row to `ai_usage` (user, kind, model, tokens), for future rate limits
+and cost tracking. Gemini doesn't report tokens, so its rows hold an estimate.
+
 ### Uploading and indexing
 
 - On `/library`, use **Upload files**, the **Add files** sheet, or drop files anywhere on the page.
@@ -86,10 +129,41 @@ the app streams files to their owner through `/api/documents/[id]/file`.
   then the app registers the document and starts reading it in the background.
 - Reading ("indexing") extracts the text page by page (Markdown and text count as one page), splits
   each page into ~500-token passages with ~15% overlap, and stores the pages and passages with the
-  exact character range each passage came from (`docs/adr/0004`). The Library updates every few
-  seconds: **Reading page X of Y**, then **Ready** with page and passage counts.
+  exact character range each passage came from (`docs/adr/0004`). Then every passage is embedded
+  (see "Embeddings setup"). The Library updates every few seconds: **Reading page X of Y**, then
+  **Almost ready** while embedding, then **Ready** with page and passage counts. A document is
+  only Ready once every passage has an embedding.
 - Scanned PDFs (images, no text) fail with "No text found". A document that makes no progress for
-  10 minutes shows **Reading stopped** with **Try again**. Embeddings come in a later PR.
+  10 minutes shows **Reading stopped** with **Try again**.
+
+### Finding passages
+
+Answers come in a later PR. For now `/chat` has a **find passages** mode: ask a question and see
+the five passages from your ready documents that DocChat would answer from, best match first, with
+the document, page, the best-matching sentence highlighted, and a link to open that page. Choose
+specific documents from the composer's document menu, and turn on **Show match scores** to see each
+passage's similarity. Passages below the similarity floor (`MIN_SIMILARITY`) are hidden.
+
+### Upgrading a database from before embeddings
+
+Migration 0005 makes every passage's embedding required, and fails if any passage doesn't have one
+from the current model yet. `pnpm db:migrate` applies all pending migrations in **one
+transaction**, so a failure also rolls back the migrations before it. On a branch that already
+has documents from before this version:
+
+- **Simplest:** remove those documents in the Library (or reset the branch's data), then
+  `corepack pnpm db:migrate`, then upload them again.
+- **To keep them:** the backfill needs migration 0004's `embedding_model` column, so it only works
+  on a branch that is already at 0004. Then:
+
+  ```bash
+  corepack pnpm db:backfill-embeddings --dry-run   # count what's missing
+  corepack pnpm db:backfill-embeddings             # safe to re-run
+  corepack pnpm db:migrate                         # 0005
+  ```
+
+To run either against another Neon branch, set `DATABASE_URL` (and `DATABASE_URL_UNPOOLED` for the
+migration) on the command line.
 
 ### See sample data for your own account
 
@@ -101,8 +175,9 @@ the app streams files to their owner through `/api/documents/[id]/file`.
    # or: SEED_USER_ID=user_xxxxxxxx corepack pnpm db:seed
    ```
 
-   This first deletes any existing data for that user in your dev database. Without `--user` it
-   seeds a placeholder user (`user_seed_dev`) you can't sign in as. Sample documents have no
+   This first deletes any existing data for that user in your dev database, and embeds the sample
+   passages with `EMBEDDING_PROVIDER` (so it needs that provider's key). Without `--user` it seeds a
+   placeholder user (`user_seed_dev`) you can't sign in as. Sample documents have no
    stored file, so they can't be opened or retried. Re-run the seed after pulling new migrations.
 
 3. Reload `/library`.
@@ -111,26 +186,30 @@ Tip: run `corepack enable pnpm` once if you'd rather type `pnpm` without `corepa
 
 ## Scripts
 
-| Script              | Description                                 |
-| ------------------- | ------------------------------------------- |
-| `pnpm dev`          | Start the dev server                        |
-| `pnpm build`        | Production build (validates env)            |
-| `pnpm start`        | Serve the production build                  |
-| `pnpm lint`         | Run ESLint                                  |
-| `pnpm typecheck`    | Generate route types and run `tsc --noEmit` |
-| `pnpm format`       | Format with Prettier                        |
-| `pnpm format:check` | Check formatting (used in CI)               |
-| `pnpm test`         | Run unit tests with Vitest                  |
-| `pnpm test:e2e`     | Run Playwright end-to-end tests (local)     |
-| `pnpm db:generate`  | Generate a SQL migration from the schema    |
-| `pnpm db:migrate`   | Apply pending migrations                    |
-| `pnpm db:studio`    | Open Drizzle Studio                         |
-| `pnpm db:seed`      | Reset and insert sample data (dev only)     |
+| Script                        | Description                                    |
+| ----------------------------- | ---------------------------------------------- |
+| `pnpm dev`                    | Start the dev server                           |
+| `pnpm build`                  | Production build (validates env)               |
+| `pnpm start`                  | Serve the production build                     |
+| `pnpm lint`                   | Run ESLint                                     |
+| `pnpm typecheck`              | Generate route types and run `tsc --noEmit`    |
+| `pnpm format`                 | Format with Prettier                           |
+| `pnpm format:check`           | Check formatting (used in CI)                  |
+| `pnpm test`                   | Run unit tests with Vitest                     |
+| `pnpm test:e2e`               | Run Playwright end-to-end tests (local)        |
+| `pnpm db:generate`            | Generate a SQL migration from the schema       |
+| `pnpm db:migrate`             | Apply pending migrations                       |
+| `pnpm db:studio`              | Open Drizzle Studio                            |
+| `pnpm db:seed`                | Reset and insert sample data (dev only)        |
+| `pnpm db:backfill-embeddings` | (Re-)embed passages not from the current model |
+| `pnpm eval:retrieval`         | Run the retrieval eval (embeds for real)       |
 
 ## Testing
 
 - `pnpm test` runs the unit tests. Integration tests (`*.integration.test.ts`) also run when
-  `DATABASE_URL` is set, and skip themselves otherwise (as in CI).
+  `DATABASE_URL` is set, and skip themselves otherwise (as in CI). The ones that index or search
+  with real embeddings also need the configured provider's key (`GOOGLE_GENERATIVE_AI_API_KEY` by
+  default).
 - `pnpm test:e2e` runs Playwright against `pnpm dev`. It reuses a dev server that's already running,
   or starts one. To test a production build, run `pnpm build && pnpm start` and set
   `E2E_BASE_URL=http://localhost:3000`. It needs the Clerk keys in `.env.local`. The first time,
@@ -140,3 +219,28 @@ Tip: run `corepack enable pnpm` once if you'd rather type `pnpm` without `corepa
   needs a database but not Blob.
 - **E2E tests don't run in CI yet.** CI runs typecheck, lint, format check, unit tests and the build.
   The signed-in upload flow isn't covered by e2e yet (it needs Clerk testing tokens).
+
+### Retrieval eval
+
+`pnpm eval:retrieval` measures how well search finds the right passage, so a change to the
+embedding model, chunking or the search query can be judged by numbers instead of by feel
+(`docs/adr/0005`).
+
+- It indexes two fictional fixture documents (`tests/evals/fixtures/`: a tenancy agreement and an
+  employment contract, six pages each) for a dedicated `eval_retrieval` user in your dev database,
+  replacing that user's previous run, through the real extract, chunk and embed pipeline.
+- It asks the 15 questions in `tests/evals/retrieval.json` (direct, paraphrased, answers split
+  across a chunk boundary, and one with no answer) and prints **hit@1, hit@3, hit@5 and MRR**, a
+  table of questions whose right passage wasn't ranked first, and the numbers for setting
+  `MIN_SIMILARITY`: it also runs three off-topic probes (not scored), suggests a floor, and warns
+  when a right passage would be hidden by it.
+- First run (Gemini, 2026-10-27): **hit@1 92.9%, hit@3 92.9%, hit@5 100%, MRR 0.946**, floor
+  0.55.
+- Results are saved to `tests/evals/results/retrieval-<date>.json` with the model, chunk settings
+  and git commit. Commit them so runs can be compared.
+- A run is free on Gemini's free tier and a fraction of a cent on the gateway, but needs the
+  provider's key, so **it doesn't run in CI**.
+  CI does run `tests/evals/retrieval-cases.test.ts`, which checks every question's page and quote
+  against the fixtures and chunker without calling a model.
+- The fixtures come from `node tests/evals/fixtures/make-fixtures.mjs`. If you change them, re-check
+  the questions (the test above tells you which broke).

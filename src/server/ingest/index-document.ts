@@ -4,6 +4,8 @@ import { and, eq, TransactionRollbackError } from "drizzle-orm";
 
 import { fileKindOf, fileKindOfMimeType } from "@/features/documents/upload-rules";
 import { chunkPages } from "@/server/ai/chunk";
+import { embedChunks } from "@/server/ai/embed";
+import { EMBEDDING_MODEL } from "@/server/ai/models";
 import { downloadBlob } from "@/server/blob";
 import { db } from "@/server/db";
 import { chunk, document, documentPage } from "@/server/db/schema";
@@ -20,12 +22,15 @@ const INSERT_BATCH = 500;
 // Write "Reading page X of Y" at most this often, plus the first and last page.
 const PROGRESS_INTERVAL_MS = 750;
 
+// The document was deleted or reset while we were working on it.
+class AbandonedError extends Error {}
+
 type IndexOptions = {
   // Where the file's bytes come from. Tests pass a fixture instead of reading Blob.
   load?: (blobPathname: string) => Promise<Uint8Array | null>;
 };
 
-// Reads a document's file, stores its pages and chunks, and marks it ready (or failed with a
+// Reads a document's file, stores its pages and embedded chunks, and marks it ready (or failed with a
 // message the user can act on). Only picks up documents in `uploaded`, so a second call for the
 // same document does nothing, and a retry (which resets the status) re-indexes from scratch.
 export async function indexDocument(
@@ -67,6 +72,20 @@ export async function indexDocument(
 
     const chunks = chunkPages(pages);
 
+    // Embed before the transaction, so it holds its locks only for the inserts. Every page is
+    // read by now, so the Library shows "Almost ready". Each batch bumps updatedAt, so a long
+    // document that's still embedding isn't "stuck", and stops early if the row is gone.
+    const embeddings = await embedChunks(userId, chunks, {
+      onBatch: async () => {
+        const [still] = await db
+          .update(document)
+          .set({ updatedAt: new Date() })
+          .where(stillIndexing)
+          .returning({ id: document.id });
+        if (!still) throw new AbandonedError();
+      },
+    });
+
     await db.transaction(async (tx) => {
       // Re-indexing replaces everything, so a retry can never duplicate pages or chunks.
       await tx.delete(chunk).where(and(eq(chunk.userId, userId), eq(chunk.documentId, documentId)));
@@ -84,7 +103,7 @@ export async function indexDocument(
         await tx.insert(documentPage).values(pageRows.slice(i, i + INSERT_BATCH));
       }
 
-      const chunkRows = chunks.map((c) => ({
+      const chunkRows = chunks.map((c, i) => ({
         documentId,
         userId,
         content: c.content,
@@ -93,7 +112,8 @@ export async function indexDocument(
         tokenCount: c.tokenCount,
         startOffset: c.startOffset,
         endOffset: c.endOffset,
-        // TODO(embeddings, PR 5): embed each chunk here, before marking the document ready.
+        embedding: embeddings[i]!,
+        embeddingModel: EMBEDDING_MODEL,
       }));
       for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
         await tx.insert(chunk).values(chunkRows.slice(i, i + INSERT_BATCH));
@@ -108,7 +128,7 @@ export async function indexDocument(
       if (!ready) tx.rollback();
     });
   } catch (error) {
-    if (error instanceof TransactionRollbackError) return;
+    if (error instanceof TransactionRollbackError || error instanceof AbandonedError) return;
     if (!(error instanceof IndexingError)) {
       console.error(`Indexing document ${documentId} failed`, error);
     }

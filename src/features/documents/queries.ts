@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import {
@@ -78,4 +78,15 @@ export async function countDocuments(userId: string, status?: DocumentStatus): P
     document,
     and(eq(document.userId, userId), status ? eq(document.status, status) : undefined),
   );
+}
+
+export type ReadyDocument = Pick<Document, "id" | "name">;
+
+// The documents a search can cover, for the composer's document picker.
+export async function listReadyDocuments(userId: string): Promise<ReadyDocument[]> {
+  return db
+    .select({ id: document.id, name: document.name })
+    .from(document)
+    .where(and(eq(document.userId, userId), eq(document.status, "ready")))
+    .orderBy(asc(document.name));
 }

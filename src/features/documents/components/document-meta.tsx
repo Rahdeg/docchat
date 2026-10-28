@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { displayState, STUCK_AFTER_MINUTES, type LibraryDocument } from "../library-document";
+import {
+  displayState,
+  readingLabel,
+  STUCK_AFTER_MINUTES,
+  type LibraryDocument,
+} from "../library-document";
 import type { useDocumentActions } from "./document-actions";
 import { StatusMark } from "./status-mark";
 
@@ -43,12 +48,7 @@ export function DocumentMeta({ doc, name, actions, compact = false }: DocumentMe
         ) : null}
         {state === "queued" || state === "reading" ? (
           <>
-            <StatusMark tone="reading">
-              {doc.pageCount
-                ? // pagesRead counts finished pages; the one being read is the next.
-                  `Reading page ${Math.min(doc.pagesRead + 1, doc.pageCount)} of ${doc.pageCount}`
-                : "Reading"}
-            </StatusMark>
+            <StatusMark tone="reading">{readingLabel(doc)}</StatusMark>
             {compact ? null : <RelativeTime date={doc.createdAt} />}
           </>
         ) : null}

@@ -23,15 +23,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { routes } from "@/lib/routes";
+import { documentFileUrl, routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 import { deleteDocument, retryDocument } from "../actions";
 import { displayState, type LibraryDocument } from "../library-document";
-
-export function fileUrl(documentId: string) {
-  return `/api/documents/${documentId}/file`;
-}
 
 // Retry and remove for one document, shared by the desktop sheet and the phone row. Render
 // `dialog` once next to whatever calls `requestRemove`.
@@ -141,7 +137,9 @@ export function DocumentMenu({
           ) : null}
           {actions.canOpen ? (
             <DropdownMenuItem
-              render={<a href={fileUrl(doc.id)} target="_blank" rel="noopener noreferrer" />}
+              render={
+                <a href={documentFileUrl(doc.id)} target="_blank" rel="noopener noreferrer" />
+              }
             >
               Open
             </DropdownMenuItem>

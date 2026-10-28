@@ -20,7 +20,9 @@ don't duplicate or hand-edit the managed block:
 - Clerk (`@clerk/nextjs` 7) for auth, themed with the shadcn theme from `@clerk/ui`
 - Vercel Blob (private store) for uploaded files; `unpdf` for PDF text; `gpt-tokenizer` (cl100k)
   for chunk sizes
-- Planned: Vercel AI SDK v7
+- Vercel AI SDK v7 (`ai`). Embeddings (1536 dimensions, `docs/adr/0005`) from
+  `EMBEDDING_PROVIDER`: `google` (default; `@ai-sdk/google`, `gemini-embedding-001`, free tier,
+  development only) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`, production)
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
   serving stored files (`src/app/api/documents/`), and later chat streaming
@@ -32,21 +34,23 @@ don't duplicate or hand-edit the managed block:
 pnpm is pinned per project and not installed globally. Run it through Corepack (`corepack pnpm <cmd>`),
 or run `corepack enable pnpm` once if you want a bare `pnpm`.
 
-| Command             | What it does                                     |
-| ------------------- | ------------------------------------------------ |
-| `pnpm dev`          | Dev server (Turbopack)                           |
-| `pnpm build`        | Production build (also validates env)            |
-| `pnpm start`        | Serve the production build                       |
-| `pnpm lint`         | ESLint (`next lint` no longer exists in Next 16) |
-| `pnpm typecheck`    | `next typegen` then `tsc --noEmit`               |
-| `pnpm format`       | Prettier write                                   |
-| `pnpm format:check` | Prettier check (CI)                              |
-| `pnpm test`         | Vitest, single run                               |
-| `pnpm test:e2e`     | Playwright e2e (local only, not in CI yet)       |
-| `pnpm db:generate`  | Generate a SQL migration from the schema         |
-| `pnpm db:migrate`   | Apply pending migrations (direct connection)     |
-| `pnpm db:studio`    | Drizzle Studio against `DATABASE_URL_UNPOOLED`   |
-| `pnpm db:seed`      | Reset and insert sample data (development only)  |
+| Command                       | What it does                                     |
+| ----------------------------- | ------------------------------------------------ |
+| `pnpm dev`                    | Dev server (Turbopack)                           |
+| `pnpm build`                  | Production build (also validates env)            |
+| `pnpm start`                  | Serve the production build                       |
+| `pnpm lint`                   | ESLint (`next lint` no longer exists in Next 16) |
+| `pnpm typecheck`              | `next typegen` then `tsc --noEmit`               |
+| `pnpm format`                 | Prettier write                                   |
+| `pnpm format:check`           | Prettier check (CI)                              |
+| `pnpm test`                   | Vitest, single run                               |
+| `pnpm test:e2e`               | Playwright e2e (local only, not in CI yet)       |
+| `pnpm db:generate`            | Generate a SQL migration from the schema         |
+| `pnpm db:migrate`             | Apply pending migrations (direct connection)     |
+| `pnpm db:studio`              | Drizzle Studio against `DATABASE_URL_UNPOOLED`   |
+| `pnpm db:seed`                | Reset and insert sample data (development only)  |
+| `pnpm db:backfill-embeddings` | (Re-)embed chunks missing a current-model vector |
+| `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration    |
 
 `pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
 up after signing in. It deletes that user's existing rows first.
@@ -72,9 +76,10 @@ src/proxy.ts           clerkMiddleware with optimistic redirects (Next 16 replac
 docs/adr/              architecture decision records
 docs/design/           HTML design mockups per area; match them when building that UI
 drizzle/               generated SQL migrations and snapshots (committed)
-scripts/               standalone scripts run with tsx (seed)
+scripts/               standalone scripts run with tsx (seed, backfill-embeddings)
 tests/e2e/             Playwright end-to-end tests (`*.spec.ts`)
-tests/fixtures/        test files (PDFs) and the script that generates them
+tests/fixtures/        test files (PDFs), the PDF writer (pdf.mjs) and the script that uses it
+tests/evals/           retrieval eval: fixtures, questions (retrieval.json), runner, results/
 ```
 
 Unit tests sit next to the code as `*.test.ts(x)`. Playwright tests live in `tests/e2e/` and run
@@ -115,6 +120,10 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   direct string; drizzle-kit uses it, since migrations can break through PgBouncer.
 - Schema changes: edit `src/server/db/schema/`, run `pnpm db:generate`, read the SQL, then
   `pnpm db:migrate`. Commit the migration and its snapshot. Never use `drizzle-kit push`.
+- `pnpm db:migrate` applies all pending migrations in one transaction: if one fails, the ones
+  before it roll back too. A migration that needs a data backfill first (like 0005, embeddings
+  `NOT NULL`) only works on branches where that backfill can run beforehand; on others, remove
+  the old rows first.
 - Anything Drizzle can't express (extensions) goes in a custom migration:
   `pnpm db:generate --custom --name=<name>`.
 - Queries live in `src/features/<area>/queries.ts`, start with `import "server-only"`, take
@@ -123,12 +132,15 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Every user-data table has a `user_id` column with an index. Child tables (`chunk`, `message`)
   copy it from their parent so they can be filtered without a join.
 - Multi-row writes that must succeed together (a document's chunks) use `db.transaction`.
-- `EMBEDDING_DIMENSIONS` in `src/server/ai/constants.ts` must match the embedding model. Changing
-  it needs a migration and re-embedding; a unit test fails if the migration is missing.
+- `EMBEDDING_DIMENSIONS` in `src/server/ai/constants.ts` must match every embedding model's
+  output (`EMBEDDING_CONFIGS` in `src/server/ai/models.ts`; a unit test checks them). Changing it
+  needs a migration and re-embedding; a unit test fails if the migration is missing.
 - Scripts and drizzle-kit run with `--conditions=react-server` so `server-only` imports resolve
   outside Next. The `db:*` scripts already do this.
 - Integration tests (`*.integration.test.ts`) use `describe.skipIf(!process.env.DATABASE_URL)` and
-  import database modules lazily. CI has no database and sets `SKIP_ENV_VALIDATION`.
+  import database modules lazily. Tests that embed for real (anything that indexes or searches
+  with a real query) also skip unless `hasEmbeddingKey` (`src/server/ai/models.ts`): the
+  configured provider's key is set. CI has neither and sets `SKIP_ENV_VALIDATION`.
 
 ## Files and indexing rules (Vercel Blob)
 
@@ -153,8 +165,44 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   in one transaction. A retry puts the document back to `uploaded`; never insert chunks elsewhere.
 - Chunks: ~500 tokens, ~15% overlap, whole sentences, never across pages. `startOffset` and
   `endOffset` index into `document_page.text`, and `text.slice(start, end) === content` must hold
-  (`docs/adr/0004`). `chunk.embedding` is nullable until embeddings land (PR 5).
+  (`docs/adr/0004`). `chunk.embedding` and `chunk.embedding_model` are `NOT NULL`: chunks are
+  embedded before the transaction that stores them, and a document is `ready` only when all of
+  them are. While embedding, the Library shows "Almost ready".
 - Regenerate the PDF fixtures with `node tests/fixtures/make-pdfs.mjs`.
+
+## AI rules (AI SDK, Gemini free tier, AI Gateway)
+
+- Read `.claude/skills/ai-sdk` and the installed docs in `node_modules/ai/docs/` (and
+  `node_modules/@ai-sdk/google/docs/`) before writing AI SDK code; don't write it from memory.
+- **The Gemini free tier (`EMBEDDING_PROVIDER=google`, the default) is for development with
+  fictional documents only**: seed data, eval fixtures, sample uploads. Google may use free-tier
+  content to improve its products. Never point it at real users' documents. Production switches
+  to `EMBEDDING_PROVIDER=gateway` before launch (`docs/adr/0005`).
+- Models and providers are configured only in `src/server/ai/models.ts`: `embeddingConfig` (model,
+  task-type options, request limits, similarity floor) for the current provider, and the `gateway`
+  instance for chat later. Keys come from `env`, never `process.env`. Don't add other provider
+  packages.
+- Keys: `GOOGLE_GENERATIVE_AI_API_KEY` for `google`. `AI_GATEWAY_API_KEY` for `gateway`, optional
+  on Vercel (OIDC); a key always wins over OIDC, even an invalid one. The gateway needs paid
+  credits for this model; its free tier answers 403.
+- Embed only through `src/server/ai/embed.ts` (`embedChunks`, `embedQuery`). It batches within the
+  provider's limits, spaces requests out (Gemini: one at a time, 700 ms apart), retries 429s as
+  long as the provider asks, validates every vector's size, and writes an `ai_usage` row after
+  each call. Don't call `embed`/`embedMany` directly.
+- Every chunk stores `embedding_model`. Search only uses chunks from the current
+  `EMBEDDING_MODEL`. After changing `EMBEDDING_PROVIDER`, run `pnpm db:backfill-embeddings` (it
+  re-embeds every other-model chunk) and `pnpm eval:retrieval`, then set that provider's
+  `minSimilarity`.
+- Vector search lives in `src/server/ai/retrieve.ts`: raw SQL with
+  `set local hnsw.iterative_scan = relaxed_order` inside its own transaction, so the user filter
+  can't cut results short (`docs/adr/0005`). Never use a session-wide `set` (the pooled connection
+  is shared).
+- `searchPassages` has no similarity floor by default; callers that show results pass
+  `MIN_SIMILARITY` (`findPassages` does), which is per model (Gemini 0.55, calibrated). The eval
+  relies on the raw ranking.
+- Before and after changing the embedding model, chunking or search, run `pnpm eval:retrieval`
+  and commit both results files. If the fixtures or chunker change, `retrieval-cases.test.ts` says
+  which questions need new pages or quotes.
 
 ## Auth rules (Clerk)
 
