@@ -1,6 +1,13 @@
 import "server-only";
 
-import { generateText, streamText, type TextStreamPart, type ToolSet } from "ai";
+import {
+  generateText,
+  streamText,
+  wrapLanguageModel,
+  type LanguageModelMiddleware,
+  type TextStreamPart,
+  type ToolSet,
+} from "ai";
 
 import type { ChatUIMessage, PassageData } from "@/features/chat/message";
 import { PASSAGE_LIMIT } from "@/features/chat/find-rules";
@@ -27,12 +34,19 @@ export const ANSWER_PASSAGES = PASSAGE_LIMIT;
 const ANSWER_MAX_OUTPUT_TOKENS = 1_500;
 const REWRITE_MAX_OUTPUT_TOKENS = 120;
 // A provider that stops responding fails the request instead of holding it open. The first
-// chunk includes thinking time; the total stays under the chat route's maxDuration.
-const ANSWER_TIMEOUT = { firstChunkMs: 30_000, totalMs: 100_000 };
+// chunk includes thinking time and retries on a rate limit; the total stays under the chat
+// route's maxDuration.
+const ANSWER_TIMEOUT = { firstChunkMs: 75_000, totalMs: 105_000 };
 export const SHORT_CALL_TIMEOUT_MS = 30_000;
 
-// Rewrites and judgements run on the chat provider's schedule, retrying rate limits.
+// Every chat model call runs on the chat provider's schedule, retrying rate limits.
 export const callChatModel = createModelCaller("Chat", () => chatConfig.limits);
+
+// streamText's own retries (2 s, 4 s) are too short for a per-minute quota. This retries the
+// request that opens the stream, before any text has been sent, on the shared schedule.
+const pacedStream: LanguageModelMiddleware = {
+  wrapStream: ({ doStream }) => callChatModel(doStream),
+};
 
 // The latest question as a standalone search query, using the conversation to resolve what it
 // refers to. The first question in a chat is searched as asked (no model call). A failed
@@ -144,7 +158,8 @@ export function streamAnswer({
   }
 
   const result = streamText({
-    model,
+    model: wrapLanguageModel({ model, middleware: pacedStream }),
+    maxRetries: 0,
     instructions: ANSWER_SYSTEM_PROMPT,
     messages,
     providerOptions,

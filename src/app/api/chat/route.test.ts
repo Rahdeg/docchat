@@ -94,7 +94,7 @@ const textOf = (all: Record<string, unknown>[]) =>
 
 // A model that streams `text` in small pieces, as providers do.
 function modelWriting(text: string) {
-  const pieces = text.match(/.{1,7}/gs) ?? [];
+  const pieces = text.match(/[\s\S]{1,7}/g) ?? [];
   return new MockLanguageModelV4({
     doStream: async () => ({
       stream: simulateReadableStream({

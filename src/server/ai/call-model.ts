@@ -7,6 +7,9 @@ export type CallLimits = {
   minIntervalMs: number;
   // Per request, on rate limits (429) and server errors.
   maxRetries: number;
+  // Give up rather than wait longer than this before a retry. For requests someone is watching:
+  // a per-minute quota can ask for most of a minute.
+  maxDelayMs?: number;
 };
 
 // A function that runs model calls on one schedule, retrying rate limits and server errors.
@@ -20,7 +23,7 @@ export type CallLimits = {
 export function createModelCaller(label: string, limits: () => CallLimits) {
   let nextStart = 0;
 
-  async function paced<T>(call: () => Promise<T>): Promise<T> {
+  async function paced<T>(call: () => PromiseLike<T>): Promise<T> {
     const { minIntervalMs } = limits();
     if (minIntervalMs === 0) return call();
     const now = Date.now();
@@ -30,13 +33,14 @@ export function createModelCaller(label: string, limits: () => CallLimits) {
     return call();
   }
 
-  return async function callModel<T>(call: () => Promise<T>): Promise<T> {
+  return async function callModel<T>(call: () => PromiseLike<T>): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await paced(call);
       } catch (error) {
         const delay = retryDelayMs(error, attempt);
-        if (delay === null || attempt >= limits().maxRetries) throw error;
+        const { maxRetries, maxDelayMs = Infinity } = limits();
+        if (delay === null || attempt >= maxRetries || delay > maxDelayMs) throw error;
         console.warn(
           `${label} request failed (${statusOf(error) ?? "network"}); retry ${attempt + 1} in ${Math.round(delay / 1000)} s`,
         );
@@ -61,6 +65,12 @@ function failureOf(error: unknown): CallFailure | null {
 
 export function statusOf(error: unknown): number | undefined {
   return failureOf(error)?.statusCode;
+}
+
+// A free-tier daily quota is used up: retrying today won't help.
+export function isDailyQuotaError(error: unknown): boolean {
+  const failure = failureOf(error);
+  return failure?.statusCode === 429 && /PerDay/.test(failure.responseBody ?? "");
 }
 
 // How long to wait before retrying, or null to give up now.

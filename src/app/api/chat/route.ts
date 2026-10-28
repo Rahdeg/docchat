@@ -11,6 +11,7 @@ import {
 } from "ai";
 import { z } from "zod";
 
+import { chatRequestSchema } from "@/features/chat/chat-request";
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "@/features/chat/find-rules";
 import {
   chatTitle,
@@ -28,7 +29,6 @@ import {
 } from "@/features/chat/mutations";
 import { listMessages } from "@/features/chat/queries";
 import { listReadyDocuments } from "@/features/documents/queries";
-import { MAX_DOCUMENTS } from "@/features/documents/upload-rules";
 import {
   findAnswerPassages,
   noPassagesAnswer,
@@ -36,7 +36,7 @@ import {
   streamAnswer,
   type AnswerStream,
 } from "@/server/ai/answer";
-import { statusOf } from "@/server/ai/call-model";
+import { isDailyQuotaError, statusOf } from "@/server/ai/call-model";
 import { checkDailyLimit } from "@/server/ai/limits";
 
 // Answers a question in a chat, streaming the answer with its sources and citations
@@ -45,25 +45,6 @@ import { checkDailyLimit } from "@/server/ai/limits";
 // The answer is cut off after 100 s (src/server/ai/answer.ts); this leaves room for the search
 // and saving.
 export const maxDuration = 120;
-
-const bodySchema = z.object({
-  chatId: z.uuid(),
-  // "regenerate-message" is "Try again": the last question is answered again.
-  trigger: z.enum(["submit-message", "regenerate-message"]),
-  // The question. Earlier messages come from the database, never from the browser.
-  message: z.object({
-    id: z.uuid(),
-    role: z.literal("user"),
-    parts: z
-      .array(z.object({ type: z.literal("text"), text: z.string() }))
-      .min(1)
-      .max(1),
-  }),
-  // Leave out to search every ready document.
-  documentIds: z.array(z.uuid()).min(1).max(MAX_DOCUMENTS).optional(),
-});
-
-export type ChatRequestBody = z.input<typeof bodySchema>;
 
 const questionSchema = z.string().trim().min(QUERY_MIN_CHARS).max(QUERY_MAX_CHARS);
 
@@ -79,7 +60,7 @@ export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return fail(401, "You need to be signed in.");
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail(400, "That request wasn't valid.");
   const { chatId, trigger, documentIds } = parsed.data;
   const question = questionSchema.safeParse(messageText(parsed.data.message));
@@ -242,6 +223,9 @@ function citationsChunk(citations: Citation[], final: boolean): InferUIMessageCh
 }
 
 function errorMessage(error: unknown): string {
+  if (isDailyQuotaError(error)) {
+    return "DocChat has used up today's AI allowance for everyone. Answers are back tomorrow.";
+  }
   if (statusOf(error) === 429) {
     return "DocChat's AI provider is busy right now. Wait a minute and try again.";
   }
