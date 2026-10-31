@@ -185,7 +185,8 @@ hidden: the no-answer question's if it's lower, otherwise the off-topic probes'.
   employment contract and scores 0.640, above the weakest right passage, so **no floor can hide
   it**. Saying "the documents don't say" is the answering model's job (PR 6), not the floor's.
 - 0.55 hides unrelated questions and keeps every right passage. It is set for Gemini only; the
-  gateway's 0.25 is a placeholder until the eval runs on it.
+  gateway's 0.25 is a placeholder until the eval runs on it. Raised to 0.58 on 2026-10-31,
+  after questions about DocChat itself turned out to score up to 0.576 (ADR 0006, section 6).
 - The one question not ranked first, "Am I allowed to work from home?" (rank 4), has its answer on
   page 1 of the contract, which is a single chunk covering parties, duties, place of work and
   equipment. The hybrid-working clause is a small part of that vector. Smaller chunks, or putting

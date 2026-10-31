@@ -1,6 +1,9 @@
-import { simulateReadableStream } from "ai";
+import { APICallError, simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ABOUT_ANSWER } from "@/features/chat/about";
+import { FREE_LIMIT_MESSAGE } from "@/features/chat/message";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -70,6 +73,8 @@ function body(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const ask = (text: string) => ({ id: questionId, role: "user", parts: [{ type: "text", text }] });
+
 function post(payload: unknown) {
   return POST(
     new Request("http://localhost/api/chat", {
@@ -120,6 +125,33 @@ function modelWriting(text: string) {
     }),
   });
 }
+
+// What the Gemini API answers when a quota is used up.
+function quotaError(quota = "GenerateRequestsPerDayPerProjectPerModel-FreeTier") {
+  return new APICallError({
+    message: "You exceeded your current quota.",
+    url: "https://generativelanguage.googleapis.com/",
+    requestBodyValues: {},
+    statusCode: 429,
+    responseBody: JSON.stringify({
+      error: { code: 429, status: "RESOURCE_EXHAUSTED", details: [{ quotaId: quota }] },
+    }),
+    isRetryable: true,
+  });
+}
+
+const followUpHistory = [
+  {
+    id: "a0000000-0000-4000-8000-000000000001",
+    role: "user",
+    parts: [{ type: "text", text: "Can I keep a cat?" }],
+  },
+  {
+    id: "a0000000-0000-4000-8000-000000000002",
+    role: "assistant",
+    parts: [{ type: "text", text: "Only with consent [1]." }],
+  },
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -254,13 +286,100 @@ describe("POST /api/chat", () => {
     expect(doStream).not.toHaveBeenCalled();
     expect(mocks.recordGeneration).not.toHaveBeenCalled();
     expect(textOf(all)).toMatch(
-      /^Your documents don't say\. Nothing in your documents \(Tenancy agreement\.pdf\)/,
+      /^Your documents don't say anything about that\. Nothing in your documents \(Tenancy agreement\)/,
     );
     expect(all.filter((c) => c.type === "data-citations").at(-1)).toMatchObject({
       data: { final: true, citations: [] },
     });
     await vi.waitFor(() => expect(mocks.saveAnswer).toHaveBeenCalled());
     expect(mocks.saveAnswer.mock.calls[0]![3]).toBe("complete");
+  });
+
+  it("streams the model's one-line 'don't say' for an unrelated question, citing nothing", async () => {
+    mocks.models.answer.model = modelWriting("Your documents don't say anything about that. [1]");
+
+    const all = await chunks(await post(body({ message: ask("What's the capital of France?") })));
+
+    expect(textOf(all)).toBe("Your documents don't say anything about that.");
+    expect(all.filter((c) => c.type === "data-citations").at(-1)).toMatchObject({
+      data: { final: true, citations: [] },
+    });
+  });
+
+  it.each(["are you fraudstar", "Are you a fraudster?", "What can you do?", "Who are you?"])(
+    "answers %j with the line about DocChat, without searching or calling a model",
+    async (text) => {
+      const doStream = vi.fn();
+      mocks.models.answer.model = new MockLanguageModelV4({ doStream });
+
+      const all = await chunks(await post(body({ message: ask(text) })));
+
+      expect(textOf(all)).toBe(ABOUT_ANSWER);
+      expect(mocks.searchPassages).not.toHaveBeenCalled();
+      expect(doStream).not.toHaveBeenCalled();
+      expect(mocks.recordGeneration).not.toHaveBeenCalled();
+      expect(all.some((c) => c.type === "data-passages" || c.type === "data-citations")).toBe(
+        false,
+      );
+      await vi.waitFor(() => expect(mocks.saveAnswer).toHaveBeenCalled());
+      const [, , saved, status] = mocks.saveAnswer.mock.calls[0]!;
+      expect(status).toBe("complete");
+      expect(saved.parts).toEqual([expect.objectContaining({ type: "text", text: ABOUT_ANSWER })]);
+    },
+  );
+
+  it.each([
+    ["the daily quota", quotaError()],
+    ["a per-minute rate limit", quotaError("GenerateRequestsPerMinutePerProjectPerModel-FreeTier")],
+  ])(
+    "when the answer model refuses for %s, keeps the question, saves no answer and says so",
+    async (_label, error) => {
+      mocks.models.answer.model = new MockLanguageModelV4({
+        doStream: async () => {
+          throw error;
+        },
+      });
+
+      const response = await post(body());
+      const all = await chunks(response);
+
+      expect(response.status).toBe(200);
+      expect(mocks.saveUserMessage).toHaveBeenCalled();
+      expect(all).toContainEqual({ type: "error", errorText: FREE_LIMIT_MESSAGE });
+      expect(all.some((c) => c.type === "finish")).toBe(false);
+      // onEnd runs after the stream closes: give it the chance to (wrongly) save.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(mocks.saveAnswer).not.toHaveBeenCalled();
+      expect(mocks.recordGeneration).not.toHaveBeenCalled();
+    },
+  );
+
+  it("says the same when the embedding provider refuses the search for quota", async () => {
+    mocks.searchPassages.mockRejectedValue(quotaError());
+
+    const all = await chunks(await post(body()));
+
+    expect(mocks.saveUserMessage).toHaveBeenCalled();
+    expect(all).toContainEqual({ type: "error", errorText: FREE_LIMIT_MESSAGE });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mocks.saveAnswer).not.toHaveBeenCalled();
+  });
+
+  it("still saves a failed answer for other errors", async () => {
+    mocks.models.answer.model = new MockLanguageModelV4({
+      doStream: async () => {
+        throw new Error("socket hang up");
+      },
+    });
+
+    const all = await chunks(await post(body()));
+
+    expect(all).toContainEqual({
+      type: "error",
+      errorText: "Something went wrong while writing the answer. Try again.",
+    });
+    await vi.waitFor(() => expect(mocks.saveAnswer).toHaveBeenCalled());
+    expect(mocks.saveAnswer.mock.calls[0]![3]).toBe("failed");
   });
 
   it("drops a citation to a source that wasn't retrieved", async () => {
@@ -281,6 +400,21 @@ describe("POST /api/chat", () => {
     await chunks(await post(body({ trigger: "regenerate-message" })));
 
     expect(mocks.deleteMessagesAfter).toHaveBeenCalledWith(alice, chatId, askedAt);
+  });
+
+  it("searches a follow-up that reads as standalone as asked, without a rewrite call", async () => {
+    const followUp = "Can I keep a dog at the property?";
+    mocks.listMessages.mockResolvedValue([
+      ...followUpHistory,
+      { id: questionId, role: "user", parts: [{ type: "text", text: followUp }] },
+    ]);
+    const doGenerate = vi.fn();
+    mocks.models.rewrite.model = new MockLanguageModelV4({ doGenerate });
+
+    await chunks(await post(body({ message: ask(followUp) })));
+
+    expect(doGenerate).not.toHaveBeenCalled();
+    expect(mocks.searchPassages).toHaveBeenCalledWith(expect.objectContaining({ query: followUp }));
   });
 
   it("rewrites a follow-up into a standalone query before searching", async () => {

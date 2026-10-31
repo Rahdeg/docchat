@@ -9,10 +9,12 @@ import {
   type ToolSet,
 } from "ai";
 
+import { ABOUT_ANSWER, isAboutAnswer, isAboutDocChat } from "@/features/chat/about";
 import type { ChatUIMessage, PassageData } from "@/features/chat/message";
 import { PASSAGE_LIMIT } from "@/features/chat/find-rules";
 
 import { createModelCaller } from "./call-model";
+import { readsStandalone } from "./follow-up";
 import { CitationFilter, parseCitationBlock, resolveCitations, type Resolved } from "./citations";
 import { chatConfig, MIN_SIMILARITY } from "./models";
 import {
@@ -49,14 +51,17 @@ const pacedStream: LanguageModelMiddleware = {
 };
 
 // The latest question as a standalone search query, using the conversation to resolve what it
-// refers to. The first question in a chat is searched as asked (no model call). A failed
-// rewrite falls back to the question: it shouldn't cost the user their answer.
+// refers to. The first question in a chat, and a follow-up that already reads as standalone,
+// are searched as asked (no model call). A failed rewrite falls back to the question: it
+// shouldn't cost the user their answer.
 export async function rewriteQuery(
   userId: string,
   history: readonly ChatUIMessage[],
   question: string,
 ): Promise<string> {
-  if (!history.some((message) => message.role === "user")) return question;
+  if (!history.some((message) => message.role === "user") || readsStandalone(question)) {
+    return question;
+  }
   const { id, model, providerOptions } = chatConfig.models.rewrite;
   const prompt = rewritePrompt(history, question);
   try {
@@ -208,7 +213,9 @@ export type Answer = {
   passages: PassageData[];
   text: string;
   noAnswer: boolean;
-  // False when no passage matched, so no model was called.
+  // The canned line for questions about DocChat itself (src/features/chat/about.ts).
+  about: boolean;
+  // False when no model was called: no passage matched, or a question about DocChat.
   generated: boolean;
 } & Resolved;
 
@@ -226,11 +233,22 @@ export async function answerQuestion({
   history = [],
   documentNames,
 }: AnswerOptions): Promise<Answer> {
+  const none = { generated: false, citations: [], dropped: [] };
+  if (isAboutDocChat(question)) {
+    return {
+      query: question,
+      passages: [],
+      text: ABOUT_ANSWER,
+      noAnswer: false,
+      about: true,
+      ...none,
+    };
+  }
   const query = await rewriteQuery(userId, history, question);
   const passages = await findAnswerPassages({ userId, query, documentIds });
   if (passages.length === 0) {
     const text = noPassagesAnswer(documentNames, !!documentIds);
-    return { query, passages, text, noAnswer: true, generated: false, citations: [], dropped: [] };
+    return { query, passages, text, noAnswer: true, about: false, ...none };
   }
 
   const answer = streamAnswer({ userId, question, history, passages });
@@ -242,6 +260,7 @@ export async function answerQuestion({
     passages,
     text: answer.filter.text,
     noAnswer: answer.filter.noAnswer,
+    about: isAboutAnswer(answer.filter.text),
     generated: true,
     ...answer.finish(),
   };

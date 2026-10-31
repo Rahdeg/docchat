@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { ChatUIMessage } from "@/features/chat/message";
+import { ABOUT_ANSWER } from "@/features/chat/about";
+import { UNRELATED_ANSWER, type ChatUIMessage } from "@/features/chat/message";
 
 import {
   ANSWER_SYSTEM_PROMPT,
@@ -62,6 +63,26 @@ describe("answer prompt", () => {
     expect(ANSWER_SYSTEM_PROMPT).toContain("<citations>");
   });
 
+  it("keeps a 'don't say' answer to an unrelated question to one fixed sentence", () => {
+    expect(UNRELATED_ANSWER).toBe("Your documents don't say anything about that.");
+    expect(ANSWER_SYSTEM_PROMPT).toContain(
+      `reply with exactly "${UNRELATED_ANSWER}" and nothing more. Never describe or summarise a source that has nothing to do with the question.`,
+    );
+  });
+
+  it("has the model show the rule and the working for a calculation, result last", () => {
+    expect(ANSWER_SYSTEM_PROMPT).toContain(
+      "state the rule as the source words it, then the working, then the result",
+    );
+    // Not the eval's own question (8 years under clause 9.2), so the eval still tests the skill.
+    expect(ANSWER_SYSTEM_PROMPT).toContain("2 + (7 - 3) = **6 weeks** [1]");
+    expect(ANSWER_SYSTEM_PROMPT).not.toMatch(/4 \+ 3|7 weeks/);
+  });
+
+  it("has the model answer questions about DocChat with the canned line", () => {
+    expect(ANSWER_SYSTEM_PROMPT).toContain(`reply with exactly "${ABOUT_ANSWER}" and nothing more`);
+  });
+
   it("puts the sources, marked untrusted, in the latest user message after the history", () => {
     const history: ChatUIMessage[] = [
       { id: "1", role: "user", parts: [{ type: "text", text: "Can I keep a cat?" }] },
@@ -96,9 +117,9 @@ describe("answer prompt", () => {
 });
 
 describe("noPassagesAnswer", () => {
-  it("says the documents don't say, and what was searched", () => {
+  it("says the documents don't say anything about it, and names what was searched", () => {
     expect(noPassagesAnswer(["Lease.pdf", "Contract.pdf"], false)).toBe(
-      "Your documents don't say. Nothing in your documents (Lease.pdf or Contract.pdf) comes close to that question. Try asking with different words.",
+      "Your documents don't say anything about that. Nothing in your documents (Lease or Contract) comes close to that question. Try asking with different words.",
     );
     expect(noPassagesAnswer(["a", "b", "c", "d", "e"], true)).toContain(
       "the documents you chose (a, b, c and 2 more)",

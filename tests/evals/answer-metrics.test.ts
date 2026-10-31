@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { citedClaims, citesPage, isHonestNoAnswer, share, type EvalAnswer } from "./answer-metrics";
+import { ABOUT_ANSWER } from "@/features/chat/about";
+
+import {
+  citedClaims,
+  citesPage,
+  isAboutReply,
+  isHonestNoAnswer,
+  passesCheck,
+  share,
+  type EvalAnswer,
+} from "./answer-metrics";
 
 const lease = (page: number, content: string) => ({ name: "Tenancy agreement.pdf", page, content });
 
@@ -49,6 +59,36 @@ describe("isHonestNoAnswer", () => {
     expect(isHonestNoAnswer({ ...noAnswer, citations: [] })).toBe(true);
     expect(isHonestNoAnswer(noAnswer)).toBe(false);
     expect(isHonestNoAnswer({ ...answer, citations: [] })).toBe(false);
+  });
+});
+
+describe("isAboutReply", () => {
+  it("needs the line about DocChat and no citations", () => {
+    const about = { text: ABOUT_ANSWER, noAnswer: false, passages: [], citations: [] };
+
+    expect(isAboutReply(about)).toBe(true);
+    expect(isAboutReply({ ...about, citations: answer.citations })).toBe(false);
+    expect(isAboutReply({ ...answer, citations: [] })).toBe(false);
+  });
+});
+
+describe("passesCheck", () => {
+  // The long-service-notice check in retrieval.json.
+  const sevenWeeks = { matches: "\\b(7|seven) weeks\\b", notMatches: "\\b(9|nine) weeks\\b" };
+
+  it("passes the worked notice period and fails the wrong ones", () => {
+    expect(
+      passesCheck(
+        "**7 weeks** [1]. Clause 9.2: 4 weeks, plus 1 week for each complete year after 5 years: 4 + 3 = 7 weeks.",
+        sevenWeeks,
+      ),
+    ).toBe(true);
+    expect(
+      passesCheck("For eight complete years, you are owed **nine weeks'** notice [1].", sevenWeeks),
+    ).toBe(false);
+    expect(passesCheck("You are owed twelve weeks' notice [1].", sevenWeeks)).toBe(false);
+    // Both numbers: the wrong one still fails it.
+    expect(passesCheck("Not 9 weeks but 7 weeks [1].", sevenWeeks)).toBe(false);
   });
 });
 

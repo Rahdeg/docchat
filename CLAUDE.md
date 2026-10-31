@@ -203,7 +203,7 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   can't cut results short (`docs/adr/0005`). Never use a session-wide `set` (the pooled connection
   is shared).
 - `searchPassages` has no similarity floor by default; callers that show results pass
-  `MIN_SIMILARITY` (`findPassages` does), which is per model (Gemini 0.55, calibrated). The eval
+  `MIN_SIMILARITY` (`findPassages` does), which is per model (Gemini 0.58, calibrated). The eval
   relies on the raw ranking.
 - Before and after changing the embedding model, chunking or search, run `pnpm eval:retrieval`
   and commit both results files. If the fixtures or chunker change, `retrieval-cases.test.ts` says
@@ -216,7 +216,11 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - **The Gemini free tier allows 20 requests a day per model for the whole project** (resets at
   midnight Pacific). Don't spend it casually: tests that call the chat model also need
   `LIVE_CHAT_TESTS=1`, and `pnpm eval:answers` needs about 17 answers (it resumes a run the
-  quota stopped).
+  quota stopped). To recheck a few questions, pass `--only=<ids>` to either eval.
+- When the provider refuses for quota (429 / `RESOURCE_EXHAUSTED`, `isQuotaError`), the route
+  keeps the question, saves no answer and sends `FREE_LIMIT_MESSAGE`. `CHAT_DAILY_LIMIT`
+  defaults to 10 on `google` and 50 on `gateway`. A follow-up that reads as standalone
+  (`readsStandalone`, `src/server/ai/follow-up.ts`) skips the rewrite call.
 - Generate only through `src/server/ai/answer.ts` (`streamAnswer`, `rewriteQuery`,
   `answerQuestion`) and `judge.ts`. They pace and retry through `callChatModel`
   (`call-model.ts`) and write an `ai_usage` row per generation (`recordGeneration`: `chat`,

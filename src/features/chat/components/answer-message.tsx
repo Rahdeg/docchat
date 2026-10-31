@@ -25,6 +25,7 @@ import {
   answerSources,
   documentCount,
   passageHref,
+  passagesRead,
   sourceLabel,
   type AnswerSources,
 } from "../answer-sources";
@@ -143,7 +144,8 @@ export function AnswerMessage({
 }
 
 // "Read 5 passages from 2 documents": opens the passages the answer was written from, best
-// match first, with the sentence closest to the question marked.
+// match first, with the sentence closest to the question marked. Only cited passages get the
+// yellow number.
 function PassagesRead({ sources }: { sources: AnswerSources }) {
   const { passages, query } = sources;
   if (passages.length === 0) {
@@ -174,10 +176,11 @@ function PassagesRead({ sources }: { sources: AnswerSources }) {
       </CollapsibleTrigger>
       <CollapsibleContent>
         <ol className="flex flex-col gap-3 pb-1">
-          {passages.map((passage, index) => (
+          {passagesRead(sources).map(({ passage, cited }, index) => (
             <li key={passage.chunkId}>
               <SourceCard
                 number={index + 1}
+                featured={cited}
                 compact
                 documentName={passage.name}
                 page={passage.page}

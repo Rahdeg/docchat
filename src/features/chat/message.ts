@@ -79,6 +79,10 @@ export type ChatMessagePart = ChatUIMessage["parts"][number];
 // it, and an answer that does carries no citations.
 export const NO_ANSWER_PREFIX = "Your documents don't say";
 
+// The whole answer to a question the documents have nothing to do with: nothing about what
+// they do cover, so an unrelated passage is never summarised.
+export const UNRELATED_ANSWER = `${NO_ANSWER_PREFIX} anything about that.`;
+
 export function isNoAnswer(text: string): boolean {
   return normalizeApostrophes(text.trimStart()).startsWith(NO_ANSWER_PREFIX);
 }
@@ -105,6 +109,10 @@ export function citationsOf(
   for (const part of message.parts) if (part.type === "data-citations") return part.data;
   return null;
 }
+
+// Shown when the AI provider refuses for quota (rate limit or daily quota). The question is
+// saved, the answer isn't; the browser drops what had streamed of it.
+export const FREE_LIMIT_MESSAGE = "DocChat has reached today's free AI limit. Try again tomorrow.";
 
 // Chat titles: the first question, cut at a word to about 60 characters. No model call.
 export const TITLE_MAX_CHARS = 60;

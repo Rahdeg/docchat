@@ -7,13 +7,15 @@
 
 PR 5 found the passages that answer a question (ADR 0005). PR 6 writes the answer: streamed,
 written only from the user's documents, with a numbered citation on every claim that opens the
-exact sentence it rests on. Five choices follow:
+exact sentence it rests on. Seven choices follow (the last two added after manual testing):
 
 1. Which model writes answers, and how it's called.
 2. How the model gives its citations, including the sentence behind each one.
 3. How the server checks those citations before anyone sees them.
 4. What happens when the documents don't answer the question.
 5. How we know it works: the answer eval.
+6. Unrelated questions and questions about DocChat itself, and the similarity floor.
+7. Living within the free tier's quota, and showing the working for calculations.
 
 ## Decision
 
@@ -36,7 +38,7 @@ models, one per job:
 - **The free tier allows 20 requests a day per model, for the whole project** (429
   `GenerateRequestsPerDayPerProjectPerModel-FreeTier`; it resets at midnight Pacific). That's 20
   answers a day across every user, which binds long before `CHAT_DAILY_LIMIT` (50 per user, as
-  asked) does. Fine for development with fictional documents; production uses the gateway.
+  asked; 10 on the free tier since section 7) does. Fine for development with fictional documents; production uses the gateway.
 - **The judge is an open model (Gemma) on the same API**, so the eval's judge calls draw on a
   different quota than the answers they judge.
 - **Every generation writes an `ai_usage` row** (`chat`, `rewrite` or `judge`, with input and
@@ -123,8 +125,9 @@ When the stream ends, `resolveCitations` checks each cited source:
   starts "Your documents don't say", names the documents that were searched, and suggests other
   words. It saves quota and can't be talked into guessing.
 - **Passages, but no answer in them**: the system prompt tells the model to start with exactly
-  "Your documents don't say" and then say what the sources do cover, with no citations and no
-  block. The filter enforces the "no citations" half: once an answer starts with that phrase,
+  "Your documents don't say", with no citations and no block. If the sources are about the
+  question's subject, it adds one sentence on what they do say about it; if they're unrelated,
+  the whole answer is "Your documents don't say anything about that." (section 6). The filter enforces the "no citations" half: once an answer starts with that phrase,
   every marker in it is dropped.
 - **Prompt injection.** Document text goes in the latest user message inside `<source>` blocks
   labelled as untrusted, never in the system prompt. Anything in a document that looks like one
@@ -173,6 +176,99 @@ development and tests by the time the eval ran. Judge `gemma-4-26b-a4b-it`; embe
     "instead", the other to a sentence that leaves an exception for the next sentence.
 - Run `pnpm eval:answers` again with the default `gemini-3.6-flash` once its quota resets, and
   commit that results file; those are the numbers to publish.
+
+### 6. Unrelated questions, questions about DocChat, and the floor (2026-10-31)
+
+Manual testing found "are you fraudstar" answered with "Your documents don't say. They only
+mention that cited answers link back to a source chunk and page": a 56% match from a product
+roadmap, summarised although it had nothing to do with the question.
+
+- **Unrelated questions get one fixed sentence.** The system prompt now splits the "don't say"
+  answer: when no source is about what the question asks, the whole answer is "Your documents
+  don't say anything about that." (`UNRELATED_ANSWER`), and it must never describe a source.
+  Only when a source is on the question's subject does the model add one sentence on what it
+  says. The canned no-passages answer opens with the same sentence; it still names the
+  documents searched, never their contents.
+- **Questions about DocChat itself get one canned line** (`ABOUT_ANSWER`,
+  `src/features/chat/about.ts`): who or what it is, what it can do, greetings and thanks. No
+  search, no model call, no citations, and no passages on the message. `isAboutDocChat` matches
+  the whole question against a short list of patterns, so a question that goes on to mention a
+  document ("what can you do with my lease?") is searched as usual. The ones it misses reach
+  the model, whose system prompt says to reply with the same line in the same call (no extra
+  request); the browser then hides that answer's passages. We rejected a classifier call: it
+  would double the free tier's scarcest resource, requests per day.
+- **The floor rises from 0.55 to 0.58.** The retrieval eval gained two off-topic probes,
+  "Are you a fraudster?" and "What can you do?" (`tests/evals/results/retrieval-2026-10-31.json`):
+
+  | Probe                                  | Best score |
+  | -------------------------------------- | ---------- |
+  | What's a good recipe for banana bread? | 0.503      |
+  | Who won the 1998 World Cup?            | 0.424      |
+  | How do I reset my router?              | 0.490      |
+  | Are you a fraudster?                   | **0.557**  |
+  | What can you do?                       | **0.576**  |
+  | Lowest right passage (remote-work)     | 0.599      |
+
+  Questions about DocChat share words with documents that describe a product ("you", "can",
+  "answers"), so both cleared 0.55. The eval suggests 0.59, halfway between 0.576 and 0.599;
+  that leaves 0.009 below the weakest right passage, too tight for 14 questions. 0.58 hides both
+  probes (and the screenshot's 56% passage) with 0.019 to spare. The pattern check already
+  stops these two before search; the floor is the second line for paraphrases it misses.
+
+#### Results after the change
+
+`tests/evals/results/answers-2026-10-31.json`, with the configured `gemini-3.6-flash` (the first
+run of it; the 2026-10-28 numbers were from a Flash-Lite stand-in). Judge `gemma-4-26b-a4b-it`,
+`MIN_SIMILARITY` 0.58.
+
+| Metric            | Score | Of                                      |
+| ----------------- | ----- | --------------------------------------- |
+| Citation accuracy | 100%  | 14 answerable questions                 |
+| Grounding         | 85%   | 26 cited claims (22 supported)          |
+| Honesty           | 100%  | 6 (the company car, 5 off-topic probes) |
+| Quote match rate  | 100%  | 15 citations                            |
+
+- Honesty now accepts the line about DocChat as well as "Your documents don't say" for an
+  off-topic probe, both without citations. The two new probes got the line without a search;
+  the other three found no passage above the floor and got "Your documents don't say anything
+  about that." The company-car question (on-topic) got "don't say" plus what the contract does
+  offer, as intended for a related question.
+- The four unsupported claims: `long-service-notice` repeats the arithmetic error (nine weeks;
+  clause 9.2 gives seven). `short-sickness` and `remote-work` leave out conditions the passage
+  adds. `service-charge` is the eval's claim granularity: a sentence citing [1] for council tax
+  and [2] for the service charge is judged whole against each passage.
+
+### 7. Living within the free tier, and showing the working (2026-10-31)
+
+- **A quota refusal saves the question, not the answer.** When the provider refuses for quota
+  (a 429, or Google's `RESOURCE_EXHAUSTED`: the daily quota or a per-minute limit that the
+  retries couldn't wait out), the answer model's stream or the search's embedding call fails,
+  the route sends one error, "DocChat has reached today's free AI limit. Try again tomorrow.",
+  and writes no answer row. The question was saved before any model call, so the chat keeps it
+  and "Try again" works tomorrow. The browser drops what had streamed of the answer (the
+  passages). Other errors still save a `failed` answer with what was generated. This replaces
+  the two messages from section 1 (used-up daily quota, busy provider) with one. A per-minute
+  limit that outlasts the 20 s of retries is also told "tomorrow", which overstates the wait but
+  keeps one message.
+- **`CHAT_DAILY_LIMIT` defaults to 10 per user on `google`** and 50 on `gateway`, so one user
+  can't spend all of the project's 20 free answers.
+- **Follow-ups that read as standalone skip the rewrite.** `readsStandalone`
+  (`src/server/ai/follow-up.ts`) searches a follow-up as asked when it has at least four words,
+  doesn't open by leaning on the last turn ("and", "what about"), and has no word pointing back
+  ("it", "that", "they", "the other", "there"). It errs towards rewriting: an unneeded rewrite
+  costs a request, a missed one searches for the wrong thing.
+- **Calculations show their working.** The answer eval's `long-service-notice` answer said nine
+  weeks (2026-10-31) and twelve (2026-10-28); clause 9.2 gives 4 + (8 - 5) = 7. The system
+  prompt now asks for the rule as the source words it, then the working, then the result, in
+  one line, so the model works it out before it commits to a number. Its example uses other
+  numbers (2 + (7 - 3) = 6 weeks), so the eval still tests the skill rather than a copied
+  answer. `retrieval.json` gives that question an `answer` check (it must say 7 weeks and not
+  9), scored as **answer checks** in the eval.
+- **`--only=<ids>` reruns a few questions** in either eval, saved to `<eval>-<date>-only.json`.
+  The rerun of `long-service-notice` (`tests/evals/results/answers-2026-10-31-only.json`) gave
+  "4 weeks, plus 1 week for each further complete year of employment after 5 years:
+  4 + (8 - 5) = **7 weeks** [1]", judged supported, check passed. That's one answer: run the
+  full eval after the quota resets for the numbers to publish.
 
 ## Consequences
 

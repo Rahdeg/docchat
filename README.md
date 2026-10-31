@@ -150,8 +150,8 @@ Answers come from the provider in `CHAT_PROVIDER` (`docs/adr/0006`), which works
   midnight Pacific). When it's used up, DocChat says so. `CHAT_ANSWER_MODEL` picks another
   answer model on the same provider, e.g. `CHAT_ANSWER_MODEL=gemini-3.8-flash` (the newest Flash,
   overloaded on its free tier when this was written) or `gemini-3.5-flash-lite`.
-- `CHAT_DAILY_LIMIT` (default 50) caps answers per user per UTC day, checked before any model
-  call: "You've reached today's limit of N questions. It resets at midnight UTC."
+- `CHAT_DAILY_LIMIT` caps answers per user per UTC day (default 10 with `CHAT_PROVIDER=google`, 50
+  with `gateway`), checked before any model call: "You've reached today's limit of N questions. It resets at midnight UTC."
 - Every generation writes an `ai_usage` row (kind `chat`, `rewrite` or `judge`, input and output
   tokens).
 
@@ -270,6 +270,8 @@ embedding model, chunking or the search query can be judged by numbers instead o
   0.55.
 - Results are saved to `tests/evals/results/retrieval-<date>.json` with the model, chunk settings
   and git commit. Commit them so runs can be compared.
+- `--only=<ids>` runs just those questions (see "Rerunning a few questions" below), without the
+  floor calibration.
 - A run is free on Gemini's free tier and a fraction of a cent on the gateway, but needs the
   provider's key, so **it doesn't run in CI**.
   CI does run `tests/evals/retrieval-cases.test.ts`, which checks every question's page and quote
@@ -285,15 +287,35 @@ fixtures and questions plus its off-topic probes:
 - **Citation accuracy**: the expected page is among the cited sources.
 - **Grounding**: a judge model answers "Does this passage support this claim?" for every cited
   claim, with a one-line reason; the score is the share supported.
-- **Honesty**: the no-answer and off-topic questions get "Your documents don't say" with no
-  citations.
+- **Honesty**: the no-answer question gets "Your documents don't say" with no citations; the
+  off-topic probes get that or the one-line reply about DocChat itself.
 - **Quote match rate**: the share of citations whose quote was found in the cited passage.
+- **Answer checks**: questions with an `answer` check in `retrieval.json` must say what it
+  expects. `long-service-notice` must work out 7 weeks of notice (4 + 3), not 9.
 
 It prints a summary table and every failure, and saves `tests/evals/results/answers-<date>.json`.
 A run needs about 17 answers, close to the free tier's 20 a day, so calls are spaced out and
 progress is saved after each one: if the quota runs out, run it again after the reset and it
 continues (`--fresh` starts over). It doesn't run in CI.
 
-First run (2026-10-28, answers from `gemini-3.5-flash-lite` as a stand-in, judge
-`gemma-4-26b-a4b-it`): **citation accuracy 100%, grounding 85%, honesty 100%, quote match rate
-100%**. Rerun it on the default model to get the numbers that count.
+First run on the default `gemini-3.6-flash` (2026-10-31, judge `gemma-4-26b-a4b-it`):
+**citation accuracy 100%, grounding 85%, honesty 100%, quote match rate 100%** (ADR 0006).
+
+### Rerunning a few questions
+
+A full answer eval uses most of the free tier's 20 answers a day. To recheck a handful after a
+prompt change, name them with `--only` (comma-separated ids from `tests/evals/retrieval.json`;
+the off-topic probes are `off-topic-1` to `off-topic-5`):
+
+```bash
+corepack pnpm eval:answers --only=long-service-notice,company-car
+corepack pnpm eval:retrieval --only=remote-work,off-topic-4
+```
+
+- It asks only those questions (one answer each, plus a judge call per cited claim) and reuses
+  the fixtures already indexed for the eval user, so it embeds only the questions.
+- It saves to `answers-<date>-only.json` or `retrieval-<date>-only.json`, so the day's full run
+  isn't overwritten. An unfinished `--only` run continues like a full one.
+- An unknown id stops the run and lists the known ones.
+- The scores cover only the questions asked, and the retrieval eval skips the floor
+  calibration. Use a full run for the numbers you publish.

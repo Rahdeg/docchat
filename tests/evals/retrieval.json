@@ -12,7 +12,9 @@
   "offTopic": [
     "What's a good recipe for banana bread?",
     "Who won the 1998 World Cup?",
-    "How do I reset my router?"
+    "How do I reset my router?",
+    "Are you a fraudster?",
+    "What can you do?"
   ],
   "questions": [
     {
@@ -109,7 +111,12 @@
       "question": "If they let me go after eight years there, how much notice am I owed?",
       "document": "Employment contract.pdf",
       "page": 3,
-      "quote": "increases by one week for each further complete year of employment"
+      "quote": "increases by one week for each further complete year of employment",
+      "answer": {
+        "matches": "\\b(7|seven) weeks\\b",
+        "notMatches": "\\b(9|nine) weeks\\b"
+      },
+      "note": "Arithmetic regression: 4 weeks plus 1 for each complete year after 5, so 4 + 3 = 7 weeks. Answers have said nine (2026-10-31) and twelve (2026-10-28)."
     },
     {
       "id": "guest-stays",
