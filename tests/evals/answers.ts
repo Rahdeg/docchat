@@ -6,8 +6,14 @@
 // - honesty: the no-answer question gets "Your documents don't say" with no citations; the
 //   off-topic probes get that or the canned line about DocChat (src/features/chat/about.ts)
 // - quote match rate: the share of citations whose quote was found in its passage
+// - answer checks: questions with an "answer" check in retrieval.json say what it expects,
+//   e.g. 7 weeks (not 9) for a notice period the model works out from a rule
 //
 // Saves the run to tests/evals/results/answers-<date>.json.
+//
+// --only=id,id asks just those questions (off-topic probes are off-topic-1, -2, …), reusing the
+// indexed fixtures, and saves to answers-<date>-only.json: a way to recheck a few answers
+// without spending the day's quota on all of them.
 //
 // Run: pnpm eval:answers. Not in CI: it calls the chat provider (CHAT_PROVIDER, or the model in
 // CHAT_ANSWER_MODEL) about 17 times and the judge about 30. The Gemini free tier allows 20
@@ -34,11 +40,18 @@ import {
   citesPage,
   isAboutReply,
   isHonestNoAnswer,
+  passesCheck,
   share,
   type EvalAnswer,
 } from "./answer-metrics";
 import { indexFixtures } from "./index-fixtures";
-import { evalsDir, loadEvalCases } from "./retrieval-cases";
+import {
+  evalsDir,
+  loadEvalCases,
+  offTopicId,
+  onlyFromArgs,
+  type AnswerCheck,
+} from "./retrieval-cases";
 
 const EVAL_USER_ID = "eval_answers";
 // Between answer calls, and between judge calls: under the free tier's per-minute limits.
@@ -62,6 +75,8 @@ type QuestionResult = {
   kind: Kind;
   question: string;
   expected: { document: string; page: number } | null;
+  // What the answer must say, from retrieval.json.
+  check?: AnswerCheck | null;
   answer: StoredAnswer | null;
   claims: JudgedClaim[] | null;
   error: string | null;
@@ -72,6 +87,8 @@ type Run = {
   git: { sha: string; dirty: boolean };
   models: { answer: string; judge: string; embedding: string };
   minSimilarity: number;
+  // --only: the question ids this run asked, or null for all of them.
+  only?: string[] | null;
   complete: boolean;
   metrics: ReturnType<typeof computeMetrics> | null;
   results: QuestionResult[];
@@ -110,6 +127,7 @@ function computeMetrics(results: QuestionResult[]) {
   const allClaims = answered.flatMap((r) => r.claims ?? []);
   const claims = allClaims.filter((c) => c.verdict);
   const citations = answered.flatMap((r) => r.answer!.citations);
+  const checked = answered.filter((r) => r.check);
   return {
     questions: results.length,
     answered: answered.length,
@@ -120,7 +138,12 @@ function computeMetrics(results: QuestionResult[]) {
     grounding: share(claims.filter((c) => c.verdict!.supported).length, claims.length),
     honesty: share(mustDecline.filter(isHonest).length, mustDecline.length),
     quoteMatchRate: share(citations.filter((c) => c.matched).length, citations.length),
+    answerChecks: share(
+      checked.filter((r) => passesCheck(r.answer!.text, r.check!)).length,
+      checked.length,
+    ),
     counts: {
+      checked: checked.length,
       answerable: answerable.length,
       mustDecline: mustDecline.length,
       claims: claims.length,
@@ -139,10 +162,12 @@ async function main() {
   assertDevelopment(process.env.NODE_ENV);
   const fresh = process.argv.includes("--fresh");
   const cases = loadEvalCases();
+  const only = onlyFromArgs(process.argv, cases);
   const startedAt = new Date();
   const resultsDir = new URL("results/", evalsDir);
   mkdirSync(resultsDir, { recursive: true });
-  const file = new URL(`answers-${startedAt.toISOString().slice(0, 10)}.json`, resultsDir);
+  const suffix = only ? "-only" : "";
+  const file = new URL(`answers-${startedAt.toISOString().slice(0, 10)}${suffix}.json`, resultsDir);
   const models = {
     answer: chatConfig.models.answer.id,
     judge: chatConfig.models.judge.id,
@@ -156,21 +181,25 @@ async function main() {
       kind: q.kind,
       question: q.question,
       expected: q.kind === "none" ? null : { document: q.document, page: q.page },
+      check: q.kind === "none" ? null : (q.answer ?? null),
     })),
     ...cases.offTopic.map((question, i) => ({
-      id: `off-topic-${i + 1}`,
+      id: offTopicId(i),
       kind: "off-topic" as const,
       question,
       expected: null,
+      check: null,
     })),
-  ];
+  ].filter((q) => !only || only.has(q.id));
 
-  // Continue an unfinished run of today's with the same models.
+  // Continue an unfinished run of today's with the same models (and the same --only).
   let previous: Run | null = null;
   if (!fresh && existsSync(file)) {
     const saved = JSON.parse(readFileSync(file, "utf8")) as Run;
-    if (!saved.complete && JSON.stringify(saved.models) === JSON.stringify(models))
-      previous = saved;
+    const same =
+      JSON.stringify(saved.models) === JSON.stringify(models) &&
+      JSON.stringify(saved.only ?? null) === JSON.stringify(only ? [...only] : null);
+    if (!saved.complete && same) previous = saved;
   }
   const results: QuestionResult[] = questions.map((q) => {
     const done = previous?.results.find((r) => r.id === q.id && r.answer);
@@ -186,18 +215,19 @@ async function main() {
     git: { sha: gitSha, dirty },
     models,
     minSimilarity: MIN_SIMILARITY,
+    only: only ? [...only] : null,
     complete: false,
     metrics: null,
     results,
   };
   const save = () => writeFileSync(file, `${JSON.stringify(run, null, 2)}\n`);
 
-  // Index once; a resumed run reuses the indexed fixtures.
+  // Index once; a resumed or --only run reuses the indexed fixtures.
   const ready = await db.$count(
     document,
     and(eq(document.userId, EVAL_USER_ID), eq(document.status, "ready")),
   );
-  if (!previous || ready !== cases.fixtures.length) {
+  if ((!previous && !only) || ready !== cases.fixtures.length) {
     console.log(`Indexing ${cases.fixtures.length} fixture document(s) for ${EVAL_USER_ID}…`);
     await indexFixtures(EVAL_USER_ID, cases.fixtures);
   }
@@ -285,7 +315,8 @@ async function main() {
 
 function report(run: Run) {
   const m = run.metrics!;
-  console.log(`\nAnswer eval · ${run.models.answer} · judge ${run.models.judge}`);
+  const only = run.only ? ` · --only ${run.only.join(",")}` : "";
+  console.log(`\nAnswer eval · ${run.models.answer} · judge ${run.models.judge}${only}`);
   console.table({
     "Citation accuracy": {
       score: percent(m.citationAccuracy),
@@ -300,6 +331,10 @@ function report(run: Run) {
       of: `${m.counts.mustDecline} no-answer and off-topic questions`,
     },
     "Quote match rate": { score: percent(m.quoteMatchRate), of: `${m.counts.citations} citations` },
+    "Answer checks": {
+      score: percent(m.answerChecks),
+      of: `${m.counts.checked} questions with an expected answer`,
+    },
   });
 
   const failures: Record<string, string>[] = [];
@@ -318,6 +353,9 @@ function report(run: Run) {
         check: "citation",
         detail: `wanted ${r.expected.document} p.${r.expected.page}; cited ${cited.join(", ") || "nothing"}${a.noAnswer ? " (said the documents don't say)" : ""}`,
       });
+    }
+    if (r.check && !passesCheck(a.text, r.check)) {
+      failures.push({ id: r.id, check: "answer", detail: a.text.slice(0, 160) });
     }
     if ((r.kind === "none" || r.kind === "off-topic") && !isHonest(r)) {
       failures.push({ id: r.id, check: "honesty", detail: a.text.slice(0, 120) });

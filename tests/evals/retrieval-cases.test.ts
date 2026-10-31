@@ -8,6 +8,7 @@ import {
   isHit,
   loadEvalCases,
   normalizeText,
+  onlyFromArgs,
   type AnswerableQuestion,
 } from "./retrieval-cases";
 
@@ -73,5 +74,32 @@ describe("retrieval eval cases", () => {
     const none = cases.questions.filter((q) => q.kind === "none");
     expect(none).toHaveLength(1);
     expect(none[0]).toMatchObject({ document: null, page: null, quote: null });
+  });
+});
+
+describe("--only", () => {
+  it("picks questions and off-topic probes by id", () => {
+    expect(onlyFromArgs(["--fresh", "--only=long-service-notice, off-topic-4"], cases)).toEqual(
+      new Set(["long-service-notice", "off-topic-4"]),
+    );
+    expect(onlyFromArgs(["--fresh"], cases)).toBeNull();
+  });
+
+  it("refuses unknown or missing ids, listing the known ones", () => {
+    expect(() => onlyFromArgs(["--only=long-service", "x"], cases)).toThrow(
+      /unknown id\(s\) long-service\. Known: rent-amount, /,
+    );
+    expect(() => onlyFromArgs(["--only="], cases)).toThrow(/no ids given/);
+  });
+});
+
+describe("answer checks", () => {
+  it("keeps the notice-period arithmetic regression on long-service-notice", () => {
+    const question = cases.questions.find((q) => q.id === "long-service-notice");
+
+    expect(question?.kind !== "none" && question?.answer).toEqual({
+      matches: expect.stringContaining("seven"),
+      notMatches: expect.stringContaining("nine"),
+    });
   });
 });

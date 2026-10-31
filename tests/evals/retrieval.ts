@@ -3,22 +3,36 @@
 // and prints hit@1, hit@3, hit@5 and MRR, the misses, and the numbers for calibrating
 // MIN_SIMILARITY. Saves the run to tests/evals/results/retrieval-<date>.json.
 //
-// Run: pnpm eval:retrieval. Calls AI Gateway (a fraction of a cent per run), so it isn't in CI.
-// Uses DATABASE_URL (your Neon dev branch) and only touches the eval user's rows.
+// Run: pnpm eval:retrieval. Calls the embedding provider, so it isn't in CI. Uses DATABASE_URL
+// (your Neon dev branch) and only touches the eval user's rows.
+//
+// --only=id,id runs just those questions (off-topic probes are off-topic-1, -2, …) against the
+// fixtures already indexed, and saves to retrieval-<date>-only.json. It skips the floor
+// calibration, which needs every question.
 import "../../scripts/lib/load-env";
 
 import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
+
+import { and, eq } from "drizzle-orm";
 
 import { CHUNK_OVERLAP_TOKENS, CHUNK_TARGET_TOKENS } from "@/server/ai/chunk";
 import { EMBEDDING_DIMENSIONS } from "@/server/ai/constants";
 import { EMBEDDING_MODEL, MIN_SIMILARITY } from "@/server/ai/models";
 import { searchPassages, type Passage } from "@/server/ai/retrieve";
 import { db } from "@/server/db";
+import { document } from "@/server/db/schema";
 
 import { assertDevelopment } from "../../scripts/lib/assert-development";
 import { indexFixtures } from "./index-fixtures";
-import { evalsDir, isHit, loadEvalCases, type EvalQuestion } from "./retrieval-cases";
+import {
+  evalsDir,
+  isHit,
+  loadEvalCases,
+  offTopicId,
+  onlyFromArgs,
+  type EvalQuestion,
+} from "./retrieval-cases";
 
 const EVAL_USER_ID = "eval_retrieval";
 const LIMIT = 5;
@@ -48,16 +62,29 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 async function main() {
   assertDevelopment(process.env.NODE_ENV);
   const cases = loadEvalCases();
+  const only = onlyFromArgs(process.argv, cases);
   const startedAt = new Date();
+  const questions = cases.questions.filter((q) => !only || only.has(q.id));
+  const probes = cases.offTopic
+    .map((question, i) => ({ id: offTopicId(i), question }))
+    .filter((p) => !only || only.has(p.id));
 
-  console.log(`Indexing ${cases.fixtures.length} fixture document(s) for ${EVAL_USER_ID}…`);
-  const indexStart = performance.now();
-  await indexFixtures(EVAL_USER_ID, cases.fixtures);
-  const indexMs = Math.round(performance.now() - indexStart);
+  // A partial run reuses the indexed fixtures when they're all there.
+  const ready = await db.$count(
+    document,
+    and(eq(document.userId, EVAL_USER_ID), eq(document.status, "ready")),
+  );
+  let indexMs = 0;
+  if (!only || ready !== cases.fixtures.length) {
+    console.log(`Indexing ${cases.fixtures.length} fixture document(s) for ${EVAL_USER_ID}…`);
+    const indexStart = performance.now();
+    await indexFixtures(EVAL_USER_ID, cases.fixtures);
+    indexMs = Math.round(performance.now() - indexStart);
+  }
 
   const results: QuestionResult[] = [];
   const searchStart = performance.now();
-  for (const question of cases.questions) {
+  for (const question of questions) {
     const passages = await searchPassages({
       userId: EVAL_USER_ID,
       query: question.question,
@@ -83,23 +110,27 @@ async function main() {
 
   // Off-topic probes: not scored, only their best score is kept, for the floor.
   const offTopic: { question: string; bestSimilarity: number }[] = [];
-  for (const question of cases.offTopic) {
+  for (const { question } of probes) {
     const [best] = await searchPassages({ userId: EVAL_USER_ID, query: question, limit: 1 });
     offTopic.push({ question, bestSimilarity: round(best?.similarity ?? 0) });
   }
 
   // Metrics over the questions that have a right answer.
+  // Null when --only picked none of them.
   const answerable = results.filter((r) => r.kind !== "none");
   const hitAt = (k: number) =>
     answerable.filter((r) => r.rank !== null && r.rank <= k).length / answerable.length;
   const mrr = answerable.reduce((sum, r) => sum + (r.rank ? 1 / r.rank : 0), 0) / answerable.length;
-  const metrics = {
-    questions: answerable.length,
-    hitAt1: round(hitAt(1)),
-    hitAt3: round(hitAt(3)),
-    hitAt5: round(hitAt(5)),
-    mrr: round(mrr),
-  };
+  const metrics =
+    answerable.length > 0
+      ? {
+          questions: answerable.length,
+          hitAt1: round(hitAt(1)),
+          hitAt3: round(hitAt(3)),
+          hitAt5: round(hitAt(5)),
+          mrr: round(mrr),
+        }
+      : null;
 
   // Floor calibration: the floor belongs above what a question the documents can't answer
   // scores, and below every right passage. When the no-answer question is on-topic (it shares
@@ -117,24 +148,33 @@ async function main() {
   const below = (score: number) => lowestHit !== null && score < lowestHit;
   const separates = below(noAnswerBest) ? "no-answer" : below(offTopicBest) ? "off-topic" : null;
   const floorFrom = separates === "no-answer" ? noAnswerBest : offTopicBest;
-  const calibration = {
-    minSimilarity: MIN_SIMILARITY,
-    noAnswerBestSimilarity: noAnswerBest,
-    offTopicBestSimilarity: offTopicBest,
-    lowestHitSimilarity: lowestHit,
-    // Halfway between the highest score that should be hidden and the lowest right passage.
-    suggestedFloor: separates && lowestHit !== null ? round((floorFrom + lowestHit) / 2, 2) : null,
-    separates,
-    hitsBelowFloor: belowFloor.map((r) => r.id),
-    offTopic,
-  };
+  // Only from a full run: a few questions say nothing about where the floor belongs.
+  const calibration = only
+    ? null
+    : {
+        minSimilarity: MIN_SIMILARITY,
+        noAnswerBestSimilarity: noAnswerBest,
+        offTopicBestSimilarity: offTopicBest,
+        lowestHitSimilarity: lowestHit,
+        // Halfway between the highest score that should be hidden and the lowest right passage.
+        suggestedFloor:
+          separates && lowestHit !== null ? round((floorFrom + lowestHit) / 2, 2) : null,
+        separates,
+        hitsBelowFloor: belowFloor.map((r) => r.id),
+        offTopic,
+      };
 
   // Report.
-  console.log(`\nRetrieval eval · ${EMBEDDING_MODEL} · ${answerable.length} answerable questions`);
-  console.log(`  hit@1  ${percent(metrics.hitAt1)}`);
-  console.log(`  hit@3  ${percent(metrics.hitAt3)}`);
-  console.log(`  hit@5  ${percent(metrics.hitAt5)}`);
-  console.log(`  MRR    ${metrics.mrr.toFixed(3)}`);
+  console.log(
+    `\nRetrieval eval · ${EMBEDDING_MODEL} · ${answerable.length} answerable questions` +
+      (only ? ` (--only ${[...only].join(",")})` : ""),
+  );
+  if (metrics) {
+    console.log(`  hit@1  ${percent(metrics.hitAt1)}`);
+    console.log(`  hit@3  ${percent(metrics.hitAt3)}`);
+    console.log(`  hit@5  ${percent(metrics.hitAt5)}`);
+    console.log(`  MRR    ${metrics.mrr.toFixed(3)}`);
+  }
 
   const misses = answerable.filter((r) => r.rank === null || r.rank > 1);
   if (misses.length > 0) {
@@ -152,28 +192,36 @@ async function main() {
     );
   }
 
-  console.log("\nSimilarity floor");
-  console.log(`  best score, off-topic questions  ${offTopicBest.toFixed(3)}`);
-  console.log(`  best score, no-answer question   ${noAnswerBest.toFixed(3)}`);
-  console.log(`  lowest score of a right passage  ${lowestHit?.toFixed(3) ?? "n/a"}`);
-  console.log(`  MIN_SIMILARITY                   ${MIN_SIMILARITY}`);
-  if (separates === "no-answer") {
-    console.log(`  suggested floor                  ${calibration.suggestedFloor}`);
-  } else if (separates === "off-topic") {
-    console.log(
-      `  suggested floor                  ${calibration.suggestedFloor} (hides off-topic ` +
-        "questions; the no-answer question is on-topic and scores like a right passage)",
-    );
+  if (!calibration) {
+    console.log(`\nMIN_SIMILARITY ${MIN_SIMILARITY} (no floor calibration with --only)`);
+    for (const r of results) {
+      console.log(`  ${r.id}: rank ${r.rank ?? "miss"}, best ${r.top[0]?.similarity ?? "n/a"}`);
+    }
+    for (const o of offTopic) console.log(`  off-topic "${o.question}": best ${o.bestSimilarity}`);
   } else {
-    console.log("  No floor separates wrong passages from right ones.");
-  }
-  if (offTopicBest >= MIN_SIMILARITY) {
-    console.warn(`  ! An off-topic question's best passage (${offTopicBest}) passes the floor.`);
-  }
-  for (const r of belowFloor) {
-    console.warn(
-      `  ! ${r.id}: the right passage scores ${r.hitSimilarity}, below MIN_SIMILARITY, so /chat would hide it.`,
-    );
+    console.log("\nSimilarity floor");
+    console.log(`  best score, off-topic questions  ${offTopicBest.toFixed(3)}`);
+    console.log(`  best score, no-answer question   ${noAnswerBest.toFixed(3)}`);
+    console.log(`  lowest score of a right passage  ${lowestHit?.toFixed(3) ?? "n/a"}`);
+    console.log(`  MIN_SIMILARITY                   ${MIN_SIMILARITY}`);
+    if (separates === "no-answer") {
+      console.log(`  suggested floor                  ${calibration.suggestedFloor}`);
+    } else if (separates === "off-topic") {
+      console.log(
+        `  suggested floor                  ${calibration.suggestedFloor} (hides off-topic ` +
+          "questions; the no-answer question is on-topic and scores like a right passage)",
+      );
+    } else {
+      console.log("  No floor separates wrong passages from right ones.");
+    }
+    if (offTopicBest >= MIN_SIMILARITY) {
+      console.warn(`  ! An off-topic question's best passage (${offTopicBest}) passes the floor.`);
+    }
+    for (const r of belowFloor) {
+      console.warn(
+        `  ! ${r.id}: the right passage scores ${r.hitSimilarity}, below MIN_SIMILARITY, so /chat would hide it.`,
+      );
+    }
   }
 
   // Save.
@@ -189,14 +237,23 @@ async function main() {
     dimensions: EMBEDDING_DIMENSIONS,
     chunking: { targetTokens: CHUNK_TARGET_TOKENS, overlapTokens: CHUNK_OVERLAP_TOKENS },
     limit: LIMIT,
+    only: only ? [...only] : null,
     metrics,
     calibration,
-    timings: { indexMs, searchMs, searchMsPerQuestion: Math.round(searchMs / results.length) },
+    timings: {
+      indexMs,
+      searchMs,
+      searchMsPerQuestion: Math.round(searchMs / Math.max(1, results.length)),
+    },
     results,
   };
   const resultsDir = new URL("results/", evalsDir);
   mkdirSync(resultsDir, { recursive: true });
-  const file = new URL(`retrieval-${startedAt.toISOString().slice(0, 10)}.json`, resultsDir);
+  const suffix = only ? "-only" : "";
+  const file = new URL(
+    `retrieval-${startedAt.toISOString().slice(0, 10)}${suffix}.json`,
+    resultsDir,
+  );
   writeFileSync(file, `${JSON.stringify(output, null, 2)}\n`);
   console.log(`\nSaved ${file.pathname.replace(`${process.cwd()}/`, "")}`);
 }

@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-31T14:15:09.026Z",
+  "git": {
+    "sha": "ea9a8e8",
+    "dirty": true
+  },
+  "model": "google/gemini-embedding-001",
+  "dimensions": 1536,
+  "chunking": {
+    "targetTokens": 500,
+    "overlapTokens": 75
+  },
+  "limit": 5,
+  "only": ["long-service-notice", "off-topic-4"],
+  "metrics": {
+    "questions": 1,
+    "hitAt1": 1,
+    "hitAt3": 1,
+    "hitAt5": 1,
+    "mrr": 1
+  },
+  "calibration": null,
+  "timings": {
+    "indexMs": 0,
+    "searchMs": 821,
+    "searchMsPerQuestion": 821
+  },
+  "results": [
+    {
+      "id": "long-service-notice",
+      "kind": "paraphrase",
+      "question": "If they let me go after eight years there, how much notice am I owed?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 3
+      },
+      "rank": 1,
+      "hitSimilarity": 0.6564,
+      "top": [
+        {
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "similarity": 0.6564
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "similarity": 0.6283
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "similarity": 0.6096
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "similarity": 0.6037
+        },
+        {
+          "document": "Employment contract.pdf",
+          "page": 6,
+          "similarity": 0.589
+        }
+      ]
+    }
+  ]
+}

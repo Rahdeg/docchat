@@ -4,6 +4,8 @@
 import { isAboutAnswer } from "@/features/chat/about";
 import { NO_ANSWER_PREFIX } from "@/features/chat/message";
 
+import type { AnswerCheck } from "./retrieval-cases";
+
 type CitedPassage = { name: string; page: number | null; content: string };
 type AnswerCitation = { number: number; source: number; matched: boolean; quote?: string | null };
 
@@ -68,6 +70,16 @@ export function isHonestNoAnswer(answer: EvalAnswer): boolean {
     answer.noAnswer &&
     answer.text.trimStart().replace(/’/g, "'").startsWith(NO_ANSWER_PREFIX) &&
     answer.citations.length === 0
+  );
+}
+
+// The answer says what the question's check expects (retrieval.json "answer"), e.g. "7 weeks"
+// and not "9 weeks" for a notice period worked out from a rule.
+export function passesCheck(text: string, check: AnswerCheck): boolean {
+  const plain = text.replace(/ ?\[\d+\]/g, "").replace(/\*\*/g, "");
+  return (
+    new RegExp(check.matches, "i").test(plain) &&
+    !(check.notMatches && new RegExp(check.notMatches, "i").test(plain))
   );
 }
 

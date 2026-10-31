@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-31T14:15:16.142Z",
+  "git": {
+    "sha": "ea9a8e8",
+    "dirty": true
+  },
+  "models": {
+    "answer": "google/gemini-3.6-flash",
+    "judge": "google/gemma-4-26b-a4b-it",
+    "embedding": "google/gemini-embedding-001"
+  },
+  "minSimilarity": 0.58,
+  "only": ["long-service-notice"],
+  "complete": true,
+  "metrics": {
+    "questions": 1,
+    "answered": 1,
+    "citationAccuracy": 1,
+    "grounding": 1,
+    "honesty": null,
+    "quoteMatchRate": 1,
+    "answerChecks": 1,
+    "counts": {
+      "checked": 1,
+      "answerable": 1,
+      "mustDecline": 0,
+      "claims": 1,
+      "claimsUnjudged": 0,
+      "citations": 1,
+      "declinedAnswerable": 0
+    }
+  },
+  "results": [
+    {
+      "id": "long-service-notice",
+      "kind": "paraphrase",
+      "question": "If they let me go after eight years there, how much notice am I owed?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 3
+      },
+      "check": {
+        "matches": "\\b(7|seven) weeks\\b",
+        "notMatches": "\\b(9|nine) weeks\\b"
+      },
+      "answer": {
+        "query": "If they let me go after eight years there, how much notice am I owed?",
+        "text": "4 weeks, plus 1 week for each further complete year of employment after 5 years: 4 + (8 - 5) = **7 weeks** [1].",
+        "noAnswer": false,
+        "about": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "Once you have five years of continuous employment, the notice the Company must give you increases by one week for each further complete year of employment, up to a maximum of twelve weeks.",
+            "start": 1177,
+            "end": 1365,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": "HOURS, PROBATION AND NOTICE\n7. Probation. 7.1 The first six months of your employment are a probation period. During\nprobation your manager will meet you at least monthly to review your progress. 7.2 The\nCompany may extend probation by up to three months if it needs more time to assess you, and\nwill tell you in writing before the original period ends. 7.3 During probation either you or\nthe Company may end your employment by giving one week’s notice in writing.\n8. Hours of work. 8.1 Your normal working hours are 37.5 hours a week, Monday to Friday,\nwith an unpaid lunch break of one hour each day. 8.2 You may choose your start and finish\ntimes, as long as you are available during the core hours of 10am to 4pm and work your full\nhours each week. 8.3 You agree that the 48 hour average weekly limit in the Working Time\nRegulations does not apply to you. You may withdraw this agreement by giving three months’\nwritten notice.\n9. Notice after probation. 9.1 After you complete probation, you must give the Company four\nweeks’ written notice to end your employment. 9.2 After probation, the Company must give you\nat least four weeks’ written notice to end your employment. Once you have five years of\ncontinuous employment, the notice the Company must give you increases by one week for each\nfurther complete year of employment, up to a maximum of twelve weeks. 9.3 Nothing in this\nclause stops the Company from ending your employment without notice for gross misconduct.\n9.4 The Company may decide to pay you basic salary in place of all or part of your notice\nperiod. 9.5 During all or part of your notice period the Company may put you on garden\nleave. While on garden leave you remain employed and paid, but you must not attend work or\ncontact clients or colleagues about work unless the Company asks you to, and you must not\nstart work for anyone else. 9.6 On your last day you must return all Company property,\ndocuments and data, and delete any Company information held on your own devices."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 6,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "4 weeks, plus 1 week for each further complete year of employment after 5 years: 4 + (8 - 5) = 7 weeks.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "verdict": {
+            "supported": true,
+            "reason": "The passage states notice is four weeks after probation and increases by one week for each complete year after five years of employment, which matches the calculation."
+          }
+        }
+      ],
+      "error": null
+    }
+  ]
+}

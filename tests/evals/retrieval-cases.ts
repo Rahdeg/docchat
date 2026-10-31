@@ -4,6 +4,25 @@ import { readFileSync } from "node:fs";
 
 import { z } from "zod";
 
+const regex = z.string().refine((source) => {
+  try {
+    new RegExp(source, "i");
+    return true;
+  } catch {
+    return false;
+  }
+}, "not a valid regular expression");
+
+// For the answer eval: what the answer itself must say, for answers the model has to work out
+// (a notice period from a rule). Matched case-insensitively against the answer text without
+// its markers or bold.
+const answerCheck = z.object({
+  matches: regex,
+  notMatches: regex.optional(),
+});
+
+export type AnswerCheck = z.infer<typeof answerCheck>;
+
 const answerable = z.object({
   id: z.string().min(1),
   kind: z.enum(["direct", "paraphrase", "boundary"]),
@@ -13,6 +32,7 @@ const answerable = z.object({
   page: z.number().int().positive(),
   // Must appear in the right passage (after normalizeText below).
   quote: z.string().min(5),
+  answer: answerCheck.optional(),
   note: z.string().optional(),
 });
 
@@ -45,6 +65,36 @@ export const evalsDir = new URL(".", import.meta.url);
 export function loadEvalCases(): EvalCases {
   const raw: unknown = JSON.parse(readFileSync(new URL("retrieval.json", evalsDir), "utf8"));
   return evalCasesSchema.parse(raw);
+}
+
+// Off-topic probes have no id in retrieval.json; both evals call them off-topic-1, -2, …
+export function offTopicId(index: number): string {
+  return `off-topic-${index + 1}`;
+}
+
+// --only=id,id: the questions to run (off-topic probes by offTopicId), so a few can be rerun
+// without spending the day's quota on all of them. Null when it isn't given. Unknown ids throw,
+// listing the known ones.
+export function onlyFromArgs(argv: readonly string[], cases: EvalCases): Set<string> | null {
+  const arg = argv.find((a) => a.startsWith("--only="));
+  if (arg === undefined) return null;
+  const ids = arg
+    .slice("--only=".length)
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const known = [
+    ...cases.questions.map((q) => q.id),
+    ...cases.offTopic.map((_, i) => offTopicId(i)),
+  ];
+  const unknown = ids.filter((id) => !known.includes(id));
+  if (ids.length === 0 || unknown.length > 0) {
+    throw new Error(
+      `--only: ${unknown.length > 0 ? `unknown id(s) ${unknown.join(", ")}` : "no ids given"}. ` +
+        `Known: ${known.join(", ")}`,
+    );
+  }
+  return new Set(ids);
 }
 
 export function fixtureBytes(file: string): Uint8Array {
