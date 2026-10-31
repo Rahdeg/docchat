@@ -14,6 +14,7 @@ import type { ChatUIMessage, PassageData } from "@/features/chat/message";
 import { PASSAGE_LIMIT } from "@/features/chat/find-rules";
 
 import { createModelCaller } from "./call-model";
+import { readsStandalone } from "./follow-up";
 import { CitationFilter, parseCitationBlock, resolveCitations, type Resolved } from "./citations";
 import { chatConfig, MIN_SIMILARITY } from "./models";
 import {
@@ -50,14 +51,17 @@ const pacedStream: LanguageModelMiddleware = {
 };
 
 // The latest question as a standalone search query, using the conversation to resolve what it
-// refers to. The first question in a chat is searched as asked (no model call). A failed
-// rewrite falls back to the question: it shouldn't cost the user their answer.
+// refers to. The first question in a chat, and a follow-up that already reads as standalone,
+// are searched as asked (no model call). A failed rewrite falls back to the question: it
+// shouldn't cost the user their answer.
 export async function rewriteQuery(
   userId: string,
   history: readonly ChatUIMessage[],
   question: string,
 ): Promise<string> {
-  if (!history.some((message) => message.role === "user")) return question;
+  if (!history.some((message) => message.role === "user") || readsStandalone(question)) {
+    return question;
+  }
   const { id, model, providerOptions } = chatConfig.models.rewrite;
   const prompt = rewritePrompt(history, question);
   try {

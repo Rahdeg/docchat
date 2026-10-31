@@ -17,6 +17,7 @@ import { chatRequestSchema } from "@/features/chat/chat-request";
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "@/features/chat/find-rules";
 import {
   chatTitle,
+  FREE_LIMIT_MESSAGE,
   messageText,
   type ChatMetadata,
   type ChatUIMessage,
@@ -38,7 +39,7 @@ import {
   streamAnswer,
   type AnswerStream,
 } from "@/server/ai/answer";
-import { isDailyQuotaError, statusOf } from "@/server/ai/call-model";
+import { isQuotaError } from "@/server/ai/call-model";
 import { checkDailyLimit } from "@/server/ai/limits";
 
 // Answers a question in a chat, streaming the answer with its sources and citations
@@ -96,7 +97,13 @@ export async function POST(request: Request) {
   const messageId = randomUUID();
   let passages: PassageData[] = [];
   let answer: AnswerStream | null = null;
-  let failed = false;
+  // "quota": the provider refused for quota, and the answer isn't saved.
+  let failure: "quota" | "error" | null = null;
+  function failWith(error: unknown): string {
+    if (isQuotaError(error)) failure = "quota";
+    else failure ??= "error";
+    return errorMessage(error);
+  }
 
   const stream = createUIMessageStream<ChatUIMessage>({
     originalMessages: [...history, userMessage],
@@ -141,10 +148,7 @@ export async function POST(request: Request) {
         sendFinish: false,
         // Gemini's thinking isn't shown.
         sendReasoning: false,
-        onError: (error) => {
-          failed = true;
-          return errorMessage(error);
-        },
+        onError: failWith,
       }).getReader();
       for (;;) {
         const { done, value } = await reader.read();
@@ -152,25 +156,29 @@ export async function POST(request: Request) {
         writer.write(value);
       }
 
-      if (request.signal.aborted) return;
+      if (request.signal.aborted || failure === "quota") return;
       writer.write(citationsChunk(finalCitations(answer), true));
       writer.write({
         type: "finish",
-        messageMetadata: { status: failed ? "failed" : "complete" } satisfies ChatMetadata,
+        messageMetadata: { status: failure ? "failed" : "complete" } satisfies ChatMetadata,
       });
     },
     onError: (error) => {
-      failed = true;
       console.error("Chat request failed", error);
-      return errorMessage(error);
+      return failWith(error);
     },
     // Saves the answer however it ended. Stopped (the user pressed Stop or left) and failed
-    // answers keep what was generated; their citations are resolved from what's there.
+    // answers keep what was generated; their citations are resolved from what's there. One the
+    // provider refused for quota isn't saved: the question stays, to ask again tomorrow.
     async onEnd({ responseMessage, isAborted, isCancelled, outcome }) {
+      if (failure === "quota") {
+        console.warn(`Answer ${messageId} not saved: the AI provider refused for quota`);
+        return;
+      }
       const status =
         isAborted || isCancelled
           ? "stopped"
-          : failed || outcome.status === "failed"
+          : failure || outcome.status === "failed"
             ? "failed"
             : "complete";
       const citations = answer ? finalCitations(answer) : [];
@@ -236,11 +244,6 @@ function citationsChunk(citations: Citation[], final: boolean): InferUIMessageCh
 }
 
 function errorMessage(error: unknown): string {
-  if (isDailyQuotaError(error)) {
-    return "DocChat has used up today's AI allowance for everyone. Answers are back tomorrow.";
-  }
-  if (statusOf(error) === 429) {
-    return "DocChat's AI provider is busy right now. Wait a minute and try again.";
-  }
+  if (isQuotaError(error)) return FREE_LIMIT_MESSAGE;
   return "Something went wrong while writing the answer. Try again.";
 }

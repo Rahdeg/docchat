@@ -30,7 +30,7 @@ import { routes } from "@/lib/routes";
 import { answerSources } from "../answer-sources";
 import type { ChatRequestBody } from "../chat-request";
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "../find-rules";
-import { chatTitle, messageText, type ChatUIMessage } from "../message";
+import { chatTitle, FREE_LIMIT_MESSAGE, messageText, type ChatUIMessage } from "../message";
 import { AnswerMessage } from "./answer-message";
 import { chosenDocuments, DocumentPicker, scopeLabel } from "./document-picker";
 import { SourceSheet } from "./source-sheet";
@@ -78,7 +78,7 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
   const requestBody = () => ({ documentIds: chosenDocuments(documents, documentIds) });
 
   const isNew = initialMessages.length === 0;
-  const { messages, sendMessage, regenerate, stop, status, error, clearError } =
+  const { messages, setMessages, sendMessage, regenerate, stop, status, error, clearError } =
     useChat<ChatUIMessage>({
       id: chatId,
       messages: initialMessages,
@@ -88,6 +88,12 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
         if (isAbort) setStoppedIds((ids) => [...ids, message.id]);
         // The first answer stores the chat: show it in the sidebar.
         if (isNew) router.refresh();
+      },
+      // The provider refused for quota and the server didn't save this answer: drop what had
+      // streamed of it (the passages), leaving the question and the message.
+      onError: (failure) => {
+        if (failure.message !== FREE_LIMIT_MESSAGE) return;
+        setMessages((all) => (all.at(-1)?.role === "assistant" ? all.slice(0, -1) : all));
       },
     });
 

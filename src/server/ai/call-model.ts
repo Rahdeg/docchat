@@ -73,6 +73,15 @@ export function isDailyQuotaError(error: unknown): boolean {
   return failure?.statusCode === 429 && /PerDay/.test(failure.responseBody ?? "");
 }
 
+// The provider refused for quota: a rate limit or a used-up daily quota (a 429, or Google's
+// RESOURCE_EXHAUSTED). By the time a caller sees it, the retries have given up.
+export function isQuotaError(error: unknown): boolean {
+  const failure = failureOf(error);
+  if (failure?.statusCode === 429) return true;
+  const message = error instanceof Error ? error.message : "";
+  return /RESOURCE_EXHAUSTED/.test(`${failure?.responseBody ?? ""} ${message}`);
+}
+
 // How long to wait before retrying, or null to give up now.
 export function retryDelayMs(error: unknown, attempt: number): number | null {
   const failure = failureOf(error);
