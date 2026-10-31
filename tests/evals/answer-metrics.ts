@@ -1,6 +1,7 @@
 // The answer eval's scoring, without any model calls: which claims an answer cites, whether
 // it cites the right page, and the summary numbers. Shared by the runner (answers.ts) and its
 // tests (answer-metrics.test.ts).
+import { isAboutAnswer } from "@/features/chat/about";
 import { NO_ANSWER_PREFIX } from "@/features/chat/message";
 
 type CitedPassage = { name: string; page: number | null; content: string };
@@ -45,6 +46,12 @@ export function citedClaims(answer: EvalAnswer): Claim[] {
     }
   }
   return claims;
+}
+
+// The canned line about DocChat itself, with nothing cited. It's an honest reply to an
+// off-topic question ("What can you do?") as much as "Your documents don't say" is.
+export function isAboutReply(answer: EvalAnswer): boolean {
+  return isAboutAnswer(answer.text) && answer.citations.length === 0;
 }
 
 // The right page is among the cited sources.

@@ -203,7 +203,7 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   can't cut results short (`docs/adr/0005`). Never use a session-wide `set` (the pooled connection
   is shared).
 - `searchPassages` has no similarity floor by default; callers that show results pass
-  `MIN_SIMILARITY` (`findPassages` does), which is per model (Gemini 0.55, calibrated). The eval
+  `MIN_SIMILARITY` (`findPassages` does), which is per model (Gemini 0.58, calibrated). The eval
   relies on the raw ranking.
 - Before and after changing the embedding model, chunking or search, run `pnpm eval:retrieval`
   and commit both results files. If the fixtures or chunker change, `retrieval-cases.test.ts` says

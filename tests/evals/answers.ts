@@ -3,7 +3,8 @@
 //
 // - citation accuracy: the expected page is among the cited sources (answerable questions)
 // - grounding: the share of cited claims the judge says their passage supports
-// - honesty: the no-answer and off-topic questions get "Your documents don't say", no citations
+// - honesty: the no-answer question gets "Your documents don't say" with no citations; the
+//   off-topic probes get that or the canned line about DocChat (src/features/chat/about.ts)
 // - quote match rate: the share of citations whose quote was found in its passage
 //
 // Saves the run to tests/evals/results/answers-<date>.json.
@@ -28,7 +29,14 @@ import { db } from "@/server/db";
 import { document } from "@/server/db/schema";
 
 import { assertDevelopment } from "../../scripts/lib/assert-development";
-import { citedClaims, citesPage, isHonestNoAnswer, share, type EvalAnswer } from "./answer-metrics";
+import {
+  citedClaims,
+  citesPage,
+  isAboutReply,
+  isHonestNoAnswer,
+  share,
+  type EvalAnswer,
+} from "./answer-metrics";
 import { indexFixtures } from "./index-fixtures";
 import { evalsDir, loadEvalCases } from "./retrieval-cases";
 
@@ -39,7 +47,7 @@ const JUDGE_GAP_MS = 2_500;
 
 type Kind = "direct" | "paraphrase" | "boundary" | "none" | "off-topic";
 
-type StoredAnswer = EvalAnswer & { query: string; generated: boolean };
+type StoredAnswer = EvalAnswer & { query: string; generated: boolean; about?: boolean };
 
 type JudgedClaim = {
   claim: string;
@@ -78,6 +86,7 @@ function store(answer: Answer): StoredAnswer {
     query: answer.query,
     text: answer.text,
     noAnswer: answer.noAnswer,
+    about: answer.about,
     generated: answer.generated,
     citations: answer.citations,
     passages: answer.passages.map((p, i) => ({
@@ -86,6 +95,12 @@ function store(answer: Answer): StoredAnswer {
       content: cited.has(i + 1) ? p.content : "",
     })),
   };
+}
+
+// The no-answer question must decline; an off-topic probe may also get the line about DocChat.
+function isHonest(result: QuestionResult): boolean {
+  const answer = result.answer!;
+  return isHonestNoAnswer(answer) || (result.kind === "off-topic" && isAboutReply(answer));
 }
 
 function computeMetrics(results: QuestionResult[]) {
@@ -103,10 +118,7 @@ function computeMetrics(results: QuestionResult[]) {
       answerable.length,
     ),
     grounding: share(claims.filter((c) => c.verdict!.supported).length, claims.length),
-    honesty: share(
-      mustDecline.filter((r) => isHonestNoAnswer(r.answer!)).length,
-      mustDecline.length,
-    ),
+    honesty: share(mustDecline.filter(isHonest).length, mustDecline.length),
     quoteMatchRate: share(citations.filter((c) => c.matched).length, citations.length),
     counts: {
       answerable: answerable.length,
@@ -207,7 +219,13 @@ async function main() {
         });
         result.answer = store(answer);
         result.error = null;
-        console.log(answer.generated ? `${answer.citations.length} cited` : "no passages");
+        console.log(
+          answer.generated
+            ? `${answer.citations.length} cited`
+            : answer.about
+              ? "about DocChat"
+              : "no passages",
+        );
         save();
         if (answer.generated) await sleep(ANSWER_GAP_MS);
       } catch (error) {
@@ -301,7 +319,7 @@ function report(run: Run) {
         detail: `wanted ${r.expected.document} p.${r.expected.page}; cited ${cited.join(", ") || "nothing"}${a.noAnswer ? " (said the documents don't say)" : ""}`,
       });
     }
-    if ((r.kind === "none" || r.kind === "off-topic") && !isHonestNoAnswer(a)) {
+    if ((r.kind === "none" || r.kind === "off-topic") && !isHonest(r)) {
       failures.push({ id: r.id, check: "honesty", detail: a.text.slice(0, 120) });
     }
     for (const c of r.claims ?? []) {

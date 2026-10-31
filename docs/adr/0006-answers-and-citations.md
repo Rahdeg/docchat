@@ -7,13 +7,14 @@
 
 PR 5 found the passages that answer a question (ADR 0005). PR 6 writes the answer: streamed,
 written only from the user's documents, with a numbered citation on every claim that opens the
-exact sentence it rests on. Five choices follow:
+exact sentence it rests on. Six choices follow (the sixth added after manual testing):
 
 1. Which model writes answers, and how it's called.
 2. How the model gives its citations, including the sentence behind each one.
 3. How the server checks those citations before anyone sees them.
 4. What happens when the documents don't answer the question.
 5. How we know it works: the answer eval.
+6. Unrelated questions and questions about DocChat itself, and the similarity floor.
 
 ## Decision
 
@@ -123,8 +124,9 @@ When the stream ends, `resolveCitations` checks each cited source:
   starts "Your documents don't say", names the documents that were searched, and suggests other
   words. It saves quota and can't be talked into guessing.
 - **Passages, but no answer in them**: the system prompt tells the model to start with exactly
-  "Your documents don't say" and then say what the sources do cover, with no citations and no
-  block. The filter enforces the "no citations" half: once an answer starts with that phrase,
+  "Your documents don't say", with no citations and no block. If the sources are about the
+  question's subject, it adds one sentence on what they do say about it; if they're unrelated,
+  the whole answer is "Your documents don't say anything about that." (section 6). The filter enforces the "no citations" half: once an answer starts with that phrase,
   every marker in it is dropped.
 - **Prompt injection.** Document text goes in the latest user message inside `<source>` blocks
   labelled as untrusted, never in the system prompt. Anything in a document that looks like one
@@ -173,6 +175,67 @@ development and tests by the time the eval ran. Judge `gemma-4-26b-a4b-it`; embe
     "instead", the other to a sentence that leaves an exception for the next sentence.
 - Run `pnpm eval:answers` again with the default `gemini-3.6-flash` once its quota resets, and
   commit that results file; those are the numbers to publish.
+
+### 6. Unrelated questions, questions about DocChat, and the floor (2026-10-31)
+
+Manual testing found "are you fraudstar" answered with "Your documents don't say. They only
+mention that cited answers link back to a source chunk and page": a 56% match from a product
+roadmap, summarised although it had nothing to do with the question.
+
+- **Unrelated questions get one fixed sentence.** The system prompt now splits the "don't say"
+  answer: when no source is about what the question asks, the whole answer is "Your documents
+  don't say anything about that." (`UNRELATED_ANSWER`), and it must never describe a source.
+  Only when a source is on the question's subject does the model add one sentence on what it
+  says. The canned no-passages answer opens with the same sentence; it still names the
+  documents searched, never their contents.
+- **Questions about DocChat itself get one canned line** (`ABOUT_ANSWER`,
+  `src/features/chat/about.ts`): who or what it is, what it can do, greetings and thanks. No
+  search, no model call, no citations, and no passages on the message. `isAboutDocChat` matches
+  the whole question against a short list of patterns, so a question that goes on to mention a
+  document ("what can you do with my lease?") is searched as usual. The ones it misses reach
+  the model, whose system prompt says to reply with the same line in the same call (no extra
+  request); the browser then hides that answer's passages. We rejected a classifier call: it
+  would double the free tier's scarcest resource, requests per day.
+- **The floor rises from 0.55 to 0.58.** The retrieval eval gained two off-topic probes,
+  "Are you a fraudster?" and "What can you do?" (`tests/evals/results/retrieval-2026-10-31.json`):
+
+  | Probe                                  | Best score |
+  | -------------------------------------- | ---------- |
+  | What's a good recipe for banana bread? | 0.503      |
+  | Who won the 1998 World Cup?            | 0.424      |
+  | How do I reset my router?              | 0.490      |
+  | Are you a fraudster?                   | **0.557**  |
+  | What can you do?                       | **0.576**  |
+  | Lowest right passage (remote-work)     | 0.599      |
+
+  Questions about DocChat share words with documents that describe a product ("you", "can",
+  "answers"), so both cleared 0.55. The eval suggests 0.59, halfway between 0.576 and 0.599;
+  that leaves 0.009 below the weakest right passage, too tight for 14 questions. 0.58 hides both
+  probes (and the screenshot's 56% passage) with 0.019 to spare. The pattern check already
+  stops these two before search; the floor is the second line for paraphrases it misses.
+
+#### Results after the change
+
+`tests/evals/results/answers-2026-10-31.json`, with the configured `gemini-3.6-flash` (the first
+run of it; the 2026-10-28 numbers were from a Flash-Lite stand-in). Judge `gemma-4-26b-a4b-it`,
+`MIN_SIMILARITY` 0.58.
+
+| Metric            | Score | Of                                      |
+| ----------------- | ----- | --------------------------------------- |
+| Citation accuracy | 100%  | 14 answerable questions                 |
+| Grounding         | 85%   | 26 cited claims (22 supported)          |
+| Honesty           | 100%  | 6 (the company car, 5 off-topic probes) |
+| Quote match rate  | 100%  | 15 citations                            |
+
+- Honesty now accepts the line about DocChat as well as "Your documents don't say" for an
+  off-topic probe, both without citations. The two new probes got the line without a search;
+  the other three found no passage above the floor and got "Your documents don't say anything
+  about that." The company-car question (on-topic) got "don't say" plus what the contract does
+  offer, as intended for a related question.
+- The four unsupported claims: `long-service-notice` repeats the arithmetic error (nine weeks;
+  clause 9.2 gives seven). `short-sickness` and `remote-work` leave out conditions the passage
+  adds. `service-charge` is the eval's claim granularity: a sentence citing [1] for council tax
+  and [2] for the service charge is judged whole against each passage.
 
 ## Consequences
 
