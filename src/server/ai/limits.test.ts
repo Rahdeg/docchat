@@ -4,13 +4,21 @@ const db = vi.hoisted(() => ({ $count: vi.fn() }));
 vi.mock("@/server/db", () => ({ db }));
 vi.mock("@/lib/env", () => ({ env: { CHAT_DAILY_LIMIT: 3 } }));
 
-const { checkDailyLimit, dailyLimitMessage, CHAT_DAILY_LIMIT } = await import("./limits");
+const { checkDailyLimit, dailyLimitFrom, dailyLimitMessage, CHAT_DAILY_LIMIT } =
+  await import("./limits");
 
 beforeEach(() => db.$count.mockReset());
 
 describe("checkDailyLimit", () => {
   it("reads CHAT_DAILY_LIMIT", () => {
     expect(CHAT_DAILY_LIMIT).toBe(3);
+  });
+
+  it("defaults to 10 a day on the Gemini free tier and 50 on the gateway", () => {
+    expect(dailyLimitFrom({ CHAT_PROVIDER: "google" })).toBe(10);
+    expect(dailyLimitFrom({})).toBe(10);
+    expect(dailyLimitFrom({ CHAT_PROVIDER: "gateway" })).toBe(50);
+    expect(dailyLimitFrom({ CHAT_PROVIDER: "google", CHAT_DAILY_LIMIT: 25 })).toBe(25);
   });
 
   it("allows answers until the limit, then refuses with the reset time", async () => {

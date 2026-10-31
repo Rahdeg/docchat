@@ -6,9 +6,17 @@ import { env } from "@/lib/env";
 import { db } from "@/server/db";
 import { aiUsage } from "@/server/db/schema";
 
-// Answers per user per UTC day (CHAT_DAILY_LIMIT). The fallback covers CI, which skips env
-// validation.
-export const CHAT_DAILY_LIMIT = env.CHAT_DAILY_LIMIT ?? 50;
+// Answers per user per UTC day: CHAT_DAILY_LIMIT, or by provider. The Gemini free tier allows
+// about 20 answers a day for the whole project, so one user gets 10 of them; the gateway is paid.
+export function dailyLimitFrom(config: {
+  CHAT_DAILY_LIMIT?: number;
+  CHAT_PROVIDER?: "google" | "gateway";
+}): number {
+  // The provider fallback covers CI, which skips env validation.
+  return config.CHAT_DAILY_LIMIT ?? ((config.CHAT_PROVIDER ?? "google") === "google" ? 10 : 50);
+}
+
+export const CHAT_DAILY_LIMIT = dailyLimitFrom(env);
 
 export function dailyLimitMessage(limit = CHAT_DAILY_LIMIT): string {
   return `You've reached today's limit of ${limit} questions. It resets at midnight UTC.`;

@@ -32,8 +32,9 @@ export const env = createEnv({
     // "anthropic/claude-opus-5.5". For trying a model, or when the default's quota is used up.
     CHAT_ANSWER_MODEL: z.string().trim().min(1).max(100).optional(),
     // Answers one user may generate per UTC day. The free tier's daily quota is shared by
-    // every user, so one person can't use it all up.
-    CHAT_DAILY_LIMIT: z.coerce.number().int().positive().default(50),
+    // every user, so one person can't use it all up. Unset: 10 on "google", 50 on "gateway"
+    // (src/server/ai/limits.ts).
+    CHAT_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
   },
   client: {
     // Clerk Frontend API key (pk_test_… / pk_live_…).
