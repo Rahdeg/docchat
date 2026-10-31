@@ -70,6 +70,15 @@ describe("answer prompt", () => {
     );
   });
 
+  it("has the model show the rule and the working for a calculation, result last", () => {
+    expect(ANSWER_SYSTEM_PROMPT).toContain(
+      "state the rule as the source words it, then the working, then the result",
+    );
+    // Not the eval's own question (8 years under clause 9.2), so the eval still tests the skill.
+    expect(ANSWER_SYSTEM_PROMPT).toContain("2 + (7 - 3) = **6 weeks** [1]");
+    expect(ANSWER_SYSTEM_PROMPT).not.toMatch(/4 \+ 3|7 weeks/);
+  });
+
   it("has the model answer questions about DocChat with the canned line", () => {
     expect(ANSWER_SYSTEM_PROMPT).toContain(`reply with exactly "${ABOUT_ANSWER}" and nothing more`);
   });
