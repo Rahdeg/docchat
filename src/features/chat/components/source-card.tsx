@@ -2,6 +2,7 @@ import { ExternalLinkIcon } from "lucide-react";
 
 import { CitationChip } from "@/components/citation-chip";
 import { Badge } from "@/components/ui/badge";
+import { displayName } from "@/features/documents/upload-rules";
 import { cn } from "@/lib/utils";
 
 import { excerpt, type Span } from "../passage-text";
@@ -15,6 +16,7 @@ export type SourceCardProps = {
   number?: number | null;
   // Yellow number box. Defaults to the first card.
   featured?: boolean;
+  // The stored file name; shown without its extension, as in the Library.
   documentName: string;
   page: number | null;
   passage: string;
@@ -69,7 +71,7 @@ export function SourceCard({
       <header className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
         {number !== null ? <CitationChip index={number} featured={featured} /> : null}
         <h3 className={cn("font-serif font-medium", compact ? "text-[15px]" : "text-[17px]")}>
-          {documentName}
+          {displayName(documentName)}
         </h3>
         {page ? <span className="text-[13px] text-muted-foreground">Page {page}</span> : null}
         {similarity != null ? (

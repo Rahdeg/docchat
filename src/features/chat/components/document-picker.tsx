@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ReadyDocument } from "@/features/documents/queries";
+import { displayName } from "@/features/documents/upload-rules";
 
 type DocumentPickerProps = {
   documents: ReadyDocument[];
@@ -25,11 +26,13 @@ export function chosenDocuments(documents: ReadyDocument[], value: string[]): st
   return value.filter((id) => documents.some((d) => d.id === id));
 }
 
-// "Searching all documents", "Searching Lease.pdf", "Searching 2 documents".
+// "Searching all documents", "Searching Lease", "Searching 2 documents".
 export function scopeLabel(documents: ReadyDocument[], value: string[]): string {
   const chosen = chosenDocuments(documents, value);
   if (chosen.length === 0) return "Searching all documents";
-  if (chosen.length === 1) return `Searching ${documents.find((d) => d.id === chosen[0])!.name}`;
+  if (chosen.length === 1) {
+    return `Searching ${displayName(documents.find((d) => d.id === chosen[0])!.name)}`;
+  }
   return `Searching ${chosen.length} documents`;
 }
 
@@ -40,7 +43,7 @@ export function DocumentPicker({ documents, value, onChange }: DocumentPickerPro
     chosen.length === 0
       ? `All documents (${documents.length})`
       : chosen.length === 1
-        ? documents.find((d) => d.id === chosen[0])!.name
+        ? displayName(documents.find((d) => d.id === chosen[0])!.name)
         : `${chosen.length} documents`;
 
   function toggle(id: string, checked: boolean) {
@@ -81,7 +84,7 @@ export function DocumentPicker({ documents, value, onChange }: DocumentPickerPro
               onCheckedChange={(checked) => toggle(doc.id, checked)}
               className="font-serif"
             >
-              <span className="truncate">{doc.name}</span>
+              <span className="truncate">{displayName(doc.name)}</span>
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuGroup>
