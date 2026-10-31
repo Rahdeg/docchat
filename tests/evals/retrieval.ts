@@ -10,18 +10,15 @@ import "../../scripts/lib/load-env";
 import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 
-import { eq } from "drizzle-orm";
-
 import { CHUNK_OVERLAP_TOKENS, CHUNK_TARGET_TOKENS } from "@/server/ai/chunk";
 import { EMBEDDING_DIMENSIONS } from "@/server/ai/constants";
 import { EMBEDDING_MODEL, MIN_SIMILARITY } from "@/server/ai/models";
 import { searchPassages, type Passage } from "@/server/ai/retrieve";
 import { db } from "@/server/db";
-import { document } from "@/server/db/schema";
-import { indexDocument } from "@/server/ingest/index-document";
 
 import { assertDevelopment } from "../../scripts/lib/assert-development";
-import { evalsDir, fixtureBytes, isHit, loadEvalCases, type EvalQuestion } from "./retrieval-cases";
+import { indexFixtures } from "./index-fixtures";
+import { evalsDir, isHit, loadEvalCases, type EvalQuestion } from "./retrieval-cases";
 
 const EVAL_USER_ID = "eval_retrieval";
 const LIMIT = 5;
@@ -37,31 +34,6 @@ type QuestionResult = {
   hitSimilarity: number | null;
   top: { document: string; page: number | null; similarity: number }[];
 };
-
-async function indexFixtures(fixtures: { file: string; name: string }[]) {
-  // Start clean: documents cascade to their pages and chunks. Usage rows stay (real spend).
-  await db.delete(document).where(eq(document.userId, EVAL_USER_ID));
-
-  for (const fixture of fixtures) {
-    const bytes = fixtureBytes(fixture.file);
-    const [row] = await db
-      .insert(document)
-      .values({
-        userId: EVAL_USER_ID,
-        name: fixture.name,
-        mimeType: "application/pdf",
-        sizeBytes: bytes.length,
-        blobPathname: `users/${EVAL_USER_ID}/eval-${fixture.file}`,
-      })
-      .returning({ id: document.id });
-    await indexDocument(EVAL_USER_ID, row!.id, { load: async () => bytes });
-
-    const [indexed] = await db.select().from(document).where(eq(document.id, row!.id));
-    if (indexed?.status !== "ready") {
-      throw new Error(`Indexing ${fixture.name} failed: ${indexed?.error ?? "unknown error"}`);
-    }
-  }
-}
 
 function summarize(passages: Passage[]): QuestionResult["top"] {
   return passages.map((p) => ({ document: p.name, page: p.page, similarity: round(p.similarity) }));
@@ -80,7 +52,7 @@ async function main() {
 
   console.log(`Indexing ${cases.fixtures.length} fixture document(s) for ${EVAL_USER_ID}…`);
   const indexStart = performance.now();
-  await indexFixtures(cases.fixtures);
+  await indexFixtures(EVAL_USER_ID, cases.fixtures);
   const indexMs = Math.round(performance.now() - indexStart);
 
   const results: QuestionResult[] = [];

@@ -22,10 +22,13 @@ don't duplicate or hand-edit the managed block:
   for chunk sizes
 - Vercel AI SDK v7 (`ai`). Embeddings (1536 dimensions, `docs/adr/0005`) from
   `EMBEDDING_PROVIDER`: `google` (default; `@ai-sdk/google`, `gemini-embedding-001`, free tier,
-  development only) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`, production)
+  development only) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`, production).
+  Chat from `CHAT_PROVIDER`: `google` (default; `gemini-3.6-flash`, free tier, development only) or
+  `gateway` (`anthropic/claude-sonnet-5.5`, production); `@ai-sdk/react` (`useChat`) in the
+  browser (`docs/adr/0006`)
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
-  serving stored files (`src/app/api/documents/`), and later chat streaming
+  serving stored files (`src/app/api/documents/`), and streaming answers (`POST /api/chat`)
 - Tooling: pnpm (pinned via `packageManager`), ESLint 9 flat config, Prettier, lefthook, Vitest,
   Playwright (e2e)
 
@@ -51,6 +54,7 @@ or run `corepack enable pnpm` once if you want a bare `pnpm`.
 | `pnpm db:seed`                | Reset and insert sample data (development only)  |
 | `pnpm db:backfill-embeddings` | (Re-)embed chunks missing a current-model vector |
 | `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration    |
+| `pnpm eval:answers`           | Answer eval: citations, grounding, honesty       |
 
 `pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
 up after signing in. It deletes that user's existing rows first.
@@ -79,7 +83,8 @@ drizzle/               generated SQL migrations and snapshots (committed)
 scripts/               standalone scripts run with tsx (seed, backfill-embeddings)
 tests/e2e/             Playwright end-to-end tests (`*.spec.ts`)
 tests/fixtures/        test files (PDFs), the PDF writer (pdf.mjs) and the script that uses it
-tests/evals/           retrieval eval: fixtures, questions (retrieval.json), runner, results/
+tests/evals/           retrieval and answer evals: fixtures, questions (retrieval.json), runners,
+                       results/
 ```
 
 Unit tests sit next to the code as `*.test.ts(x)`. Playwright tests live in `tests/e2e/` and run
@@ -204,6 +209,39 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   and commit both results files. If the fixtures or chunker change, `retrieval-cases.test.ts` says
   which questions need new pages or quotes.
 
+## Chat rules (answers and citations, `docs/adr/0006`)
+
+- Chat models live in `CHAT_CONFIGS` (`src/server/ai/models.ts`): `answer`, `rewrite` and
+  `judge` per provider. `CHAT_ANSWER_MODEL` overrides the answer model on the same provider.
+- **The Gemini free tier allows 20 requests a day per model for the whole project** (resets at
+  midnight Pacific). Don't spend it casually: tests that call the chat model also need
+  `LIVE_CHAT_TESTS=1`, and `pnpm eval:answers` needs about 17 answers (it resumes a run the
+  quota stopped).
+- Generate only through `src/server/ai/answer.ts` (`streamAnswer`, `rewriteQuery`,
+  `answerQuestion`) and `judge.ts`. They pace and retry through `callChatModel`
+  (`call-model.ts`) and write an `ai_usage` row per generation (`recordGeneration`: `chat`,
+  `rewrite`, `judge`). The daily limit (`CHAT_DAILY_LIMIT`) counts `chat` rows since midnight UTC
+  and is checked in the route before any model call.
+- Document text goes to the model only through `answerMessages` / `formatSources`
+  (`prompts.ts`): numbered `<source>` blocks in the latest user message, marked untrusted, with
+  look-alike tags escaped. Never put document text in the system prompt.
+- Citations: the model writes `[n]` markers and a trailing `<citations>` block of
+  `{"source", "quote"}` lines. `CitationFilter` hides the block, renumbers chips by first
+  appearance and drops markers to unretrieved sources while streaming; `resolveCitations` looks
+  for each quote only in its own passage (`matchQuote`, 0.85 similarity) and highlights the whole
+  passage when it isn't found. Don't render raw model text that skipped the filter.
+- No passage above `MIN_SIMILARITY` means no model call: the route streams
+  `noPassagesAnswer` ("Your documents don't say…").
+- Messages are AI SDK UIMessages (`src/features/chat/message.ts`): answers carry
+  `data-passages` (a copy of what was read) and `data-citations`. They're validated on load
+  (`listMessages`), so changing a part's shape means migrating stored messages.
+- The answer text renders through `parseAnswer` (`answer-markup.ts`): paragraphs, `- ` lists,
+  `**bold**` and chips. Never render model output as HTML.
+- `/chat` redirects to `/chat/<new uuid>`; the chat row is created by the first question
+  (`ensureChat`). Keep one page per chat id so `useChat` keeps its state across `router.refresh()`.
+- Before and after changing the chat model, the prompts or citation handling, run
+  `pnpm eval:answers` and commit both results files.
+
 ## Auth rules (Clerk)
 
 - Auth uses `@clerk/nextjs`, the decided provider (`docs/adr/0002`). Treat the project as having
@@ -224,6 +262,8 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Server Actions are built with `authedAction(schema, handler)` from `src/lib/action.ts`. It
   calls `auth()` first, then validates input with Zod, and returns
   `{ ok: true, data } | { ok: false, error, fieldErrors? }`. Don't hand-roll actions without it.
+- `POST /api/chat` checks auth itself, then ownership through `ensureChat` (another user's chat
+  id is a 404, never a new chat).
 - Tables store Clerk's `userId` as `text`. There is no local `users` table; profile data stays in
   Clerk.
 - No Clerk webhooks yet. Deleting a user's data when Clerk sends `user.deleted` comes in a later

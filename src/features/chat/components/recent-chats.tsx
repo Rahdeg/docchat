@@ -1,8 +1,8 @@
-import { MessageSquareIcon } from "lucide-react";
-
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { SidebarMenu } from "@/components/ui/sidebar";
 import { listRecentChats } from "@/features/chat/queries";
 import { requireUserId } from "@/server/auth";
+
+import { RecentChatItem } from "./recent-chat-item";
 
 export async function RecentChats() {
   const userId = await requireUserId();
@@ -12,16 +12,10 @@ export async function RecentChats() {
     return <p className="px-2 py-1 text-xs text-muted-foreground">No chats yet</p>;
   }
 
-  // TODO(chat): link each item to /chat/[id] once conversations open.
   return (
     <SidebarMenu>
       {chats.map((chat) => (
-        <SidebarMenuItem key={chat.id}>
-          <SidebarMenuButton size="sm" disabled tooltip="Opening chats is coming soon">
-            <MessageSquareIcon />
-            <span>{chat.title}</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        <RecentChatItem key={chat.id} chat={chat} />
       ))}
     </SidebarMenu>
   );

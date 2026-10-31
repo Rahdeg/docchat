@@ -19,6 +19,7 @@
   --color-border-strong: var(--border-strong);
   --color-border-dashed: var(--border-dashed);
   --color-surface-sunken: var(--surface-sunken);
+  --color-panel: var(--panel);
   --color-drop: var(--drop);
   --color-status-ready: var(--status-ready);
   --color-status-ready-foreground: var(--status-ready-foreground);
@@ -113,6 +114,8 @@
   --border-strong: #c7ced7;
   --border-dashed: #9aa3b0;
   --surface-sunken: #f4f6f8;
+  /* The desk in shadow, beside the page: the chat's Sources panel. */
+  --panel: #dfe3e8;
   /* "Drop to upload" sheet. */
   --drop: #fff6c4;
   /* Quoted passages. Not overridden in .dark: the mark keeps dark text in both modes. */

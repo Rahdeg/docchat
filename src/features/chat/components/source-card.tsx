@@ -6,9 +6,13 @@ import { cn } from "@/lib/utils";
 
 import { excerpt, type Span } from "../passage-text";
 
+// Characters kept around the highlight in a clamped card: a word or two before it.
+const CLAMPED_CONTEXT_CHARS = 30;
+
 export type SourceCardProps = {
-  // Shown in the numbered box: the rank in "find passages", the citation number in answers.
-  number: number;
+  // Shown in the numbered box: the rank in "Read N passages", the citation number in Sources.
+  // None for passages read but not cited.
+  number?: number | null;
   // Yellow number box. Defaults to the first card.
   featured?: boolean;
   documentName: string;
@@ -22,15 +26,17 @@ export type SourceCardProps = {
   href?: string | null;
   // The source the reader is looking at (a selected citation in PR 6's Sources panel).
   active?: boolean;
-  // Smaller text clamped to three lines, for the Sources panel.
+  // Smaller text, for the Sources panel.
   compact?: boolean;
+  // Clamp the passage to three lines. Defaults to `compact`; the active card shows it all.
+  clamp?: boolean;
   className?: string;
 };
 
 // A passage on a sheet of paper: which document and page it's from, the text with its best
 // sentence highlighted, and a link to the page.
 export function SourceCard({
-  number,
+  number = null,
   featured = number === 1,
   documentName,
   page,
@@ -40,21 +46,28 @@ export function SourceCard({
   href,
   active = false,
   compact = false,
+  clamp = compact,
   className,
 }: SourceCardProps) {
-  const text = excerpt(passage, highlight);
+  // Three clamped lines show the highlight from its start; a full card gives it context.
+  const text = excerpt(
+    passage,
+    highlight,
+    clamp && highlight ? highlight.end - highlight.start + CLAMPED_CONTEXT_CHARS : undefined,
+  );
 
   return (
     <article
       data-active={active || undefined}
       className={cn(
-        "flex flex-col gap-2.5 rounded-[3px] border bg-card px-5 py-[18px] shadow-sheet transition-[translate,box-shadow] motion-reduce:transition-none",
+        "flex flex-col gap-2.5 rounded-[3px] border bg-card shadow-sheet transition-[translate,box-shadow] motion-reduce:transition-none",
+        compact ? "px-[18px] py-4" : "px-5 py-[18px]",
         active && "-translate-y-0.5 border-[1.5px] border-foreground shadow-sheet-raised",
         className,
       )}
     >
       <header className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-        <CitationChip index={number} featured={featured} />
+        {number !== null ? <CitationChip index={number} featured={featured} /> : null}
         <h3 className={cn("font-serif font-medium", compact ? "text-[15px]" : "text-[17px]")}>
           {documentName}
         </h3>
@@ -69,7 +82,8 @@ export function SourceCard({
       <p
         className={cn(
           "font-serif leading-[1.7] text-secondary-text",
-          compact ? "line-clamp-3 text-sm" : "text-[15px]",
+          compact ? "text-sm" : "text-[15px]",
+          clamp && "line-clamp-3",
         )}
       >
         {text.cutStart ? "…" : null}

@@ -20,11 +20,20 @@ export const env = createEnv({
     EMBEDDING_PROVIDER: z.enum(["google", "gateway"]).default("google"),
     // Gemini API key (Google AI Studio), used when EMBEDDING_PROVIDER is "google".
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
-    // Vercel AI Gateway key, for embeddings when EMBEDDING_PROVIDER is "gateway" and (later)
-    // chat. Optional because deployments on Vercel authenticate with the project's OIDC token
+    // Vercel AI Gateway key, for embeddings when EMBEDDING_PROVIDER is "gateway" and chat when
+    // CHAT_PROVIDER is "gateway". Optional because deployments on Vercel authenticate with the project's OIDC token
     // instead. Locally, set it: the pulled OIDC token expires after 12 hours. A key always wins
     // over OIDC, even an invalid one.
     AI_GATEWAY_API_KEY: z.string().min(1).optional(),
+    // Who writes answers (docs/adr/0006). "google" is the Gemini API's free tier, under the same
+    // rule as embeddings: fictional documents only. Production switches to "gateway".
+    CHAT_PROVIDER: z.enum(["google", "gateway"]).default("google"),
+    // Optional: a different answer model on CHAT_PROVIDER, e.g. "gemini-3.8-flash" or
+    // "anthropic/claude-opus-5.5". For trying a model, or when the default's quota is used up.
+    CHAT_ANSWER_MODEL: z.string().trim().min(1).max(100).optional(),
+    // Answers one user may generate per UTC day. The free tier's daily quota is shared by
+    // every user, so one person can't use it all up.
+    CHAT_DAILY_LIMIT: z.coerce.number().int().positive().default(50),
   },
   client: {
     // Clerk Frontend API key (pk_test_… / pk_live_…).
@@ -38,6 +47,9 @@ export const env = createEnv({
     EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER,
     GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+    CHAT_PROVIDER: process.env.CHAT_PROVIDER,
+    CHAT_ANSWER_MODEL: process.env.CHAT_ANSWER_MODEL,
+    CHAT_DAILY_LIMIT: process.env.CHAT_DAILY_LIMIT,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
   // CI builds and tests run without a database. Never set this in a deployed environment.

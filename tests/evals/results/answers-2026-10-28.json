@@ -1,0 +1,1082 @@
+{
+  "date": "2026-10-28T13:33:40.493Z",
+  "git": {
+    "sha": "fbb7080",
+    "dirty": true
+  },
+  "models": {
+    "answer": "google/gemini-3.5-flash-lite",
+    "judge": "google/gemma-4-26b-a4b-it",
+    "embedding": "google/gemini-embedding-001"
+  },
+  "minSimilarity": 0.55,
+  "complete": true,
+  "metrics": {
+    "questions": 18,
+    "answered": 18,
+    "citationAccuracy": 1,
+    "grounding": 0.85,
+    "honesty": 1,
+    "quoteMatchRate": 1,
+    "counts": {
+      "answerable": 14,
+      "mustDecline": 4,
+      "claims": 20,
+      "claimsUnjudged": 0,
+      "citations": 14,
+      "declinedAnswerable": 0
+    }
+  },
+  "results": [
+    {
+      "id": "rent-amount",
+      "kind": "direct",
+      "question": "What is the monthly rent?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 2
+      },
+      "answer": {
+        "query": "What is the monthly rent?",
+        "text": "The monthly rent is **1,150 pounds** [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The rent is 1,150 pounds per calendar month, payable in advance on the first day of each month by standing order to the account the Landlord’s agent names in writing.",
+            "start": 36,
+            "end": 206,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": "RENT, DEPOSIT AND PAYMENTS\n5. Rent. 5.1 The rent is 1,150 pounds per calendar month, payable in advance on the first\nday of each month by standing order to the account the Landlord’s agent names in writing.\n5.2 The first payment is due on or before the start date and covers the period from 1 March\n2026 to 31 March 2026. 5.3 Rent is due whether or not the Landlord or its agent asks for it.\n5.4 If any rent is unpaid for more than fourteen days after the date it was due, the Tenant\nmust pay interest on the unpaid amount at three per cent a year above the Bank of England\nbase rate, from the date it was due until the date it is paid. 5.5 The Landlord may not\ncharge any other fee for a late payment, and will not charge for a returned standing order\nunless the Tenant cancelled it.\n6. Deposit. 6.1 On signing this agreement the Tenant pays a deposit of 1,326 pounds, which\nis no more than five weeks’ rent. 6.2 The Landlord will protect the deposit with the Deposit\nProtection Service within 30 days of receiving it, and will give the Tenant the prescribed\ninformation about the scheme within the same period. 6.3 The deposit is security for the\nTenant’s obligations under this agreement. It is not a payment of rent, and the Tenant may\nnot use it to pay the last month’s rent.\n6.4 At the end of the tenancy the Landlord may deduct from the deposit the reasonable cost\nof putting right any damage to the Property or its contents beyond fair wear and tear, any\nunpaid rent, and the cost of replacing lost keys. 6.5 The Landlord must tell the Tenant of\nany proposed deductions within ten days of the end of the tenancy and return the rest of the\ndeposit within ten days of the parties agreeing the amount. 6.6 If the parties cannot agree,\neither of them may ask the scheme’s free dispute resolution service to decide.\n6.7 Utilities and council tax. The Tenant pays for gas, electricity, water, broadband, the\ntelevision licence and council tax for the Property from the start date until the tenancy\nends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The monthly rent is 1,150 pounds.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 5.1 explicitly states that the rent is 1,150 pounds per calendar month."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "deposit-amount",
+      "kind": "direct",
+      "question": "How much is the deposit?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 2
+      },
+      "answer": {
+        "query": "How much is the deposit?",
+        "text": "The deposit is **1,326 pounds** [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "On signing this agreement the Tenant pays a deposit of 1,326 pounds, which is no more than five weeks’ rent.",
+            "start": 797,
+            "end": 909,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": "RENT, DEPOSIT AND PAYMENTS\n5. Rent. 5.1 The rent is 1,150 pounds per calendar month, payable in advance on the first\nday of each month by standing order to the account the Landlord’s agent names in writing.\n5.2 The first payment is due on or before the start date and covers the period from 1 March\n2026 to 31 March 2026. 5.3 Rent is due whether or not the Landlord or its agent asks for it.\n5.4 If any rent is unpaid for more than fourteen days after the date it was due, the Tenant\nmust pay interest on the unpaid amount at three per cent a year above the Bank of England\nbase rate, from the date it was due until the date it is paid. 5.5 The Landlord may not\ncharge any other fee for a late payment, and will not charge for a returned standing order\nunless the Tenant cancelled it.\n6. Deposit. 6.1 On signing this agreement the Tenant pays a deposit of 1,326 pounds, which\nis no more than five weeks’ rent. 6.2 The Landlord will protect the deposit with the Deposit\nProtection Service within 30 days of receiving it, and will give the Tenant the prescribed\ninformation about the scheme within the same period. 6.3 The deposit is security for the\nTenant’s obligations under this agreement. It is not a payment of rent, and the Tenant may\nnot use it to pay the last month’s rent.\n6.4 At the end of the tenancy the Landlord may deduct from the deposit the reasonable cost\nof putting right any damage to the Property or its contents beyond fair wear and tear, any\nunpaid rent, and the cost of replacing lost keys. 6.5 The Landlord must tell the Tenant of\nany proposed deductions within ten days of the end of the tenancy and return the rest of the\ndeposit within ten days of the parties agreeing the amount. 6.6 If the parties cannot agree,\neither of them may ask the scheme’s free dispute resolution service to decide.\n6.7 Utilities and council tax. The Tenant pays for gas, electricity, water, broadband, the\ntelevision licence and council tax for the Property from the start date until the tenancy\nends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 6,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The deposit is 1,326 pounds.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 6.1 of the passage explicitly states that the Tenant pays a deposit of 1,326 pounds."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "salary",
+      "kind": "direct",
+      "question": "What is my annual salary?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 2
+      },
+      "answer": {
+        "query": "What is my annual salary?",
+        "text": "Your **salary is 68,500 pounds a year**, paid in twelve equal instalments [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "Your salary is 68,500 pounds a year, paid in twelve equal instalments by bank transfer on the 28th day of each month, or on the last working day before it if the 28th is not a working day.",
+            "start": 28,
+            "end": 220,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": "PAY AND BENEFITS\n5. Salary. 5.1 Your salary is 68,500 pounds a year, paid in twelve equal instalments by bank\ntransfer on the 28th day of each month, or on the last working day before it if the 28th is\nnot a working day. 5.2 Your salary is reviewed each April, with any change taking effect\nfrom 1 April. A review does not mean your salary will increase. 5.3 The Company may deduct\nfrom your pay any money you owe it, including overpaid salary, unreturned equipment and any\nholiday taken in excess of your entitlement when you leave.\n5.4 You are not entitled to paid overtime. Your salary takes account of the occasional need\nto work beyond your normal hours. 5.5 You are eligible for the Company’s discretionary\nannual bonus scheme. Any bonus is worth up to ten per cent of your salary, depends on the\nCompany’s results and your own performance, and is paid in June. You must be employed and\nnot under notice on the payment date to receive a bonus.\n6. Expenses. 6.1 The Company will repay reasonable expenses you incur while carrying out\nyour duties, in line with the expenses policy. 6.2 Claims must be submitted through the\nexpenses system with receipts within 60 days of the expense being incurred. Claims submitted\nlater may not be paid. 6.3 Travel between your home and your normal place of work is not a\nbusiness expense.\n6.4 Pension. The Company will enrol you in its workplace pension scheme with Harrow Life in\nline with automatic enrolment law. The Company contributes 5 per cent of your basic salary\nand you contribute 4 per cent, by salary sacrifice unless you choose otherwise. You may opt\nout of the scheme within one month of being enrolled. 6.5 Other benefits. After probation\nyou are eligible for private medical insurance for yourself, life assurance worth four times\nyour salary, and the cycle to work scheme. These benefits are provided under the rules of\neach scheme, which may change."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 6,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "Your salary is 68,500 pounds a year, paid in twelve equal instalments.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 5.1 of the passage explicitly states that the salary is 68,500 pounds a year, paid in twelve equal instalments."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "holiday-days",
+      "kind": "direct",
+      "question": "How many days of paid holiday do I get each year?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 4
+      },
+      "answer": {
+        "query": "How many days of paid holiday do I get each year?",
+        "text": "You are entitled to **25 days of paid holiday** in each holiday year, in addition to the eight usual bank holidays in England [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "You are entitled to 25 days of paid holiday in each holiday year, in addition to the eight usual bank holidays in England.",
+            "start": 101,
+            "end": 228,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": "HOLIDAYS\n10. Holiday year and entitlement. 10.1 The holiday year runs from 1 January to 31 December.\n10.2 You are entitled to 25 days of paid holiday in each holiday year, in addition to the\neight usual bank holidays in England. If you work part-time, your entitlement is reduced in\nproportion. 10.3 After three complete years of employment, your holiday entitlement\nincreases to 27 days, and after five complete years to 28 days. 10.4 In the holiday year in\nwhich your employment starts or ends, your entitlement is worked out in proportion to the\npart of the year you are employed, rounded up to the nearest half day.\n11. Booking holiday. 11.1 You must book holiday through the HR system and have it approved\nby your manager before making any travel arrangements. 11.2 You must give at least twice as\nmuch notice as the length of the holiday you want to take, and at least two weeks’ notice\nfor any holiday of more than five days. 11.3 You may not take more than ten working days in\na row without the approval of your director. 11.4 The Company closes between Christmas and\nNew Year and you must keep three days of your entitlement for that period.\n12. Carrying holiday over. 12.1 You should take all of your holiday in the holiday year in\nwhich it is earned. 12.2 You may carry over up to five days of unused holiday into the next\nholiday year, but you must take them by 31 March of that year or they will be lost. 12.3 If\nyou could not take holiday because of sickness or family leave, you may carry over the\nholiday you were unable to take, and must use it within eighteen months of the end of the\nyear in which it was earned.\n12.4 Holiday on leaving. When your employment ends you will be paid for any holiday you have\nearned in that year but not taken. If you have taken more holiday than you earned, the\nCompany will deduct the excess from your final pay. Apart from this, the Company does not\npay in place of untaken holiday. 12.5 The Company may ask you to take any remaining holiday\nduring your notice period."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 6,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "You are entitled to 25 days of paid holiday in each holiday year, in addition to the eight usual bank holidays in England.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "verdict": {
+            "supported": true,
+            "reason": "The claim is stated verbatim in section 10.2 of the passage."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "pension",
+      "kind": "direct",
+      "question": "How much does the company contribute to my pension?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 2
+      },
+      "answer": {
+        "query": "How much does the company contribute to my pension?",
+        "text": "The Company **contributes 5 per cent** of your basic salary to the workplace pension scheme [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The Company contributes 5 per cent of your basic salary and you contribute 4 per cent, by salary sacrifice unless you choose otherwise.",
+            "start": 1456,
+            "end": 1591,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": "PAY AND BENEFITS\n5. Salary. 5.1 Your salary is 68,500 pounds a year, paid in twelve equal instalments by bank\ntransfer on the 28th day of each month, or on the last working day before it if the 28th is\nnot a working day. 5.2 Your salary is reviewed each April, with any change taking effect\nfrom 1 April. A review does not mean your salary will increase. 5.3 The Company may deduct\nfrom your pay any money you owe it, including overpaid salary, unreturned equipment and any\nholiday taken in excess of your entitlement when you leave.\n5.4 You are not entitled to paid overtime. Your salary takes account of the occasional need\nto work beyond your normal hours. 5.5 You are eligible for the Company’s discretionary\nannual bonus scheme. Any bonus is worth up to ten per cent of your salary, depends on the\nCompany’s results and your own performance, and is paid in June. You must be employed and\nnot under notice on the payment date to receive a bonus.\n6. Expenses. 6.1 The Company will repay reasonable expenses you incur while carrying out\nyour duties, in line with the expenses policy. 6.2 Claims must be submitted through the\nexpenses system with receipts within 60 days of the expense being incurred. Claims submitted\nlater may not be paid. 6.3 Travel between your home and your normal place of work is not a\nbusiness expense.\n6.4 Pension. The Company will enrol you in its workplace pension scheme with Harrow Life in\nline with automatic enrolment law. The Company contributes 5 per cent of your basic salary\nand you contribute 4 per cent, by salary sacrifice unless you choose otherwise. You may opt\nout of the scheme within one month of being enrolled. 6.5 Other benefits. After probation\nyou are eligible for private medical insurance for yourself, life assurance worth four times\nyour salary, and the cycle to work scheme. These benefits are provided under the rules of\neach scheme, which may change."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The Company contributes 5 per cent of your basic salary to the workplace pension scheme.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 2,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 6.4 explicitly states that the Company contributes 5 per cent of your basic salary to the workplace pension scheme."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "pets",
+      "kind": "paraphrase",
+      "question": "Can I bring my pet with me when I move in?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 3
+      },
+      "answer": {
+        "query": "Can I bring my pet with me when I move in?",
+        "text": "You need the **Landlord's written consent** to keep an animal, but the landlord will not unreasonably refuse consent for **a cat, a small dog or a caged animal** [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The Landlord will not refuse consent unreasonably for a cat, a small dog or a caged animal, and may ask for the Tenant to have the carpets professionally cleaned when the tenancy ends as a condition of consent.",
+            "start": 1353,
+            "end": 1563,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": "RENT REVIEW AND THE TENANT’S USE OF THE PROPERTY\n7. Rent review. 7.1 The rent stated in clause 5.1 applies from the start date. 7.2 The\nLandlord may increase the rent once in any period of twelve months, and not before 1 March\n2027. Any increase must be reasonable for similar properties in the area. 7.3 Any increase\napplies from the next rent payment date after the notice period ends. 7.4 The Landlord must\ngive the Tenant not less than one month’s notice in writing of any rent increase, stating\nthe new rent and the date it takes effect. 7.5 If a notice does not follow this clause, the\nTenant may write to the Landlord asking for it to be withdrawn, and the rent stays the same\nuntil a valid notice is given.\n8. Use of the Property. 8.1 The Tenant must use the Property as a private home only and must\nnot run a business from it that brings customers or deliveries of stock to the building.\nWorking from home in a way that does not affect the neighbours is allowed. 8.2 The Tenant\nmust not do anything at the Property that is a nuisance or annoyance to the neighbours,\nincluding playing loud music between 11pm and 7am.\n8.3 The Tenant must not smoke or vape inside the Property or in the communal areas, and must\nmake sure their guests do not either. 8.4 The Tenant must not keep any animal at the\nProperty without the Landlord’s written consent. The Landlord will not refuse consent\nunreasonably for a cat, a small dog or a caged animal, and may ask for the Tenant to have\nthe carpets professionally cleaned when the tenancy ends as a condition of consent. 8.5 The\nTenant must not sublet the Property or any part of it, take in lodgers, or list the Property\non a short-term rental website.\n8.6 The Tenant must keep the Property reasonably warm and well ventilated to prevent\ncondensation, open the trickle vents in the windows, and use the extractor fans in the\nkitchen and bathroom. 8.7 The Tenant must not change the locks or have extra keys cut\nwithout the Landlord’s consent, and must give back all keys at the end of the tenancy."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "You need the Landlord's written consent to keep an animal, but the landlord will not unreasonably refuse consent for a cat, a small dog or a caged animal.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "verdict": {
+            "supported": true,
+            "reason": "Clause 8.4 of the passage explicitly states that an animal cannot be kept without the Landlord's written consent and that consent will not be unreasonably refused for a cat, a small dog, or a caged animal."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "boiler",
+      "kind": "paraphrase",
+      "question": "My boiler broke and there's no hot water. How quickly does it have to be fixed?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 4
+      },
+      "answer": {
+        "query": "My boiler broke and there's no hot water. How quickly does it have to be fixed?",
+        "text": "The landlord must deal with an emergency repair for a total loss of hot water **within 24 hours of being told about it** [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The Landlord must deal with an emergency repair, such as a total loss of heating or hot water, a serious leak, or an unsafe electrical fault, within 24 hours of being told about it.",
+            "start": 1338,
+            "end": 1524,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 4,
+            "content": "CARE OF THE PROPERTY AND REPAIRS\n9. The Tenant’s responsibilities. 9.1 The Tenant must keep the inside of the Property clean\nand in the same condition as at the start of the tenancy, apart from fair wear and tear. 9.2\nThe Tenant must replace light bulbs, smoke alarm batteries and fuses, and must test the\nsmoke and carbon monoxide alarms at least once a month. 9.3 The Tenant must not put anything\ndown the sinks, toilets or drains that may block them, and must pay to clear a blockage they\ncaused.\n9.4 The Tenant must tell the Landlord’s agent about any damage, disrepair or need for\nrepairs as soon as reasonably possible, and in any case within seven days of noticing it.\nThis includes damp, mould, leaks and faults with the heating. The Tenant is responsible for\nany further damage caused by not reporting a problem in time. 9.5 The Tenant must keep the\nsmall rear garden tidy, cut the lawn regularly between April and October, and not let\nrubbish build up.\n10. The Landlord’s responsibilities. 10.1 The Landlord must keep in repair the structure and\nexterior of the Property, including the roof, walls, windows, external doors, drains and\ngutters. 10.2 The Landlord must keep in repair and proper working order the installations\nfor the supply of water, gas and electricity, for sanitation, and for space heating and\nheating water. 10.3 The Landlord must deal with an emergency repair, such as a total loss of\nheating or hot water, a serious leak, or an unsafe electrical fault, within 24 hours of\nbeing told about it.\n10.4 Other repairs the Landlord is responsible for must be carried out within fourteen days\nof being reported, or as soon as reasonably possible if parts must be ordered. The\nLandlord’s agent will keep the Tenant informed of when the work will be done. 10.5 The\nLandlord must have the gas appliances and flues checked by a Gas Safe registered engineer\nevery twelve months and give the Tenant a copy of the gas safety record within 28 days of\neach check. The electrical installation must be inspected at least every five years."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The landlord must deal with an emergency repair for a total loss of hot water within 24 hours of being told about it.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 4,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 10.3 explicitly states the landlord must deal with an emergency repair, such as a total loss of hot water, within 24 hours of being told about it."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "rent-increase-notice",
+      "kind": "paraphrase",
+      "question": "How much warning do I get before the rent goes up?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 3
+      },
+      "answer": {
+        "query": "How much warning do I get before the rent goes up?",
+        "text": "The Landlord must give you **not less than one month’s notice in writing** of any rent increase [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The Landlord must give the Tenant not less than one month’s notice in writing of any rent increase, stating the new rent and the date it takes effect.",
+            "start": 388,
+            "end": 542,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": "RENT REVIEW AND THE TENANT’S USE OF THE PROPERTY\n7. Rent review. 7.1 The rent stated in clause 5.1 applies from the start date. 7.2 The\nLandlord may increase the rent once in any period of twelve months, and not before 1 March\n2027. Any increase must be reasonable for similar properties in the area. 7.3 Any increase\napplies from the next rent payment date after the notice period ends. 7.4 The Landlord must\ngive the Tenant not less than one month’s notice in writing of any rent increase, stating\nthe new rent and the date it takes effect. 7.5 If a notice does not follow this clause, the\nTenant may write to the Landlord asking for it to be withdrawn, and the rent stays the same\nuntil a valid notice is given.\n8. Use of the Property. 8.1 The Tenant must use the Property as a private home only and must\nnot run a business from it that brings customers or deliveries of stock to the building.\nWorking from home in a way that does not affect the neighbours is allowed. 8.2 The Tenant\nmust not do anything at the Property that is a nuisance or annoyance to the neighbours,\nincluding playing loud music between 11pm and 7am.\n8.3 The Tenant must not smoke or vape inside the Property or in the communal areas, and must\nmake sure their guests do not either. 8.4 The Tenant must not keep any animal at the\nProperty without the Landlord’s written consent. The Landlord will not refuse consent\nunreasonably for a cat, a small dog or a caged animal, and may ask for the Tenant to have\nthe carpets professionally cleaned when the tenancy ends as a condition of consent. 8.5 The\nTenant must not sublet the Property or any part of it, take in lodgers, or list the Property\non a short-term rental website.\n8.6 The Tenant must keep the Property reasonably warm and well ventilated to prevent\ncondensation, open the trickle vents in the windows, and use the extractor fans in the\nkitchen and bathroom. 8.7 The Tenant must not change the locks or have extra keys cut\nwithout the Landlord’s consent, and must give back all keys at the end of the tenancy."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 6,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The Landlord must give you not less than one month’s notice in writing of any rent increase.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 3,
+          "verdict": {
+            "supported": true,
+            "reason": "Clause 7.4 explicitly states that the Landlord must give the Tenant not less than one month’s notice in writing of any rent increase."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "short-sickness",
+      "kind": "paraphrase",
+      "question": "I was ill for three days. Do I need a note from my GP?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 5
+      },
+      "answer": {
+        "query": "I was ill for three days. Do I need a note from my GP?",
+        "text": "You **do not need a doctor's fit note** for a three-day absence [1]. For absences of up to seven calendar days, you must instead complete a self-certification form on the HR system on the day you return to work [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "For absences of up to seven calendar days you must complete a self-certification form on the HR system on the day you return to work.",
+            "start": 383,
+            "end": 521,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": "SICKNESS AND FAMILY LEAVE\n13. Reporting sickness. 13.1 If you are unable to work because of sickness or injury, you\nmust tell your manager by phone or video call as soon as possible, and no later than 9.30am\non your first day of absence. A message or email is only acceptable if you cannot call. 13.2\nYou must keep your manager informed of how you are and when you expect to return. 13.3 For\nabsences of up to seven calendar days you must complete a self-certification form on the HR\nsystem on the day you return to work. For absences of more than seven calendar days you must\nprovide a fit note from your doctor covering the whole of the absence.\n14. Sick pay. 14.1 You are entitled to Statutory Sick Pay if you meet the conditions for it.\n14.2 Once you have completed probation, the Company will also pay your full basic salary,\nincluding any Statutory Sick Pay, for up to four weeks of sickness absence in any rolling\nperiod of twelve months, and half of your basic salary for a further four weeks. 14.3\nCompany sick pay is discretionary and may be withheld if you do not follow the reporting\nrules or if the absence results from a sport or activity done professionally.\n14.4 The Company may ask you to see an occupational health adviser or a doctor it nominates,\nat its expense, and you agree to the report being shared with the Company. 14.5 If you are\noften absent or absent for a long time, the Company will meet you to discuss support and any\nreasonable adjustments before taking any other step.\n15. Family leave. 15.1 You are entitled to maternity, paternity, adoption, shared parental\nand parental bereavement leave and pay as set out in the law and in the family leave policy\nin the Staff Handbook, which in some cases is more generous than the law. 15.2 You may take\nreasonable unpaid time off to deal with an emergency involving a dependant. 15.3 You may\nalso take up to five days of paid carer’s leave a year after probation."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "You do not need a doctor's fit note for a three-day absence.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 13.3 states that a fit note is required for absences of more than seven calendar days, whereas absences of up to seven days require a self-certification form."
+          }
+        },
+        {
+          "claim": "For absences of up to seven calendar days, you must instead complete a self-certification form on the HR system on the day you return to work.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 5,
+          "verdict": {
+            "supported": false,
+            "reason": "The claim adds the word 'instead', which is not present in the passage and adds a detail not provided by the text."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "remote-work",
+      "kind": "paraphrase",
+      "question": "Am I allowed to work from home?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 1
+      },
+      "answer": {
+        "query": "Am I allowed to work from home?",
+        "text": "Yes, **you may work from home** on the days you are not required to be in the office, provided your manager agrees and your home has a suitable workspace and a secure internet connection [1]. You are expected to work from the office at least two days a week, normally on Tuesday and Thursday [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 4,
+            "quote": "You are expected to work from the office at least two days a week, normally Tuesday and Thursday, and may work from home on the other days if your manager agrees and your home has a suitable workspace and a secure internet connection.",
+            "start": 1080,
+            "end": 1314,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 1,
+            "content": "CONTRACT OF EMPLOYMENT\nThis contract is between Fernbrook Analytics Ltd, company number 11234567, of 9 Tannery\nYard, Manchester M4 6DG (the Company), and Daniel Okafor (you). It sets out the main terms\nof your employment and, together with the Staff Handbook, forms your written statement of\nemployment particulars.\n1. Job title and duties. 1.1 You are employed as a Senior Data Engineer in the Platform\nteam, reporting to the Head of Data Platform. 1.2 Your main duties are described in your job\ndescription, but you may be asked to carry out other reasonable duties that match your\nskills. The Company may update your job description after discussing it with you.\n2. Start date and continuous employment. 2.1 Your employment starts on 5 January 2026. No\nprevious employment counts towards your period of continuous employment. 2.2 Your employment\nis permanent, subject to the probation period in clause 7.\n3. Place of work and hybrid working. 3.1 Your normal place of work is the Company’s office\nat 9 Tannery Yard, Manchester. 3.2 The Company operates a hybrid working policy. You are\nexpected to work from the office at least two days a week, normally Tuesday and Thursday,\nand may work from home on the other days if your manager agrees and your home has a suitable\nworkspace and a secure internet connection. 3.3 The Company may change the office days for a\nteam with at least one month’s notice. 3.4 You will not be required to work outside the\nUnited Kingdom for more than one month at a time.\n4. Equipment. 4.1 The Company will provide a laptop, a monitor and any software you need for\nyour job. 4.2 You may claim up to 250 pounds once for office furniture for working from\nhome, with receipts. 4.3 Company equipment must be returned on your last day of employment."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "Yes, you may work from home on the days you are not required to be in the office, provided your manager agrees and your home has a suitable workspace and a secure internet connection.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 1,
+          "verdict": {
+            "supported": true,
+            "reason": "Clause 3.2 explicitly states that the employee may work from home on days not required in the office if their manager agrees and they have a suitable workspace and secure internet connection."
+          }
+        },
+        {
+          "claim": "You are expected to work from the office at least two days a week, normally on Tuesday and Thursday.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 1,
+          "verdict": {
+            "supported": true,
+            "reason": "Section 3.2 of the passage explicitly states that the employee is expected to work from the office at least two days a week, normally Tuesday and Thursday."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "unused-holiday",
+      "kind": "paraphrase",
+      "question": "What happens to leave I haven't used by the end of the year?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 4
+      },
+      "answer": {
+        "query": "What happens to leave I haven't used by the end of the year?",
+        "text": "You should take all of your holiday in the year it is earned, but **you may carry over up to five days of unused holiday** into the next holiday year [1]. Any carried-over days **must be taken by 31 March** of that year or they will be lost [1]. If you could not take holiday because of sickness or family leave, you may carry it over and **must use it within eighteen months** of the end of the year in which it was earned [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "You may carry over up to five days of unused holiday into the next holiday year, but you must take them by 31 March of that year or they will be lost.",
+            "start": 1262,
+            "end": 1417,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": "HOLIDAYS\n10. Holiday year and entitlement. 10.1 The holiday year runs from 1 January to 31 December.\n10.2 You are entitled to 25 days of paid holiday in each holiday year, in addition to the\neight usual bank holidays in England. If you work part-time, your entitlement is reduced in\nproportion. 10.3 After three complete years of employment, your holiday entitlement\nincreases to 27 days, and after five complete years to 28 days. 10.4 In the holiday year in\nwhich your employment starts or ends, your entitlement is worked out in proportion to the\npart of the year you are employed, rounded up to the nearest half day.\n11. Booking holiday. 11.1 You must book holiday through the HR system and have it approved\nby your manager before making any travel arrangements. 11.2 You must give at least twice as\nmuch notice as the length of the holiday you want to take, and at least two weeks’ notice\nfor any holiday of more than five days. 11.3 You may not take more than ten working days in\na row without the approval of your director. 11.4 The Company closes between Christmas and\nNew Year and you must keep three days of your entitlement for that period.\n12. Carrying holiday over. 12.1 You should take all of your holiday in the holiday year in\nwhich it is earned. 12.2 You may carry over up to five days of unused holiday into the next\nholiday year, but you must take them by 31 March of that year or they will be lost. 12.3 If\nyou could not take holiday because of sickness or family leave, you may carry over the\nholiday you were unable to take, and must use it within eighteen months of the end of the\nyear in which it was earned.\n12.4 Holiday on leaving. When your employment ends you will be paid for any holiday you have\nearned in that year but not taken. If you have taken more holiday than you earned, the\nCompany will deduct the excess from your final pay. Apart from this, the Company does not\npay in place of untaken holiday. 12.5 The Company may ask you to take any remaining holiday\nduring your notice period."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "You should take all of your holiday in the year it is earned, but you may carry over up to five days of unused holiday into the next holiday year.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "verdict": {
+            "supported": true,
+            "reason": "The claim directly combines information from sections 12.1 and 12.2 of the passage."
+          }
+        },
+        {
+          "claim": "Any carried-over days must be taken by 31 March of that year or they will be lost.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "verdict": {
+            "supported": false,
+            "reason": "The passage provides an exception in section 12.3 for holiday carried over due to sickness or family leave, which must be used within eighteen months rather than by 31 March."
+          }
+        },
+        {
+          "claim": "If you could not take holiday because of sickness or family leave, you may carry it over and must use it within eighteen months of the end of the year in which it was earned.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 4,
+          "verdict": {
+            "supported": true,
+            "reason": "The claim is stated verbatim in section 12.3 of the passage."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "long-service-notice",
+      "kind": "paraphrase",
+      "question": "If they let me go after eight years there, how much notice am I owed?",
+      "expected": {
+        "document": "Employment contract.pdf",
+        "page": 3
+      },
+      "answer": {
+        "query": "If they let me go after eight years there, how much notice am I owed?",
+        "text": "You are owed **twelve weeks** of notice if the company lets you go after eight years of employment [1]. After completing probation, the company must give you at least four weeks' notice, which increases by one week for each further complete year of continuous employment once you have five years of employment, up to a maximum of twelve weeks [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "After probation, the Company must give you at least four weeks’ written notice to end your employment.",
+            "start": 1070,
+            "end": 1176,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": "HOURS, PROBATION AND NOTICE\n7. Probation. 7.1 The first six months of your employment are a probation period. During\nprobation your manager will meet you at least monthly to review your progress. 7.2 The\nCompany may extend probation by up to three months if it needs more time to assess you, and\nwill tell you in writing before the original period ends. 7.3 During probation either you or\nthe Company may end your employment by giving one week’s notice in writing.\n8. Hours of work. 8.1 Your normal working hours are 37.5 hours a week, Monday to Friday,\nwith an unpaid lunch break of one hour each day. 8.2 You may choose your start and finish\ntimes, as long as you are available during the core hours of 10am to 4pm and work your full\nhours each week. 8.3 You agree that the 48 hour average weekly limit in the Working Time\nRegulations does not apply to you. You may withdraw this agreement by giving three months’\nwritten notice.\n9. Notice after probation. 9.1 After you complete probation, you must give the Company four\nweeks’ written notice to end your employment. 9.2 After probation, the Company must give you\nat least four weeks’ written notice to end your employment. Once you have five years of\ncontinuous employment, the notice the Company must give you increases by one week for each\nfurther complete year of employment, up to a maximum of twelve weeks. 9.3 Nothing in this\nclause stops the Company from ending your employment without notice for gross misconduct.\n9.4 The Company may decide to pay you basic salary in place of all or part of your notice\nperiod. 9.5 During all or part of your notice period the Company may put you on garden\nleave. While on garden leave you remain employed and paid, but you must not attend work or\ncontact clients or colleagues about work unless the Company asks you to, and you must not\nstart work for anyone else. 9.6 On your last day you must return all Company property,\ndocuments and data, and delete any Company information held on your own devices."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 6,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "You are owed twelve weeks of notice if the company lets you go after eight years of employment.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "verdict": {
+            "supported": false,
+            "reason": "According to section 9.2, notice increases by one week for each year after five years, so after eight years, the notice would be seven weeks, not twelve."
+          }
+        },
+        {
+          "claim": "After completing probation, the company must give you at least four weeks' notice, which increases by one week for each further complete year of continuous employment once you have five years of employment, up to a maximum of twelve weeks.",
+          "number": 1,
+          "document": "Employment contract.pdf",
+          "page": 3,
+          "verdict": {
+            "supported": true,
+            "reason": "The claim is a direct restatement of clause 9.2 in the passage."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "guest-stays",
+      "kind": "boundary",
+      "question": "Can a friend stay with me for a month, and do I need permission?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 1
+      },
+      "answer": {
+        "query": "Can a friend stay with me for a month, and do I need permission?",
+        "text": "The Tenant may have guests to stay for **up to fourteen nights in any period of three months** without asking the Landlord [1]. Guests who stay longer **need the Landlord’s written consent** [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The Tenant may have guests to stay for up to fourteen nights in any period of three months without asking the Landlord. Guests who stay longer need the Landlord’s written consent, which will not be refused unreasonably.",
+            "start": 240,
+            "end": 463,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 1,
+            "content": "3.4 Where there is more than one Tenant, each of\nthem is responsible for all of the Tenant’s obligations, both jointly and individually.\n4. Occupiers. 4.1 Only the Tenant and the following permitted occupier may live at the\nProperty: none. 4.2 The Tenant may have guests to stay for up to fourteen nights in any\nperiod of three months without asking the Landlord. Guests who stay longer need the\nLandlord’s written consent, which will not be refused unreasonably."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The Tenant may have guests to stay for up to fourteen nights in any period of three months without asking the Landlord.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "verdict": {
+            "supported": true,
+            "reason": "The claim is explicitly stated in section 4.2 of the passage."
+          }
+        },
+        {
+          "claim": "Guests who stay longer need the Landlord’s written consent.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 1,
+          "verdict": {
+            "supported": true,
+            "reason": "The passage explicitly states that guests who stay longer than fourteen nights in any three-month period need the Landlord's written consent."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "service-charge",
+      "kind": "boundary",
+      "question": "Who pays the council tax and the service charge for the communal areas?",
+      "expected": {
+        "document": "Tenancy agreement.pdf",
+        "page": 2
+      },
+      "answer": {
+        "query": "Who pays the council tax and the service charge for the communal areas?",
+        "text": "The **tenant pays the council tax**, while the **landlord pays the service charge for the communal areas** [1].",
+        "noAnswer": false,
+        "generated": true,
+        "citations": [
+          {
+            "number": 1,
+            "source": 1,
+            "quote": "The Tenant pays for gas, electricity, water, broadband, the television licence and council tax for the Property from the start date until the tenancy ends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends.",
+            "start": 143,
+            "end": 385,
+            "matched": true
+          }
+        ],
+        "passages": [
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": "6.6 If the parties cannot agree,\neither of them may ask the scheme’s free dispute resolution service to decide.\n6.7 Utilities and council tax. The Tenant pays for gas, electricity, water, broadband, the\ntelevision licence and council tax for the Property from the start date until the tenancy\nends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends.\nThe Landlord pays the building insurance and the service charge for the communal areas."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [
+        {
+          "claim": "The tenant pays the council tax, while the landlord pays the service charge for the communal areas.",
+          "number": 1,
+          "document": "Tenancy agreement.pdf",
+          "page": 2,
+          "verdict": {
+            "supported": true,
+            "reason": "The passage explicitly states the Tenant pays for council tax and the Landlord pays the service charge for the communal areas."
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "company-car",
+      "kind": "none",
+      "question": "Do I get a company car or a car allowance?",
+      "expected": null,
+      "answer": {
+        "query": "Do I get a company car or a car allowance?",
+        "text": "Your documents don't say whether you get a company car or a car allowance. The sources cover your employment terms such as salary, pension, private medical insurance, life assurance, and the cycle to work scheme.",
+        "noAnswer": true,
+        "generated": true,
+        "citations": [],
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 1,
+            "content": ""
+          }
+        ]
+      },
+      "claims": [],
+      "error": null
+    },
+    {
+      "id": "off-topic-1",
+      "kind": "off-topic",
+      "question": "What's a good recipe for banana bread?",
+      "expected": null,
+      "answer": {
+        "query": "What's a good recipe for banana bread?",
+        "text": "Your documents don't say. Nothing in your documents (Tenancy agreement.pdf or Employment contract.pdf) comes close to that question. Try asking with different words.",
+        "noAnswer": true,
+        "generated": false,
+        "citations": [],
+        "passages": []
+      },
+      "claims": [],
+      "error": null
+    },
+    {
+      "id": "off-topic-2",
+      "kind": "off-topic",
+      "question": "Who won the 1998 World Cup?",
+      "expected": null,
+      "answer": {
+        "query": "Who won the 1998 World Cup?",
+        "text": "Your documents don't say. Nothing in your documents (Tenancy agreement.pdf or Employment contract.pdf) comes close to that question. Try asking with different words.",
+        "noAnswer": true,
+        "generated": false,
+        "citations": [],
+        "passages": []
+      },
+      "claims": [],
+      "error": null
+    },
+    {
+      "id": "off-topic-3",
+      "kind": "off-topic",
+      "question": "How do I reset my router?",
+      "expected": null,
+      "answer": {
+        "query": "How do I reset my router?",
+        "text": "Your documents don't say. Nothing in your documents (Tenancy agreement.pdf or Employment contract.pdf) comes close to that question. Try asking with different words.",
+        "noAnswer": true,
+        "generated": false,
+        "citations": [],
+        "passages": []
+      },
+      "claims": [],
+      "error": null
+    }
+  ]
+}

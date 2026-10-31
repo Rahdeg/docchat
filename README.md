@@ -16,7 +16,7 @@ discussed.
   [unpdf](https://github.com/unjs/unpdf) to read PDF text
 - [Vercel AI SDK](https://ai-sdk.dev) v7 through
   [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (production) or Gemini's free tier
-  (development) for embeddings
+  (development) for embeddings and cited answers
 - Tooling: pnpm, ESLint, Prettier, lefthook, Vitest, Playwright, GitHub Actions
 
 Architecture decisions are in [`docs/adr`](docs/adr). Conventions for contributors and coding agents
@@ -35,7 +35,7 @@ corepack pnpm install
 #    - DATABASE_URL (pooled) and DATABASE_URL_UNPOOLED (direct) for your Neon "dev" branch
 #    - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY (see "Clerk setup" below)
 #    - BLOB_READ_WRITE_TOKEN (see "Vercel Blob setup" below)
-#    - GOOGLE_GENERATIVE_AI_API_KEY (see "Embeddings setup" below)
+#    - GOOGLE_GENERATIVE_AI_API_KEY (see "Embeddings setup" and "Answers setup" below)
 cp .env.example .env.local
 
 # 3. Apply migrations
@@ -136,13 +136,42 @@ and cost tracking. Gemini doesn't report tokens, so its rows hold an estimate.
 - Scanned PDFs (images, no text) fail with "No text found". A document that makes no progress for
   10 minutes shows **Reading stopped** with **Try again**.
 
-### Finding passages
+### Answers setup
 
-Answers come in a later PR. For now `/chat` has a **find passages** mode: ask a question and see
-the five passages from your ready documents that DocChat would answer from, best match first, with
-the document, page, the best-matching sentence highlighted, and a link to open that page. Choose
-specific documents from the composer's document menu, and turn on **Show match scores** to see each
-passage's similarity. Passages below the similarity floor (`MIN_SIMILARITY`) are hidden.
+Answers come from the provider in `CHAT_PROVIDER` (`docs/adr/0006`), which works like
+`EMBEDDING_PROVIDER` and uses the same keys:
+
+| `CHAT_PROVIDER`    | Answers                       | Follow-up rewrites           | Use                                |
+| ------------------ | ----------------------------- | ---------------------------- | ---------------------------------- |
+| `google` (default) | `gemini-3.6-flash`            | `gemini-3.5-flash-lite`      | development, fictional files only  |
+| `gateway`          | `anthropic/claude-sonnet-5.5` | `anthropic/claude-haiku-5.5` | production (needs gateway credits) |
+
+- **The Gemini free tier allows 20 answers a day for the whole project** (per model; it resets at
+  midnight Pacific). When it's used up, DocChat says so. `CHAT_ANSWER_MODEL` picks another
+  answer model on the same provider, e.g. `CHAT_ANSWER_MODEL=gemini-3.8-flash` (the newest Flash,
+  overloaded on its free tier when this was written) or `gemini-3.5-flash-lite`.
+- `CHAT_DAILY_LIMIT` (default 50) caps answers per user per UTC day, checked before any model
+  call: "You've reached today's limit of N questions. It resets at midnight UTC."
+- Every generation writes an `ai_usage` row (kind `chat`, `rewrite` or `judge`, input and output
+  tokens).
+
+### Asking questions
+
+On `/chat`, ask a question about your ready documents (or the ones you pick in the composer's
+document menu). **New chat** opens an empty chat; it's saved with your first question, titled after
+it, and listed under **Recent chats** in the sidebar, where its menu renames or deletes it.
+
+- DocChat reads the passages closest to the question (**Read 5 passages from 2 documents** opens
+  them), then streams an answer written only from them. **Stop** ends it early; **Try again**
+  answers the last question again. Follow-up questions are rewritten into a standalone search
+  first, using the conversation.
+- Every claim carries a numbered chip. On a computer, hover a chip to preview its passage, and
+  click it to show it in the **Sources** panel on the right, with the sentence the answer relied
+  on highlighted and a link to open that page. Passages read but not cited are listed below. On a
+  phone, tapping a chip opens the source in a sheet, with previous and next.
+- If no passage is close enough, or the passages don't answer the question, the answer starts
+  **"Your documents don't say"** and has no citations.
+- Copy, thumbs up and thumbs down sit under each answer; the thumbs are saved on the message.
 
 ### Upgrading a database from before embeddings
 
@@ -186,30 +215,33 @@ Tip: run `corepack enable pnpm` once if you'd rather type `pnpm` without `corepa
 
 ## Scripts
 
-| Script                        | Description                                    |
-| ----------------------------- | ---------------------------------------------- |
-| `pnpm dev`                    | Start the dev server                           |
-| `pnpm build`                  | Production build (validates env)               |
-| `pnpm start`                  | Serve the production build                     |
-| `pnpm lint`                   | Run ESLint                                     |
-| `pnpm typecheck`              | Generate route types and run `tsc --noEmit`    |
-| `pnpm format`                 | Format with Prettier                           |
-| `pnpm format:check`           | Check formatting (used in CI)                  |
-| `pnpm test`                   | Run unit tests with Vitest                     |
-| `pnpm test:e2e`               | Run Playwright end-to-end tests (local)        |
-| `pnpm db:generate`            | Generate a SQL migration from the schema       |
-| `pnpm db:migrate`             | Apply pending migrations                       |
-| `pnpm db:studio`              | Open Drizzle Studio                            |
-| `pnpm db:seed`                | Reset and insert sample data (dev only)        |
-| `pnpm db:backfill-embeddings` | (Re-)embed passages not from the current model |
-| `pnpm eval:retrieval`         | Run the retrieval eval (embeds for real)       |
+| Script                        | Description                                       |
+| ----------------------------- | ------------------------------------------------- |
+| `pnpm dev`                    | Start the dev server                              |
+| `pnpm build`                  | Production build (validates env)                  |
+| `pnpm start`                  | Serve the production build                        |
+| `pnpm lint`                   | Run ESLint                                        |
+| `pnpm typecheck`              | Generate route types and run `tsc --noEmit`       |
+| `pnpm format`                 | Format with Prettier                              |
+| `pnpm format:check`           | Check formatting (used in CI)                     |
+| `pnpm test`                   | Run unit tests with Vitest                        |
+| `pnpm test:e2e`               | Run Playwright end-to-end tests (local)           |
+| `pnpm db:generate`            | Generate a SQL migration from the schema          |
+| `pnpm db:migrate`             | Apply pending migrations                          |
+| `pnpm db:studio`              | Open Drizzle Studio                               |
+| `pnpm db:seed`                | Reset and insert sample data (dev only)           |
+| `pnpm db:backfill-embeddings` | (Re-)embed passages not from the current model    |
+| `pnpm eval:retrieval`         | Run the retrieval eval (embeds for real)          |
+| `pnpm eval:answers`           | Run the answer eval (answers and judges for real) |
 
 ## Testing
 
 - `pnpm test` runs the unit tests. Integration tests (`*.integration.test.ts`) also run when
   `DATABASE_URL` is set, and skip themselves otherwise (as in CI). The ones that index or search
   with real embeddings also need the configured provider's key (`GOOGLE_GENERATIVE_AI_API_KEY` by
-  default).
+  default). The ones that call the chat model also need `LIVE_CHAT_TESTS=1`, so a plain
+  `pnpm test` doesn't spend the free tier's 20 answers a day:
+  `LIVE_CHAT_TESTS=1 corepack pnpm test` (uses about 4).
 - `pnpm test:e2e` runs Playwright against `pnpm dev`. It reuses a dev server that's already running,
   or starts one. To test a production build, run `pnpm build && pnpm start` and set
   `E2E_BASE_URL=http://localhost:3000`. It needs the Clerk keys in `.env.local`. The first time,
@@ -244,3 +276,24 @@ embedding model, chunking or the search query can be judged by numbers instead o
   against the fixtures and chunker without calling a model.
 - The fixtures come from `node tests/evals/fixtures/make-fixtures.mjs`. If you change them, re-check
   the questions (the test above tells you which broke).
+
+### Answer eval
+
+`pnpm eval:answers` measures the answers themselves (`docs/adr/0006`), with the retrieval eval's
+fixtures and questions plus its off-topic probes:
+
+- **Citation accuracy**: the expected page is among the cited sources.
+- **Grounding**: a judge model answers "Does this passage support this claim?" for every cited
+  claim, with a one-line reason; the score is the share supported.
+- **Honesty**: the no-answer and off-topic questions get "Your documents don't say" with no
+  citations.
+- **Quote match rate**: the share of citations whose quote was found in the cited passage.
+
+It prints a summary table and every failure, and saves `tests/evals/results/answers-<date>.json`.
+A run needs about 17 answers, close to the free tier's 20 a day, so calls are spaced out and
+progress is saved after each one: if the quota runs out, run it again after the reset and it
+continues (`--fresh` starts over). It doesn't run in CI.
+
+First run (2026-10-28, answers from `gemini-3.5-flash-lite` as a stand-in, judge
+`gemma-4-26b-a4b-it`): **citation accuracy 100%, grounding 85%, honesty 100%, quote match rate
+100%**. Rerun it on the default model to get the numbers that count.
