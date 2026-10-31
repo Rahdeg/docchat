@@ -79,6 +79,10 @@ export type ChatMessagePart = ChatUIMessage["parts"][number];
 // it, and an answer that does carries no citations.
 export const NO_ANSWER_PREFIX = "Your documents don't say";
 
+// The whole answer to a question the documents have nothing to do with: nothing about what
+// they do cover, so an unrelated passage is never summarised.
+export const UNRELATED_ANSWER = `${NO_ANSWER_PREFIX} anything about that.`;
+
 export function isNoAnswer(text: string): boolean {
   return normalizeApostrophes(text.trimStart()).startsWith(NO_ANSWER_PREFIX);
 }

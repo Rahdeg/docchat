@@ -2,6 +2,8 @@ import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ABOUT_ANSWER } from "@/features/chat/about";
+
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   checkDailyLimit: vi.fn(),
@@ -69,6 +71,8 @@ function body(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+const ask = (text: string) => ({ id: questionId, role: "user", parts: [{ type: "text", text }] });
 
 function post(payload: unknown) {
   return POST(
@@ -254,7 +258,7 @@ describe("POST /api/chat", () => {
     expect(doStream).not.toHaveBeenCalled();
     expect(mocks.recordGeneration).not.toHaveBeenCalled();
     expect(textOf(all)).toMatch(
-      /^Your documents don't say\. Nothing in your documents \(Tenancy agreement\.pdf\)/,
+      /^Your documents don't say anything about that\. Nothing in your documents \(Tenancy agreement\)/,
     );
     expect(all.filter((c) => c.type === "data-citations").at(-1)).toMatchObject({
       data: { final: true, citations: [] },
@@ -262,6 +266,39 @@ describe("POST /api/chat", () => {
     await vi.waitFor(() => expect(mocks.saveAnswer).toHaveBeenCalled());
     expect(mocks.saveAnswer.mock.calls[0]![3]).toBe("complete");
   });
+
+  it("streams the model's one-line 'don't say' for an unrelated question, citing nothing", async () => {
+    mocks.models.answer.model = modelWriting("Your documents don't say anything about that. [1]");
+
+    const all = await chunks(await post(body({ message: ask("What's the capital of France?") })));
+
+    expect(textOf(all)).toBe("Your documents don't say anything about that.");
+    expect(all.filter((c) => c.type === "data-citations").at(-1)).toMatchObject({
+      data: { final: true, citations: [] },
+    });
+  });
+
+  it.each(["are you fraudstar", "Are you a fraudster?", "What can you do?", "Who are you?"])(
+    "answers %j with the line about DocChat, without searching or calling a model",
+    async (text) => {
+      const doStream = vi.fn();
+      mocks.models.answer.model = new MockLanguageModelV4({ doStream });
+
+      const all = await chunks(await post(body({ message: ask(text) })));
+
+      expect(textOf(all)).toBe(ABOUT_ANSWER);
+      expect(mocks.searchPassages).not.toHaveBeenCalled();
+      expect(doStream).not.toHaveBeenCalled();
+      expect(mocks.recordGeneration).not.toHaveBeenCalled();
+      expect(all.some((c) => c.type === "data-passages" || c.type === "data-citations")).toBe(
+        false,
+      );
+      await vi.waitFor(() => expect(mocks.saveAnswer).toHaveBeenCalled());
+      const [, , saved, status] = mocks.saveAnswer.mock.calls[0]!;
+      expect(status).toBe("complete");
+      expect(saved.parts).toEqual([expect.objectContaining({ type: "text", text: ABOUT_ANSWER })]);
+    },
+  );
 
   it("drops a citation to a source that wasn't retrieved", async () => {
     mocks.models.answer.model = modelWriting("Rent is monthly [1]. Pets are fine [7].");

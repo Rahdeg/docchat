@@ -8,9 +8,11 @@ import {
   toUIMessageStream,
   type InferUIMessageChunk,
   type ToolSet,
+  type UIMessageStreamWriter,
 } from "ai";
 import { z } from "zod";
 
+import { ABOUT_ANSWER, isAboutDocChat } from "@/features/chat/about";
 import { chatRequestSchema } from "@/features/chat/chat-request";
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "@/features/chat/find-rules";
 import {
@@ -101,6 +103,13 @@ export async function POST(request: Request) {
     async execute({ writer }) {
       writer.write({ type: "start", messageId });
 
+      // A question about DocChat itself: one canned line, no search and no model call.
+      if (isAboutDocChat(question.data)) {
+        writeText(writer, ABOUT_ANSWER);
+        writer.write({ type: "finish", messageMetadata: { status: "complete" } });
+        return;
+      }
+
       const query = await rewriteQuery(userId, history, question.data);
       passages = await findAnswerPassages({ userId, query, documentIds });
       writer.write({ type: "data-passages", id: "passages", data: { query, passages } });
@@ -110,10 +119,7 @@ export async function POST(request: Request) {
         const names = ready
           .filter((d) => !documentIds || documentIds.includes(d.id))
           .map((d) => d.name);
-        const text = noPassagesAnswer(names, !!documentIds);
-        writer.write({ type: "text-start", id: "answer" });
-        writer.write({ type: "text-delta", id: "answer", delta: text });
-        writer.write({ type: "text-end", id: "answer" });
+        writeText(writer, noPassagesAnswer(names, !!documentIds));
         writer.write(citationsChunk([], true));
         writer.write({ type: "finish", messageMetadata: { status: "complete" } });
         return;
@@ -181,6 +187,13 @@ export async function POST(request: Request) {
   });
 
   return createUIMessageStreamResponse({ stream, consumeSseStream: consumeStream });
+}
+
+// A canned answer, as one text part.
+function writeText(writer: UIMessageStreamWriter<ChatUIMessage>, text: string) {
+  writer.write({ type: "text-start", id: "answer" });
+  writer.write({ type: "text-delta", id: "answer", delta: text });
+  writer.write({ type: "text-end", id: "answer" });
 }
 
 // Resolves once; the filter's state no longer changes after the stream ends.

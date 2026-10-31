@@ -3,11 +3,14 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { ABOUT_ANSWER } from "@/features/chat/about";
+import { UNRELATED_ANSWER } from "@/features/chat/message";
+
 import { hasChatKey, hasEmbeddingKey } from "./models";
 
 // Real answers: indexes fixtures with EMBEDDING_PROVIDER and asks CHAT_PROVIDER. Runs only with
 // DATABASE_URL, both providers' keys and LIVE_CHAT_TESTS=1: the Gemini free tier allows 20
-// answers a day, and this file uses 3. CI skips it. Modules load lazily so CI never connects.
+// answers a day, and this file uses 4. CI skips it. Modules load lazily so CI never connects.
 const canRun =
   !!process.env.DATABASE_URL && hasEmbeddingKey && hasChatKey && !!process.env.LIVE_CHAT_TESTS;
 
@@ -97,6 +100,35 @@ describe.skipIf(!canRun)("answerQuestion (integration)", { timeout: 180_000 }, (
     const answer = await ask("Do I get a company car or a car allowance?");
 
     expect(answer.text).toMatch(/^Your documents don.t say/);
+    expect(answer.citations).toEqual([]);
+  });
+
+  // The model gets a real passage that has nothing to do with the question, as when a stray
+  // question just clears the floor. It mustn't summarise it.
+  it("answers an unrelated question with the one fixed sentence, not a summary", async () => {
+    const passages = await m.answer.findAnswerPassages({
+      userId: user,
+      query: "How much notice does my landlord need to give before raising the rent?",
+    });
+    expect(passages.length).toBeGreaterThan(0);
+
+    const answer = m.answer.streamAnswer({
+      userId: user,
+      question: "What's the capital of France?",
+      history: [],
+      passages: passages.slice(0, 1),
+    });
+    await answer.result.consumeStream();
+
+    expect(answer.filter.text.trim()).toBe(UNRELATED_ANSWER);
+    expect(answer.finish().citations).toEqual([]);
+  });
+
+  it("answers a question about DocChat with the canned line, without searching", async () => {
+    const answer = await ask("Are you a fraudster?");
+
+    expect(answer).toMatchObject({ text: ABOUT_ANSWER, about: true, generated: false });
+    expect(answer.passages).toEqual([]);
     expect(answer.citations).toEqual([]);
   });
 

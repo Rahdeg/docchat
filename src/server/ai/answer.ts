@@ -9,6 +9,7 @@ import {
   type ToolSet,
 } from "ai";
 
+import { ABOUT_ANSWER, isAboutAnswer, isAboutDocChat } from "@/features/chat/about";
 import type { ChatUIMessage, PassageData } from "@/features/chat/message";
 import { PASSAGE_LIMIT } from "@/features/chat/find-rules";
 
@@ -208,7 +209,9 @@ export type Answer = {
   passages: PassageData[];
   text: string;
   noAnswer: boolean;
-  // False when no passage matched, so no model was called.
+  // The canned line for questions about DocChat itself (src/features/chat/about.ts).
+  about: boolean;
+  // False when no model was called: no passage matched, or a question about DocChat.
   generated: boolean;
 } & Resolved;
 
@@ -226,11 +229,22 @@ export async function answerQuestion({
   history = [],
   documentNames,
 }: AnswerOptions): Promise<Answer> {
+  const none = { generated: false, citations: [], dropped: [] };
+  if (isAboutDocChat(question)) {
+    return {
+      query: question,
+      passages: [],
+      text: ABOUT_ANSWER,
+      noAnswer: false,
+      about: true,
+      ...none,
+    };
+  }
   const query = await rewriteQuery(userId, history, question);
   const passages = await findAnswerPassages({ userId, query, documentIds });
   if (passages.length === 0) {
     const text = noPassagesAnswer(documentNames, !!documentIds);
-    return { query, passages, text, noAnswer: true, generated: false, citations: [], dropped: [] };
+    return { query, passages, text, noAnswer: true, about: false, ...none };
   }
 
   const answer = streamAnswer({ userId, question, history, passages });
@@ -242,6 +256,7 @@ export async function answerQuestion({
     passages,
     text: answer.filter.text,
     noAnswer: answer.filter.noAnswer,
+    about: isAboutAnswer(answer.filter.text),
     generated: true,
     ...answer.finish(),
   };
