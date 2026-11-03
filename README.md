@@ -268,7 +268,7 @@ Tip: run `corepack enable pnpm` once if you'd rather type `pnpm` without `corepa
   with real embeddings also need the configured provider's key (`GOOGLE_GENERATIVE_AI_API_KEY` by
   default). The ones that call the chat model also need `LIVE_CHAT_TESTS=1`, so a plain
   `pnpm test` doesn't spend the free tier's 20 answers a day:
-  `LIVE_CHAT_TESTS=1 corepack pnpm test` (uses about 4). Component tests (`*.test.tsx` with
+  `LIVE_CHAT_TESTS=1 corepack pnpm test` (uses about 7). Component tests (`*.test.tsx` with
   `// @vitest-environment happy-dom`) render in a simulated browser, for example the approval
   card sending nothing until a button is clicked.
 - `pnpm test:e2e` runs Playwright against `pnpm dev`. It reuses a dev server that's already running,
