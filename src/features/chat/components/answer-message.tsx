@@ -3,11 +3,13 @@
 import {
   ChevronDownIcon,
   CopyIcon,
+  ListTodoIcon,
   RotateCcwIcon,
   SearchIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { Fragment, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -17,9 +19,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { plural } from "@/lib/format";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 import { rateAnswer } from "../actions";
+import type { ApprovedTask } from "../agent-parts";
+import {
+  agentSteps,
+  isAgentAnswer,
+  proposalState,
+  TASKS_PAGE_LINK_TEXT,
+  textAround,
+} from "../agent-view";
 import { parseAnswer, plainAnswer, type Inline } from "../answer-markup";
 import {
   answerSources,
@@ -29,8 +40,11 @@ import {
   sourceLabel,
   type AnswerSources,
 } from "../answer-sources";
-import { isNoAnswer, messageText, type ChatUIMessage, type Feedback } from "../message";
+import { isNoAnswer, proposalOf, type ChatUIMessage, type Feedback } from "../message";
 import { bestSentence } from "../passage-text";
+import { mentionsDuties } from "../task-request";
+import { AgentSteps } from "./agent-steps";
+import { ApprovalCard } from "./approval-card";
 import { CitationButton } from "./citation-button";
 import { SourceCard } from "./source-card";
 
@@ -48,6 +62,13 @@ type AnswerMessageProps = {
   // Chips preview their source on hover (not on phones).
   preview: boolean;
   onRetry: () => void;
+  // The approval card can be answered: the last answer, with nothing streaming.
+  canAnswer: boolean;
+  mobile: boolean;
+  onApprove: (approvalId: string, tasks: ApprovedTask[]) => void;
+  onCancel: (approvalId: string) => void;
+  // "Turn this into tasks" under an answer that mentions duties or dates (the last one only).
+  onTurnIntoTasks?: () => void;
 };
 
 export function AnswerMessage({
@@ -59,9 +80,19 @@ export function AnswerMessage({
   onCite,
   preview,
   onRetry,
+  canAnswer,
+  mobile,
+  onApprove,
+  onCancel,
+  onTurnIntoTasks,
 }: AnswerMessageProps) {
   const sources = answerSources(message);
-  const text = messageText(message);
+  const agent = isAgentAnswer(message);
+  // An agent's answer: the model's text, then the card, then the line saying what was added.
+  const { before: text, after } = textAround(message);
+  const found = proposalOf(message);
+  const state = proposalState(found?.part ?? null, found?.proposal ?? null);
+  const approvalId = found?.part?.approval?.id;
   const status = message.metadata?.status ?? (stopped ? "stopped" : undefined);
   const byNumber = new Map(sources?.cited.map((s) => [s.citation.number, s]));
 
@@ -91,7 +122,9 @@ export function AnswerMessage({
 
   return (
     <article aria-busy={streaming} className="flex flex-col gap-3.5">
-      {sources ? (
+      {agent ? (
+        <AgentSteps steps={agentSteps(message, streaming)} />
+      ) : sources ? (
         <PassagesRead sources={sources} />
       ) : streaming ? (
         <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -114,9 +147,24 @@ export function AnswerMessage({
             ),
           )}
         </div>
-      ) : streaming && sources ? (
+      ) : streaming && sources && !agent ? (
         <AnswerSkeleton />
       ) : null}
+
+      {found && approvalId && (state === "waiting" || state === "sending") ? (
+        <ApprovalCard
+          proposal={found.proposal}
+          sending={state === "sending"}
+          canAnswer={canAnswer}
+          active={active}
+          onCite={onCite}
+          onApprove={(tasks) => onApprove(approvalId, tasks)}
+          onCancel={() => onCancel(approvalId)}
+          mobile={mobile}
+        />
+      ) : null}
+
+      {after ? <ConfirmationLine text={after} /> : null}
 
       {status === "stopped" ? (
         <p className="text-[13px] text-muted-foreground">You stopped this answer.</p>
@@ -129,17 +177,43 @@ export function AnswerMessage({
       {!streaming ? (
         <AnswerActions
           message={message}
-          text={plainAnswer(text, (n) => {
+          text={plainAnswer(text + (after ? `\n\n${after}` : ""), (n) => {
             const source = byNumber.get(n);
             return source ? sourceLabel(source.passage) : null;
           })}
           sources={sources}
-          canRetry={last}
+          canRetry={last && !found}
           onRetry={onRetry}
           isNoAnswer={isNoAnswer(text)}
+          onTurnIntoTasks={
+            onTurnIntoTasks &&
+            last &&
+            !agent &&
+            status !== "failed" &&
+            status !== "stopped" &&
+            !isNoAnswer(text) &&
+            mentionsDuties(text)
+              ? onTurnIntoTasks
+              : undefined
+          }
         />
       ) : null}
     </article>
+  );
+}
+
+// The fixed line after "Add N tasks" or "Cancel", with "Tasks page" as a link.
+function ConfirmationLine({ text }: { text: string }) {
+  const at = text.lastIndexOf(TASKS_PAGE_LINK_TEXT);
+  if (at === -1) return <p className="text-base leading-[1.75]">{text}</p>;
+  return (
+    <p className="text-base leading-[1.75]">
+      {text.slice(0, at)}
+      <Link href={routes.tasks} className="font-medium underline underline-offset-4">
+        {TASKS_PAGE_LINK_TEXT}
+      </Link>
+      {text.slice(at + TASKS_PAGE_LINK_TEXT.length)}
+    </p>
   );
 }
 
@@ -216,6 +290,8 @@ type AnswerActionsProps = {
   canRetry: boolean;
   onRetry: () => void;
   isNoAnswer: boolean;
+  // Shown only when given.
+  onTurnIntoTasks?: () => void;
 };
 
 function AnswerActions({
@@ -225,6 +301,7 @@ function AnswerActions({
   canRetry,
   onRetry,
   isNoAnswer,
+  onTurnIntoTasks,
 }: AnswerActionsProps) {
   const [feedback, setFeedback] = useState<Feedback | null>(message.metadata?.feedback ?? null);
   const [, startTransition] = useTransition();
@@ -276,6 +353,17 @@ function AnswerActions({
         >
           <RotateCcwIcon data-icon="inline-start" />
           Try again
+        </Button>
+      ) : null}
+      {onTurnIntoTasks ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-1 h-[34px] gap-1.5 px-2.5 paper"
+          onClick={onTurnIntoTasks}
+        >
+          <ListTodoIcon data-icon="inline-start" />
+          Turn this into tasks
         </Button>
       ) : null}
     </div>
