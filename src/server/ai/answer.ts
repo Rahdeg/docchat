@@ -96,7 +96,13 @@ export async function rewriteQuery(
   }
 }
 
-type FindOptions = { userId: string; query: string; documentIds?: readonly string[] };
+type FindOptions = {
+  userId: string;
+  query: string;
+  documentIds?: readonly string[];
+  // ANSWER_PASSAGES by default; task mode reads more (AGENT_PASSAGES).
+  limit?: number;
+};
 
 // The passages an answer is written from, best first. Weak matches are dropped: when none is
 // left, there's nothing to answer from and no model call.
@@ -104,14 +110,9 @@ export async function findAnswerPassages({
   userId,
   query,
   documentIds,
+  limit = ANSWER_PASSAGES,
 }: FindOptions): Promise<PassageData[]> {
-  return searchPassages({
-    userId,
-    query,
-    documentIds,
-    limit: ANSWER_PASSAGES,
-    minSimilarity: MIN_SIMILARITY,
-  });
+  return searchPassages({ userId, query, documentIds, limit, minSimilarity: MIN_SIMILARITY });
 }
 
 export { noPassagesAnswer };
