@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import { ArrowUpIcon, MessageSquareIcon, SquareIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,10 +27,19 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { plural } from "@/lib/format";
 import { routes } from "@/lib/routes";
 
+import type { ApprovedTask } from "../agent-parts";
+import { proposalState } from "../agent-view";
 import { answerSources } from "../answer-sources";
-import type { ChatRequestBody } from "../chat-request";
+import type { ApprovalRequestBody, QuestionRequestBody } from "../chat-request";
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "../find-rules";
-import { chatTitle, FREE_LIMIT_MESSAGE, messageText, type ChatUIMessage } from "../message";
+import {
+  chatTitle,
+  FREE_LIMIT_MESSAGE,
+  messageText,
+  proposalOf,
+  type ChatUIMessage,
+} from "../message";
+import { TURN_INTO_TASKS } from "../task-request";
 import { AnswerMessage } from "./answer-message";
 import { chosenDocuments, DocumentPicker, scopeLabel } from "./document-picker";
 import { SourceSheet } from "./source-sheet";
@@ -56,6 +65,9 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
   // Answers the user stopped in this session (saved ones carry their status).
   const [stoppedIds, setStoppedIds] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Approvals already sent: each goes up once, even if a reply leaves it unsettled. One the
+  // server refused is taken off, so the card can be answered again.
+  const sentApprovals = useRef(new Set<string>());
 
   const [transport] = useState(
     () =>
@@ -64,8 +76,23 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
         // Only the new question goes up; the server loads the rest of the chat itself. The
         // chosen documents come with each send (`body`), so they're never stale.
         prepareSendMessagesRequest: ({ id, messages, trigger, body: options }) => {
+          // "Add N tasks" or "Cancel": only the decision and the ticked tasks go up.
+          const answered = answeredApproval(messages);
+          if (answered && trigger === "submit-message") {
+            const body: ApprovalRequestBody = {
+              chatId: id,
+              trigger: "submit-message",
+              approval: {
+                ...answered,
+                tasks: answered.approved
+                  ? (options as { approvedTasks?: ApprovedTask[] } | undefined)?.approvedTasks
+                  : undefined,
+              },
+            };
+            return { body };
+          }
           const chosen = (options as { documentIds?: string[] } | undefined)?.documentIds ?? [];
-          const body: ChatRequestBody = {
+          const body: QuestionRequestBody = {
             chatId: id,
             trigger: trigger === "regenerate-message" ? "regenerate-message" : "submit-message",
             message: lastUserMessage(messages),
@@ -78,24 +105,51 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
   const requestBody = () => ({ documentIds: chosenDocuments(documents, documentIds) });
 
   const isNew = initialMessages.length === 0;
-  const { messages, setMessages, sendMessage, regenerate, stop, status, error, clearError } =
-    useChat<ChatUIMessage>({
-      id: chatId,
-      messages: initialMessages,
-      transport,
-      generateId: () => crypto.randomUUID(),
-      onFinish: ({ isAbort, message }) => {
-        if (isAbort) setStoppedIds((ids) => [...ids, message.id]);
-        // The first answer stores the chat: show it in the sidebar.
-        if (isNew) router.refresh();
-      },
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    regenerate,
+    stop,
+    status,
+    error,
+    clearError,
+    addToolApprovalResponse,
+  } = useChat<ChatUIMessage>({
+    id: chatId,
+    messages: initialMessages,
+    transport,
+    generateId: () => crypto.randomUUID(),
+    // "Add N tasks" or "Cancel" sends the decision as soon as it's made.
+    sendAutomaticallyWhen: ({ messages: all }) => {
+      const answered = answeredApproval(all);
+      if (!answered || sentApprovals.current.has(answered.approvalId)) return false;
+      if (!lastAssistantMessageIsCompleteWithApprovalResponses({ messages: all })) return false;
+      sentApprovals.current.add(answered.approvalId);
+      return true;
+    },
+    onFinish: ({ isAbort, message }) => {
+      if (isAbort) setStoppedIds((ids) => [...ids, message.id]);
+      // The first answer stores the chat: show it in the sidebar. Added tasks change the
+      // sidebar's count of open tasks.
+      const found = proposalOf(message);
+      if (isNew || proposalState(found?.part ?? null, found?.proposal ?? null) === "added") {
+        router.refresh();
+      }
+    },
+    onError: (failure) => {
+      // An approval the server refused (out of date, already answered): the card asks again.
+      setMessages((all) => {
+        const answered = answeredApproval(all);
+        if (answered) sentApprovals.current.delete(answered.approvalId);
+        return reopenApproval(all);
+      });
       // The provider refused for quota and the server didn't save this answer: drop what had
       // streamed of it (the passages), leaving the question and the message.
-      onError: (failure) => {
-        if (failure.message !== FREE_LIMIT_MESSAGE) return;
-        setMessages((all) => (all.at(-1)?.role === "assistant" ? all.slice(0, -1) : all));
-      },
-    });
+      if (failure.message !== FREE_LIMIT_MESSAGE) return;
+      setMessages((all) => (all.at(-1)?.role === "assistant" ? all.slice(0, -1) : all));
+    },
+  });
 
   const busy = status === "submitted" || status === "streaming";
   const question = input.trim();
@@ -134,6 +188,30 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
       submit();
     }
   }
+
+  function answerApproval(approvalId: string, tasks: ApprovedTask[] | null) {
+    clearError();
+    // The ticked tasks ride along with the request this sends (prepareSendMessagesRequest).
+    void addToolApprovalResponse({
+      id: approvalId,
+      approved: tasks !== null,
+      options: { body: { approvedTasks: tasks ?? undefined } },
+    });
+  }
+
+  // An explicit request: the tools are only offered on the user's own words or this click.
+  function turnIntoTasks() {
+    clearError();
+    setActive(null);
+    void sendMessage({ text: TURN_INTO_TASKS }, { body: requestBody() });
+  }
+
+  // Phones show the card's own bar for "Add" and "Cancel" while it waits, not the composer.
+  const lastFound = lastAnswer ? proposalOf(lastAnswer) : null;
+  const waitingOnPhone =
+    isMobile &&
+    proposalState(lastFound?.part ?? null, lastFound?.proposal ?? null) === "waiting" &&
+    messages.at(-1)?.id === lastAnswer?.id;
 
   function cite(messageId: string, number: number) {
     setActive({ messageId, number });
@@ -178,6 +256,11 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
                   active={shown?.id === message.id ? activeNumber : null}
                   onCite={(number) => cite(message.id, number)}
                   preview={!isMobile}
+                  canAnswer={!busy && index === messages.length - 1}
+                  mobile={isMobile}
+                  onApprove={(approvalId, tasks) => answerApproval(approvalId, tasks)}
+                  onCancel={(approvalId) => answerApproval(approvalId, null)}
+                  onTurnIntoTasks={documents.length > 0 ? turnIntoTasks : undefined}
                   onRetry={() => {
                     clearError();
                     setActive(null);
@@ -195,6 +278,7 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
 
         <form
           onSubmit={submit}
+          hidden={waitingOnPhone}
           className="sticky bottom-0 mx-auto w-full max-w-[720px] bg-linear-to-b from-background/0 to-background to-30% px-4 pt-4 pb-4 md:px-8 md:pb-6"
         >
           {error ? (
@@ -269,7 +353,33 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
   );
 }
 
-function lastUserMessage(messages: ChatUIMessage[]): ChatRequestBody["message"] {
+// The last answer's proposal, once the user clicked "Add" or "Cancel" on it.
+function answeredApproval(
+  messages: ChatUIMessage[],
+): { messageId: string; approvalId: string; approved: boolean } | null {
+  const last = messages.at(-1);
+  if (last?.role !== "assistant") return null;
+  for (const part of last.parts) {
+    if (part.type === "tool-proposeTasks" && part.state === "approval-responded") {
+      return { messageId: last.id, approvalId: part.approval.id, approved: part.approval.approved };
+    }
+  }
+  return null;
+}
+
+// Puts an approval the server refused back to waiting, so the card can be answered again.
+function reopenApproval(messages: ChatUIMessage[]): ChatUIMessage[] {
+  const last = messages.at(-1);
+  if (!answeredApproval(messages) || !last) return messages;
+  const parts = last.parts.map((part) =>
+    part.type === "tool-proposeTasks" && part.state === "approval-responded"
+      ? { ...part, state: "approval-requested" as const, approval: { id: part.approval.id } }
+      : part,
+  );
+  return [...messages.slice(0, -1), { ...last, parts }];
+}
+
+function lastUserMessage(messages: ChatUIMessage[]): QuestionRequestBody["message"] {
   const message = messages.findLast((m) => m.role === "user");
   return {
     id: message?.id ?? "",

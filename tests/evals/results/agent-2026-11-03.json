@@ -1,0 +1,730 @@
+{
+  "date": "2026-11-03T08:12:03.615Z",
+  "git": {
+    "sha": "b8e02b4",
+    "dirty": true
+  },
+  "models": {
+    "answer": "google/gemini-3.6-flash",
+    "embedding": "google/gemini-embedding-001"
+  },
+  "minSimilarity": 0.58,
+  "maxSteps": 5,
+  "only": null,
+  "complete": true,
+  "metrics": {
+    "scenarios": 3,
+    "recall": 1,
+    "precision": 1,
+    "validSources": 1,
+    "inventedDates": 0,
+    "shownInventedDates": 0,
+    "forbidden": 0,
+    "datesRight": 1,
+    "counts": {
+      "expected": 15,
+      "proposed": 22
+    }
+  },
+  "results": [
+    {
+      "id": "tenancy-move-in",
+      "question": "Turn my tenancy agreement into a move-in checklist",
+      "run": {
+        "steps": 1,
+        "text": "Here is a move-in checklist based on your tenancy agreement:",
+        "passages": [
+          {
+            "name": "Welcome letter.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 6,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 5,
+            "content": "ACCESS, INSURANCE AND THE INVENTORY\n11. Access. 11.1 The Landlord or their agent may enter the Property to inspect its condition\nor carry out repairs at reasonable times of day, after giving at least 24 hours’ written\nnotice. 11.2 In an emergency, such as a fire, flood or gas leak, the Landlord or their agent\nmay enter without notice. 11.3 During the last two months of the tenancy the Landlord may\nshow the Property to prospective tenants or buyers at reasonable times, after giving the\nsame notice.\n12. Insurance. 12.1 The Landlord insures the building and the Landlord’s furniture and\ncontents listed in the Inventory. 12.2 The Landlord’s insurance does not cover the Tenant’s\nown belongings, and the Tenant is advised to take out contents insurance. 12.3 The Tenant\nmust not do anything that would make the Landlord’s insurance invalid or increase the\npremium, and must tell the Landlord’s agent at once about any event that might lead to a\nclaim.\n13. The Inventory. 13.1 The Inventory was prepared by an independent inventory clerk before\nthe start date, with dated photographs of each room. 13.2 The Tenant has seven days from the\nstart date to return the Inventory signed, with any comments about items that are missing or\nin a worse condition than recorded. If the Tenant does not return it within that time, the\nInventory will be treated as accurate. 13.3 At the end of the tenancy the clerk will carry\nout a check-out inspection, which the Tenant may attend.\n14. Parking and storage. 14.1 No parking space comes with the Property. The Tenant may apply\nto Bristol City Council for a residents’ parking permit at their own cost. 14.2 Bicycles may\nbe kept in the communal bike store, but not in the hallway or on the stairs. The Tenant must\nnot store anything in the communal areas."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 3,
+            "content": ""
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 2,
+            "content": "RENT, DEPOSIT AND PAYMENTS\n5. Rent. 5.1 The rent is 1,150 pounds per calendar month, payable in advance on the first\nday of each month by standing order to the account the Landlord’s agent names in writing.\n5.2 The first payment is due on or before the start date and covers the period from 1 March\n2026 to 31 March 2026. 5.3 Rent is due whether or not the Landlord or its agent asks for it.\n5.4 If any rent is unpaid for more than fourteen days after the date it was due, the Tenant\nmust pay interest on the unpaid amount at three per cent a year above the Bank of England\nbase rate, from the date it was due until the date it is paid. 5.5 The Landlord may not\ncharge any other fee for a late payment, and will not charge for a returned standing order\nunless the Tenant cancelled it.\n6. Deposit. 6.1 On signing this agreement the Tenant pays a deposit of 1,326 pounds, which\nis no more than five weeks’ rent. 6.2 The Landlord will protect the deposit with the Deposit\nProtection Service within 30 days of receiving it, and will give the Tenant the prescribed\ninformation about the scheme within the same period. 6.3 The deposit is security for the\nTenant’s obligations under this agreement. It is not a payment of rent, and the Tenant may\nnot use it to pay the last month’s rent.\n6.4 At the end of the tenancy the Landlord may deduct from the deposit the reasonable cost\nof putting right any damage to the Property or its contents beyond fair wear and tear, any\nunpaid rent, and the cost of replacing lost keys. 6.5 The Landlord must tell the Tenant of\nany proposed deductions within ten days of the end of the tenancy and return the rest of the\ndeposit within ten days of the parties agreeing the amount. 6.6 If the parties cannot agree,\neither of them may ask the scheme’s free dispute resolution service to decide.\n6.7 Utilities and council tax. The Tenant pays for gas, electricity, water, broadband, the\ntelevision licence and council tax for the Property from the start date until the tenancy\nends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 4,
+            "content": ""
+          }
+        ],
+        "proposed": {
+          "tasks": [
+            {
+              "title": "Pay the deposit",
+              "dueDate": "2026-02-14",
+              "dueNote": "on signing the agreement",
+              "source": {
+                "number": 7,
+                "quote": "On signing this agreement the Tenant pays a deposit of 1,326 pounds, which is no more than five weeks’ rent.",
+                "label": "clause 6.1"
+              }
+            },
+            {
+              "title": "Pay the first month's rent",
+              "dueDate": "2026-03-01",
+              "dueNote": "on or before the start date",
+              "source": {
+                "number": 7,
+                "quote": "The first payment is due on or before the start date and covers the period from 1 March 2026 to 31 March 2026.",
+                "label": "clause 5.2"
+              }
+            },
+            {
+              "title": "Return the signed Inventory with any comments",
+              "dueDate": "2026-03-08",
+              "dueNote": "within 7 days of the start date",
+              "source": {
+                "number": 3,
+                "quote": "The Tenant has seven days from the start date to return the Inventory signed, with any comments about items that are missing or in a worse condition than recorded.",
+                "label": "clause 13.2"
+              }
+            },
+            {
+              "title": "Notify utility suppliers and Bristol City Council of move-in",
+              "source": {
+                "number": 7,
+                "quote": "The Tenant pays for gas, electricity, water, broadband, the television licence and council tax for the Property from the start date until the tenancy ends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends.",
+                "label": "clause 6.7"
+              }
+            },
+            {
+              "title": "Take out contents insurance",
+              "optional": true,
+              "source": {
+                "number": 3,
+                "quote": "The Landlord’s insurance does not cover the Tenant’s own belongings, and the Tenant is advised to take out contents insurance.",
+                "label": "clause 12.2"
+              }
+            },
+            {
+              "title": "Apply to Bristol City Council for a residents' parking permit",
+              "optional": true,
+              "source": {
+                "number": 3,
+                "quote": "The Tenant may apply to Bristol City Council for a residents’ parking permit at their own cost.",
+                "label": "clause 14.1"
+              }
+            }
+          ]
+        },
+        "tasks": [
+          {
+            "title": "Pay the deposit",
+            "dueDate": "2026-02-14",
+            "dueNote": "on signing the agreement",
+            "dateDropped": false,
+            "optional": false,
+            "source": 7,
+            "citation": 1,
+            "quote": "On signing this agreement the Tenant pays a deposit of 1,326 pounds, which is no more than five weeks’ rent.",
+            "start": 797,
+            "end": 909,
+            "matched": true,
+            "label": "clause 6.1"
+          },
+          {
+            "title": "Pay the first month's rent",
+            "dueDate": "2026-03-01",
+            "dueNote": "on or before the start date",
+            "dateDropped": false,
+            "optional": false,
+            "source": 7,
+            "citation": 2,
+            "quote": "The first payment is due on or before the start date and covers the period from 1 March 2026 to 31 March 2026.",
+            "start": 207,
+            "end": 321,
+            "matched": true,
+            "label": "clause 5.2"
+          },
+          {
+            "title": "Return the signed Inventory with any comments",
+            "dueDate": "2026-03-08",
+            "dueNote": "within 7 days of the start date",
+            "dateDropped": false,
+            "optional": false,
+            "source": 3,
+            "citation": 3,
+            "quote": "The Tenant has seven days from the start date to return the Inventory signed, with any comments about items that are missing or in a worse condition than recorded.",
+            "start": 1099,
+            "end": 1267,
+            "matched": true,
+            "label": "clause 13.2"
+          },
+          {
+            "title": "Notify utility suppliers and Bristol City Council of move-in",
+            "dueDate": null,
+            "dueNote": null,
+            "dateDropped": false,
+            "optional": false,
+            "source": 7,
+            "citation": 4,
+            "quote": "The Tenant pays for gas, electricity, water, broadband, the television licence and council tax for the Property from the start date until the tenancy ends, and must tell the suppliers and Bristol City Council when the tenancy starts and ends.",
+            "start": 1850,
+            "end": 2092,
+            "matched": true,
+            "label": "clause 6.7"
+          },
+          {
+            "title": "Take out contents insurance",
+            "dueDate": null,
+            "dueNote": null,
+            "dateDropped": false,
+            "optional": true,
+            "source": 3,
+            "citation": 5,
+            "quote": "The Landlord’s insurance does not cover the Tenant’s own belongings, and the Tenant is advised to take out contents insurance.",
+            "start": 624,
+            "end": 755,
+            "matched": true,
+            "label": "clause 12.2"
+          },
+          {
+            "title": "Apply to Bristol City Council for a residents' parking permit",
+            "dueDate": null,
+            "dueNote": null,
+            "dateDropped": false,
+            "optional": true,
+            "source": 3,
+            "citation": 6,
+            "quote": "The Tenant may apply to Bristol City Council for a residents’ parking permit at their own cost.",
+            "start": 1543,
+            "end": 1638,
+            "matched": true,
+            "label": "clause 14.1"
+          }
+        ]
+      },
+      "score": {
+        "expected": 5,
+        "found": ["deposit", "first-rent", "inventory", "utilities", "insurance"],
+        "missing": [],
+        "proposed": 6,
+        "precise": 6,
+        "invented": [],
+        "forbidden": [],
+        "validSources": 6,
+        "inventedDates": 0,
+        "shownInventedDates": 0,
+        "datesExpected": 1,
+        "datesRight": 1
+      },
+      "error": null
+    },
+    {
+      "id": "employment-deadlines",
+      "question": "What are my deadlines in my employment contract?",
+      "run": {
+        "steps": 1,
+        "text": "Here are the deadlines and actionable requirements specified in your employment contract:",
+        "passages": [
+          {
+            "name": "Employment contract.pdf",
+            "page": 3,
+            "content": "HOURS, PROBATION AND NOTICE\n7. Probation. 7.1 The first six months of your employment are a probation period. During\nprobation your manager will meet you at least monthly to review your progress. 7.2 The\nCompany may extend probation by up to three months if it needs more time to assess you, and\nwill tell you in writing before the original period ends. 7.3 During probation either you or\nthe Company may end your employment by giving one week’s notice in writing.\n8. Hours of work. 8.1 Your normal working hours are 37.5 hours a week, Monday to Friday,\nwith an unpaid lunch break of one hour each day. 8.2 You may choose your start and finish\ntimes, as long as you are available during the core hours of 10am to 4pm and work your full\nhours each week. 8.3 You agree that the 48 hour average weekly limit in the Working Time\nRegulations does not apply to you. You may withdraw this agreement by giving three months’\nwritten notice.\n9. Notice after probation. 9.1 After you complete probation, you must give the Company four\nweeks’ written notice to end your employment. 9.2 After probation, the Company must give you\nat least four weeks’ written notice to end your employment. Once you have five years of\ncontinuous employment, the notice the Company must give you increases by one week for each\nfurther complete year of employment, up to a maximum of twelve weeks. 9.3 Nothing in this\nclause stops the Company from ending your employment without notice for gross misconduct.\n9.4 The Company may decide to pay you basic salary in place of all or part of your notice\nperiod. 9.5 During all or part of your notice period the Company may put you on garden\nleave. While on garden leave you remain employed and paid, but you must not attend work or\ncontact clients or colleagues about work unless the Company asks you to, and you must not\nstart work for anyone else. 9.6 On your last day you must return all Company property,\ndocuments and data, and delete any Company information held on your own devices."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 6,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 2,
+            "content": "PAY AND BENEFITS\n5. Salary. 5.1 Your salary is 68,500 pounds a year, paid in twelve equal instalments by bank\ntransfer on the 28th day of each month, or on the last working day before it if the 28th is\nnot a working day. 5.2 Your salary is reviewed each April, with any change taking effect\nfrom 1 April. A review does not mean your salary will increase. 5.3 The Company may deduct\nfrom your pay any money you owe it, including overpaid salary, unreturned equipment and any\nholiday taken in excess of your entitlement when you leave.\n5.4 You are not entitled to paid overtime. Your salary takes account of the occasional need\nto work beyond your normal hours. 5.5 You are eligible for the Company’s discretionary\nannual bonus scheme. Any bonus is worth up to ten per cent of your salary, depends on the\nCompany’s results and your own performance, and is paid in June. You must be employed and\nnot under notice on the payment date to receive a bonus.\n6. Expenses. 6.1 The Company will repay reasonable expenses you incur while carrying out\nyour duties, in line with the expenses policy. 6.2 Claims must be submitted through the\nexpenses system with receipts within 60 days of the expense being incurred. Claims submitted\nlater may not be paid. 6.3 Travel between your home and your normal place of work is not a\nbusiness expense.\n6.4 Pension. The Company will enrol you in its workplace pension scheme with Harrow Life in\nline with automatic enrolment law. The Company contributes 5 per cent of your basic salary\nand you contribute 4 per cent, by salary sacrifice unless you choose otherwise. You may opt\nout of the scheme within one month of being enrolled. 6.5 Other benefits. After probation\nyou are eligible for private medical insurance for yourself, life assurance worth four times\nyour salary, and the cycle to work scheme. These benefits are provided under the rules of\neach scheme, which may change."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 1,
+            "content": ""
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 5,
+            "content": "SICKNESS AND FAMILY LEAVE\n13. Reporting sickness. 13.1 If you are unable to work because of sickness or injury, you\nmust tell your manager by phone or video call as soon as possible, and no later than 9.30am\non your first day of absence. A message or email is only acceptable if you cannot call. 13.2\nYou must keep your manager informed of how you are and when you expect to return. 13.3 For\nabsences of up to seven calendar days you must complete a self-certification form on the HR\nsystem on the day you return to work. For absences of more than seven calendar days you must\nprovide a fit note from your doctor covering the whole of the absence.\n14. Sick pay. 14.1 You are entitled to Statutory Sick Pay if you meet the conditions for it.\n14.2 Once you have completed probation, the Company will also pay your full basic salary,\nincluding any Statutory Sick Pay, for up to four weeks of sickness absence in any rolling\nperiod of twelve months, and half of your basic salary for a further four weeks. 14.3\nCompany sick pay is discretionary and may be withheld if you do not follow the reporting\nrules or if the absence results from a sport or activity done professionally.\n14.4 The Company may ask you to see an occupational health adviser or a doctor it nominates,\nat its expense, and you agree to the report being shared with the Company. 14.5 If you are\noften absent or absent for a long time, the Company will meet you to discuss support and any\nreasonable adjustments before taking any other step.\n15. Family leave. 15.1 You are entitled to maternity, paternity, adoption, shared parental\nand parental bereavement leave and pay as set out in the law and in the family leave policy\nin the Staff Handbook, which in some cases is more generous than the law. 15.2 You may take\nreasonable unpaid time off to deal with an emergency involving a dependant. 15.3 You may\nalso take up to five days of paid carer’s leave a year after probation."
+          },
+          {
+            "name": "Employment contract.pdf",
+            "page": 4,
+            "content": "HOLIDAYS\n10. Holiday year and entitlement. 10.1 The holiday year runs from 1 January to 31 December.\n10.2 You are entitled to 25 days of paid holiday in each holiday year, in addition to the\neight usual bank holidays in England. If you work part-time, your entitlement is reduced in\nproportion. 10.3 After three complete years of employment, your holiday entitlement\nincreases to 27 days, and after five complete years to 28 days. 10.4 In the holiday year in\nwhich your employment starts or ends, your entitlement is worked out in proportion to the\npart of the year you are employed, rounded up to the nearest half day.\n11. Booking holiday. 11.1 You must book holiday through the HR system and have it approved\nby your manager before making any travel arrangements. 11.2 You must give at least twice as\nmuch notice as the length of the holiday you want to take, and at least two weeks’ notice\nfor any holiday of more than five days. 11.3 You may not take more than ten working days in\na row without the approval of your director. 11.4 The Company closes between Christmas and\nNew Year and you must keep three days of your entitlement for that period.\n12. Carrying holiday over. 12.1 You should take all of your holiday in the holiday year in\nwhich it is earned. 12.2 You may carry over up to five days of unused holiday into the next\nholiday year, but you must take them by 31 March of that year or they will be lost. 12.3 If\nyou could not take holiday because of sickness or family leave, you may carry over the\nholiday you were unable to take, and must use it within eighteen months of the end of the\nyear in which it was earned.\n12.4 Holiday on leaving. When your employment ends you will be paid for any holiday you have\nearned in that year but not taken. If you have taken more holiday than you earned, the\nCompany will deduct the excess from your final pay. Apart from this, the Company does not\npay in place of untaken holiday. 12.5 The Company may ask you to take any remaining holiday\nduring your notice period."
+          },
+          {
+            "name": "Tenancy agreement.pdf",
+            "page": 6,
+            "content": ""
+          },
+          {
+            "name": "Course syllabus.pdf",
+            "page": 1,
+            "content": ""
+          }
+        ],
+        "proposed": {
+          "tasks": [
+            {
+              "title": "Give one week's written notice to end employment during probation",
+              "dueNote": "1 week before your intended end date",
+              "optional": true,
+              "source": {
+                "number": 1,
+                "quote": "During probation either you or the Company may end your employment by giving one week’s notice in writing.",
+                "label": "clause 7.3"
+              }
+            },
+            {
+              "title": "Give three months' written notice to withdraw 48-hour weekly limit agreement",
+              "dueNote": "3 months before withdrawal takes effect",
+              "optional": true,
+              "source": {
+                "number": 1,
+                "quote": "You may withdraw this agreement by giving three months’ written notice.",
+                "label": "clause 8.3"
+              }
+            },
+            {
+              "title": "Give four weeks' written notice to end your employment after probation",
+              "dueNote": "4 weeks before your intended end date",
+              "source": {
+                "number": 1,
+                "quote": "After you complete probation, you must give the Company four weeks’ written notice to end your employment.",
+                "label": "clause 9.1"
+              }
+            },
+            {
+              "title": "Return all Company property and delete information from personal devices",
+              "dueNote": "on your last day",
+              "source": {
+                "number": 1,
+                "quote": "On your last day you must return all Company property, documents and data, and delete any Company information held on your own devices.",
+                "label": "clause 9.6"
+              }
+            },
+            {
+              "title": "Submit expense claims with receipts",
+              "dueNote": "within 60 days of the expense being incurred",
+              "source": {
+                "number": 3,
+                "quote": "Claims must be submitted through the expenses system with receipts within 60 days of the expense being incurred.",
+                "label": "clause 6.2"
+              }
+            },
+            {
+              "title": "Opt out of the workplace pension scheme",
+              "dueNote": "within one month of being enrolled",
+              "optional": true,
+              "source": {
+                "number": 3,
+                "quote": "You may opt out of the scheme within one month of being enrolled.",
+                "label": "clause 6.4"
+              }
+            },
+            {
+              "title": "Report sickness to your manager by phone or video call",
+              "dueNote": "by 9.30am on your first day of absence",
+              "source": {
+                "number": 5,
+                "quote": "If you are unable to work because of sickness or injury, you must tell your manager by phone or video call as soon as possible, and no later than 9.30am on your first day of absence.",
+                "label": "clause 13.1"
+              }
+            },
+            {
+              "title": "Complete a self-certification form on the HR system",
+              "dueNote": "on the day you return to work",
+              "source": {
+                "number": 5,
+                "quote": "For absences of up to seven calendar days you must complete a self-certification form on the HR system on the day you return to work.",
+                "label": "clause 13.3"
+              }
+            },
+            {
+              "title": "Provide a fit note from your doctor for sickness over seven calendar days",
+              "dueNote": "covering the whole of the absence",
+              "source": {
+                "number": 5,
+                "quote": "For absences of more than seven calendar days you must provide a fit note from your doctor covering the whole of the absence.",
+                "label": "clause 13.3"
+              }
+            },
+            {
+              "title": "Give notice when booking holiday",
+              "dueNote": "at least twice as much notice as the holiday length, or at least two weeks for holiday over five days",
+              "source": {
+                "number": 6,
+                "quote": "You must give at least twice as much notice as the length of the holiday you want to take, and at least two weeks’ notice for any holiday of more than five days.",
+                "label": "clause 11.2"
+              }
+            },
+            {
+              "title": "Take carried-over holiday days",
+              "dueNote": "by 31 March of the next holiday year",
+              "source": {
+                "number": 6,
+                "quote": "You may carry over up to five days of unused holiday into the next holiday year, but you must take them by 31 March of that year or they will be lost.",
+                "label": "clause 12.2"
+              }
+            }
+          ]
+        },
+        "tasks": [
+          {
+            "title": "Give one week's written notice to end employment during probation",
+            "dueDate": null,
+            "dueNote": "1 week before your intended end date",
+            "dateDropped": false,
+            "optional": true,
+            "source": 1,
+            "citation": 1,
+            "quote": "During probation either you or the Company may end your employment by giving one week’s notice in writing.",
+            "start": 354,
+            "end": 464,
+            "matched": true,
+            "label": "clause 7.3"
+          },
+          {
+            "title": "Give three months' written notice to withdraw 48-hour weekly limit agreement",
+            "dueDate": null,
+            "dueNote": "3 months before withdrawal takes effect",
+            "dateDropped": false,
+            "optional": true,
+            "source": 1,
+            "citation": 2,
+            "quote": "You may withdraw this agreement by giving three months’ written notice.",
+            "start": 860,
+            "end": 931,
+            "matched": true,
+            "label": "clause 8.3"
+          },
+          {
+            "title": "Give four weeks' written notice to end your employment after probation",
+            "dueDate": null,
+            "dueNote": "4 weeks before your intended end date",
+            "dateDropped": false,
+            "optional": false,
+            "source": 1,
+            "citation": 3,
+            "quote": "After you complete probation, you must give the Company four weeks’ written notice to end your employment.",
+            "start": 959,
+            "end": 1069,
+            "matched": true,
+            "label": "clause 9.1"
+          },
+          {
+            "title": "Return all Company property and delete information from personal devices",
+            "dueDate": null,
+            "dueNote": "on your last day",
+            "dateDropped": false,
+            "optional": false,
+            "source": 1,
+            "citation": 4,
+            "quote": "On your last day you must return all Company property, documents and data, and delete any Company information held on your own devices.",
+            "start": 1862,
+            "end": 2001,
+            "matched": true,
+            "label": "clause 9.6"
+          },
+          {
+            "title": "Submit expense claims with receipts",
+            "dueDate": null,
+            "dueNote": "within 60 days of the expense being incurred",
+            "dateDropped": false,
+            "optional": false,
+            "source": 3,
+            "citation": 5,
+            "quote": "Claims must be submitted through the expenses system with receipts within 60 days of the expense being incurred.",
+            "start": 1086,
+            "end": 1202,
+            "matched": true,
+            "label": "clause 6.2"
+          },
+          {
+            "title": "Opt out of the workplace pension scheme",
+            "dueDate": null,
+            "dueNote": "within one month of being enrolled",
+            "dateDropped": false,
+            "optional": true,
+            "source": 3,
+            "citation": 6,
+            "quote": "You may opt out of the scheme within one month of being enrolled.",
+            "start": 1592,
+            "end": 1657,
+            "matched": true,
+            "label": "clause 6.4"
+          },
+          {
+            "title": "Report sickness to your manager by phone or video call",
+            "dueDate": null,
+            "dueNote": "by 9.30am on your first day of absence",
+            "dateDropped": false,
+            "optional": false,
+            "source": 5,
+            "citation": 7,
+            "quote": "If you are unable to work because of sickness or injury, you must tell your manager by phone or video call as soon as possible, and no later than 9.30am on your first day of absence.",
+            "start": 50,
+            "end": 237,
+            "matched": true,
+            "label": "clause 13.1"
+          },
+          {
+            "title": "Complete a self-certification form on the HR system",
+            "dueDate": null,
+            "dueNote": "on the day you return to work",
+            "dateDropped": false,
+            "optional": false,
+            "source": 5,
+            "citation": 8,
+            "quote": "For absences of up to seven calendar days you must complete a self-certification form on the HR system on the day you return to work.",
+            "start": 383,
+            "end": 521,
+            "matched": true,
+            "label": "clause 13.3"
+          },
+          {
+            "title": "Provide a fit note from your doctor for sickness over seven calendar days",
+            "dueDate": null,
+            "dueNote": "covering the whole of the absence",
+            "dateDropped": false,
+            "optional": false,
+            "source": 5,
+            "citation": 9,
+            "quote": "For absences of more than seven calendar days you must provide a fit note from your doctor covering the whole of the absence.",
+            "start": 522,
+            "end": 647,
+            "matched": true,
+            "label": "clause 13.3"
+          },
+          {
+            "title": "Give notice when booking holiday",
+            "dueDate": null,
+            "dueNote": "at least twice as much notice as the holiday length, or at least two weeks for holiday over five days",
+            "dateDropped": false,
+            "optional": false,
+            "source": 6,
+            "citation": 10,
+            "quote": "You must give at least twice as much notice as the length of the holiday you want to take, and at least two weeks’ notice for any holiday of more than five days.",
+            "start": 766,
+            "end": 932,
+            "matched": true,
+            "label": "clause 11.2"
+          },
+          {
+            "title": "Take carried-over holiday days",
+            "dueDate": null,
+            "dueNote": "by 31 March of the next holiday year",
+            "dateDropped": false,
+            "optional": false,
+            "source": 6,
+            "citation": 11,
+            "quote": "You may carry over up to five days of unused holiday into the next holiday year, but you must take them by 31 March of that year or they will be lost.",
+            "start": 1262,
+            "end": 1417,
+            "matched": true,
+            "label": "clause 12.2"
+          }
+        ]
+      },
+      "score": {
+        "expected": 5,
+        "found": ["notice", "expenses", "pension-opt-out", "sickness", "carry-over"],
+        "missing": [],
+        "proposed": 11,
+        "precise": 11,
+        "invented": [],
+        "forbidden": [],
+        "validSources": 11,
+        "inventedDates": 0,
+        "shownInventedDates": 0,
+        "datesExpected": 0,
+        "datesRight": 0
+      },
+      "error": null
+    },
+    {
+      "id": "syllabus-coursework",
+      "question": "List my coursework deadlines",
+      "run": {
+        "steps": 1,
+        "text": "Here are your coursework tasks and deadlines based on the syllabus:",
+        "passages": [
+          {
+            "name": "Course syllabus.pdf",
+            "page": 1,
+            "content": "DATA2041 APPLIED DATA VISUALISATION: MODULE HANDBOOK, AUTUMN 2026\nSchool of Computing, University of Eastbridge. Module leader: Dr Imogen Achterberg\n(i.achterberg@eastbridge.example). Teaching runs for eleven weeks from Monday 28 September\n2026. Lectures are on Mondays at 10am in the Hollins Building, room 2.14, and lab sessions\nare on Thursdays at 2pm in the Ada Lab.\n1. Aims. 1.1 The module teaches you to design charts and dashboards that are accurate,\naccessible and honest about uncertainty. 1.2 You will work with real public datasets in\nPython and present your findings to a non-specialist audience.\n2. Attendance. 2.1 You are expected to attend every lecture and lab. 2.2 If you miss a lab,\nyou must catch up on the lab exercise before the next lab session, using the notes on the\nmodule page. 2.3 If you will miss more than two consecutive weeks, you must tell the module\nleader by email.\n3. Reading. 3.1 Before the first lecture, read chapters 1 and 2 of the set text,\nFundamentals of Honest Charts. 3.2 Each week’s reading is listed on the module page and\nshould be done before that week’s lecture.\n4. Assessment. 4.1 Coursework 1 is a project proposal of no more than 800 words, worth 10\nper cent of the module mark. You must submit it through the coursework portal by 5pm on\nFriday 16 October 2026. 4.2 Coursework 2 is a draft dashboard with a short write-up, worth\n20 per cent. You must submit the draft through the portal by 5pm on Friday 6 November 2026.\n4.3 After the draft deadline you will be sent two classmates’ drafts to review. You must\nsubmit both peer reviews within seven days of receiving them. Peer reviews are not marked\nbut are required to pass the module.\n4.4 The final project, worth 50 per cent, is a finished dashboard with a report of no more\nthan 2,500 words. You must hand it in through the portal by 5pm on Friday 11 December 2026."
+          },
+          {
+            "name": "Course syllabus.pdf",
+            "page": 1,
+            "content": "You must\nsubmit both peer reviews within seven days of receiving them. Peer reviews are not marked\nbut are required to pass the module.\n4.4 The final project, worth 50 per cent, is a finished dashboard with a report of no more\nthan 2,500 words. You must hand it in through the portal by 5pm on Friday 11 December 2026.\n4.5 The remaining 20 per cent is a ten-minute presentation in week 11. You must book a\npresentation slot on the module page by Friday 20 November 2026; students who do not book\nwill be given a slot.\n5. Extensions and late work. 5.1 If you need more time because of illness or other\ncircumstances outside your control, you must request an extension through the portal at\nleast 48 hours before the deadline. 5.2 Work submitted late without an agreed extension\nloses 5 marks for each working day it is late, up to five working days, after which it\nreceives a mark of zero."
+          }
+        ],
+        "proposed": {
+          "tasks": [
+            {
+              "title": "Submit Coursework 1 (project proposal)",
+              "dueDate": "2026-10-16",
+              "dueNote": "by 5pm on Friday 16 October 2026",
+              "source": {
+                "number": 1,
+                "quote": "You must submit it through the coursework portal by 5pm on Friday 16 October 2026.",
+                "label": "clause 4.1"
+              }
+            },
+            {
+              "title": "Submit Coursework 2 (draft dashboard with short write-up)",
+              "dueDate": "2026-11-06",
+              "dueNote": "by 5pm on Friday 6 November 2026",
+              "source": {
+                "number": 1,
+                "quote": "You must submit the draft through the portal by 5pm on Friday 6 November 2026.",
+                "label": "clause 4.2"
+              }
+            },
+            {
+              "title": "Submit two peer reviews",
+              "dueNote": "within seven days of receiving them",
+              "source": {
+                "number": 1,
+                "quote": "You must submit both peer reviews within seven days of receiving them.",
+                "label": "clause 4.3"
+              }
+            },
+            {
+              "title": "Book a presentation slot",
+              "dueDate": "2026-11-20",
+              "dueNote": "by Friday 20 November 2026",
+              "optional": true,
+              "source": {
+                "number": 2,
+                "quote": "You must book a presentation slot on the module page by Friday 20 November 2026; students who do not book will be given a slot.",
+                "label": "clause 4.5"
+              }
+            },
+            {
+              "title": "Submit final project (finished dashboard and report)",
+              "dueDate": "2026-12-11",
+              "dueNote": "by 5pm on Friday 11 December 2026",
+              "source": {
+                "number": 1,
+                "quote": "You must hand it in through the portal by 5pm on Friday 11 December 2026.",
+                "label": "clause 4.4"
+              }
+            }
+          ]
+        },
+        "tasks": [
+          {
+            "title": "Submit Coursework 1 (project proposal)",
+            "dueDate": "2026-10-16",
+            "dueNote": "by 5pm on Friday 16 October 2026",
+            "dateDropped": false,
+            "optional": false,
+            "source": 1,
+            "citation": 1,
+            "quote": "You must submit it through the coursework portal by 5pm on Friday 16 October 2026.",
+            "start": 1231,
+            "end": 1313,
+            "matched": true,
+            "label": "clause 4.1"
+          },
+          {
+            "title": "Submit Coursework 2 (draft dashboard with short write-up)",
+            "dueDate": "2026-11-06",
+            "dueNote": "by 5pm on Friday 6 November 2026",
+            "dateDropped": false,
+            "optional": false,
+            "source": 1,
+            "citation": 2,
+            "quote": "You must submit the draft through the portal by 5pm on Friday 6 November 2026.",
+            "start": 1394,
+            "end": 1472,
+            "matched": true,
+            "label": "clause 4.2"
+          },
+          {
+            "title": "Submit two peer reviews",
+            "dueDate": null,
+            "dueNote": "within seven days of receiving them",
+            "dateDropped": false,
+            "optional": false,
+            "source": 1,
+            "citation": 3,
+            "quote": "You must submit both peer reviews within seven days of receiving them.",
+            "start": 1553,
+            "end": 1623,
+            "matched": true,
+            "label": "clause 4.3"
+          },
+          {
+            "title": "Book a presentation slot",
+            "dueDate": "2026-11-20",
+            "dueNote": "by Friday 20 November 2026",
+            "dateDropped": false,
+            "optional": true,
+            "source": 2,
+            "citation": 4,
+            "quote": "You must book a presentation slot on the module page by Friday 20 November 2026; students who do not book will be given a slot.",
+            "start": 390,
+            "end": 517,
+            "matched": true,
+            "label": "clause 4.5"
+          },
+          {
+            "title": "Submit final project (finished dashboard and report)",
+            "dueDate": "2026-12-11",
+            "dueNote": "by 5pm on Friday 11 December 2026",
+            "dateDropped": false,
+            "optional": false,
+            "source": 1,
+            "citation": 5,
+            "quote": "You must hand it in through the portal by 5pm on Friday 11 December 2026.",
+            "start": 1798,
+            "end": 1871,
+            "matched": true,
+            "label": "clause 4.4"
+          }
+        ]
+      },
+      "score": {
+        "expected": 5,
+        "found": ["proposal", "draft", "peer-review", "presentation", "final-project"],
+        "missing": [],
+        "proposed": 5,
+        "precise": 5,
+        "invented": [],
+        "forbidden": [],
+        "validSources": 5,
+        "inventedDates": 0,
+        "shownInventedDates": 0,
+        "datesExpected": 4,
+        "datesRight": 4
+      },
+      "error": null
+    }
+  ]
+}

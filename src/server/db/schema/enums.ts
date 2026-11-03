@@ -28,3 +28,7 @@ export const aiUsageKind = pgEnum("ai_usage_kind", [
 export const messageStatus = pgEnum("message_status", messageStatuses);
 
 export const messageFeedback = pgEnum("message_feedback", feedbackValues);
+
+// Who added a task: the user on the Tasks page, or the agent from a chat (after the user
+// approved it).
+export const taskCreatedBy = pgEnum("task_created_by", ["user", "agent"]);

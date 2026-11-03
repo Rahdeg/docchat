@@ -7,8 +7,20 @@
 //   appearance, each with the sentence it relied on and where that sentence is in the passage.
 //
 // The answer text carries the citation numbers as [1] markers.
+//
+// When the user asks for tasks, an answer can also carry the agent's tool parts
+// (tool-searchDocuments, tool-proposeTasks) and a data-proposal: the proposed tasks as the
+// server checked them (src/features/chat/agent-parts.ts, docs/adr/0007).
 import type { UIMessage } from "ai";
 import { z } from "zod";
+
+import {
+  proposalSchema,
+  type ProposeTasksInput,
+  type proposeTasksOutput,
+  type searchDocumentsInput,
+  type searchDocumentsOutput,
+} from "./agent-parts";
 
 export const passageSchema = z.object({
   chunkId: z.uuid(),
@@ -52,6 +64,7 @@ export const chatDataSchemas = {
     final: z.boolean(),
     citations: z.array(citationSchema),
   }),
+  proposal: proposalSchema,
 };
 
 export type ChatDataTypes = {
@@ -72,8 +85,18 @@ export const chatMetadataSchema = z.object({
 
 export type ChatMetadata = z.infer<typeof chatMetadataSchema>;
 
-export type ChatUIMessage = UIMessage<ChatMetadata, ChatDataTypes>;
+export type ChatTools = {
+  searchDocuments: {
+    input: z.infer<typeof searchDocumentsInput>;
+    output: z.infer<typeof searchDocumentsOutput>;
+  };
+  proposeTasks: { input: ProposeTasksInput; output: z.infer<typeof proposeTasksOutput> };
+};
+
+export type ChatUIMessage = UIMessage<ChatMetadata, ChatDataTypes, ChatTools>;
 export type ChatMessagePart = ChatUIMessage["parts"][number];
+export type ProposeTasksPart = Extract<ChatMessagePart, { type: "tool-proposeTasks" }>;
+export type SearchDocumentsPart = Extract<ChatMessagePart, { type: "tool-searchDocuments" }>;
 
 // The canned start of an answer the documents don't support. The model is told to begin with
 // it, and an answer that does carries no citations.
@@ -107,6 +130,21 @@ export function citationsOf(
   message: Pick<ChatUIMessage, "parts">,
 ): ChatDataTypes["citations"] | null {
   for (const part of message.parts) if (part.type === "data-citations") return part.data;
+  return null;
+}
+
+// The proposal the approval card shows, and the tool call it belongs to.
+export function proposalOf(
+  message: Pick<ChatUIMessage, "parts">,
+): { proposal: ChatDataTypes["proposal"]; part: ProposeTasksPart | null } | null {
+  for (const part of message.parts) {
+    if (part.type !== "data-proposal") continue;
+    const tool = message.parts.find(
+      (p): p is ProposeTasksPart =>
+        p.type === "tool-proposeTasks" && p.toolCallId === part.data.toolCallId,
+    );
+    return { proposal: part.data, part: tool ?? null };
+  }
   return null;
 }
 

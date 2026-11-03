@@ -26,8 +26,9 @@ const MARKER = /( ?)\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\]/g;
 const PARTIAL_MARKER = /\[[\d\s,]{0,16}$/;
 
 type FilterOptions = {
-  // Sources in the prompt, numbered 1..sourceCount.
-  sourceCount: number;
+  // Sources in the prompt, numbered 1..sourceCount. A function when the count grows while the
+  // answer streams (the agent's searchDocuments adds sources).
+  sourceCount: number | (() => number);
   // Called when a source is cited for the first time, with every cited source so far in
   // citation order (so the browser can show a chip's source while the answer streams).
   onCite?: (order: readonly number[]) => void;
@@ -110,11 +111,13 @@ export class CitationFilter {
 
   private emit(text: string): string {
     const before = this.order.length;
+    const { sourceCount } = this.options;
+    const count = typeof sourceCount === "function" ? sourceCount() : sourceCount;
     const out = text.replace(MARKER, (_match, space: string, list: string) => {
       const numbers: number[] = [];
       for (const source of list.split(",").map((n) => Number(n.trim()))) {
         if (this.noAnswer) continue;
-        if (!Number.isInteger(source) || source < 1 || source > this.options.sourceCount) {
+        if (!Number.isInteger(source) || source < 1 || source > count) {
           this.dropped.push(source);
           continue;
         }

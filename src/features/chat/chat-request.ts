@@ -3,7 +3,9 @@ import { z } from "zod";
 
 import { MAX_DOCUMENTS } from "../documents/upload-rules";
 
-export const chatRequestSchema = z.object({
+import { approvalRequestSchema } from "./agent-parts";
+
+export const questionRequestSchema = z.object({
   chatId: z.uuid(),
   // "regenerate-message" is "Try again": the last question is answered again.
   trigger: z.enum(["submit-message", "regenerate-message"]),
@@ -20,4 +22,16 @@ export const chatRequestSchema = z.object({
   documentIds: z.array(z.uuid()).min(1).max(MAX_DOCUMENTS).optional(),
 });
 
+// "Add N tasks" or "Cancel" on the last answer's proposal (docs/adr/0007). Only the decision
+// and the user's edits come up; the proposal itself is read from the database.
+export const approvalBodySchema = z.object({
+  chatId: z.uuid(),
+  trigger: z.literal("submit-message"),
+  approval: approvalRequestSchema,
+});
+
+export const chatRequestSchema = z.union([approvalBodySchema, questionRequestSchema]);
+
 export type ChatRequestBody = z.input<typeof chatRequestSchema>;
+export type QuestionRequestBody = z.input<typeof questionRequestSchema>;
+export type ApprovalRequestBody = z.input<typeof approvalBodySchema>;

@@ -180,15 +180,41 @@ async function main() {
       },
     ]);
 
+    // Agent tasks link to the passage they came from, as createAgentTasks stores them.
+    const leaveStart = leavePassage.content.indexOf(leaveSentence);
     await tx.insert(task).values([
       {
         userId: SEED_USER_ID,
         title: "Submit August expenses",
         dueDate: "2026-11-15",
+        createdBy: "agent",
+        chatId: createdChat.id,
+        sourceDocumentId: documentIds[0],
         sourceChunkId: chunkIds[1],
+        sourceQuote: chunked[0]![1]!.content.slice(0, 120),
+        sourceStartOffset: 0,
+        sourceEndOffset: Math.min(120, chunked[0]![1]!.content.length),
+        sourceLabel: "Expenses",
       },
-      { userId: SEED_USER_ID, title: "Book remaining annual leave", sourceChunkId: chunkIds[0] },
-      { userId: SEED_USER_ID, title: "Read the Q3 roadmap", done: true },
+      {
+        userId: SEED_USER_ID,
+        title: "Book remaining annual leave",
+        dueNote: "before the end of the holiday year",
+        createdBy: "agent",
+        chatId: createdChat.id,
+        sourceDocumentId: documentIds[0],
+        sourceChunkId: chunkIds[0],
+        sourceQuote: leaveSentence,
+        sourceStartOffset: leaveStart,
+        sourceEndOffset: leaveStart + leaveSentence.length,
+        sourceLabel: "Annual leave",
+      },
+      {
+        userId: SEED_USER_ID,
+        title: "Read the Q3 roadmap",
+        done: true,
+        completedAt: new Date(Date.now() - 86_400_000),
+      },
     ]);
   });
 

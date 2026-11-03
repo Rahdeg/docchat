@@ -6,6 +6,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
 import { chat, message, type Chat } from "@/server/db/schema";
 
+import { chatToolSchemas } from "./agent-parts";
 import { chatDataSchemas, chatMetadataSchema, type ChatUIMessage } from "./message";
 
 export async function listChats(userId: string): Promise<Chat[]> {
@@ -69,6 +70,7 @@ export async function listMessages(userId: string, chatId: string): Promise<Chat
     messages,
     metadataSchema: chatMetadataSchema,
     dataSchemas: chatDataSchemas,
+    tools: chatToolSchemas,
   });
   if (result.success) return result.data;
   console.error(`Chat ${chatId} has messages in an unexpected format`, result.error);

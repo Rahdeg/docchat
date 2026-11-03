@@ -8,6 +8,7 @@ import {
   citationsOf,
   messageText,
   passagesOf,
+  proposalOf,
   type ChatUIMessage,
   type Citation,
   type PassageData,
@@ -30,7 +31,15 @@ export function answerSources(message: Pick<ChatUIMessage, "parts">): AnswerSour
   const read = passagesOf(message);
   if (!read || isAboutAnswer(messageText(message))) return null;
   const citations = citationsOf(message);
-  const cited = (citations?.citations ?? []).flatMap((citation) => {
+  // A proposal's tasks carry chips too, numbered after the answer's own citations.
+  const proposal = proposalOf(message)?.proposal;
+  const all = [...(citations?.citations ?? [])];
+  for (const task of proposal?.tasks ?? []) {
+    if (all.some((c) => c.number === task.citation)) continue;
+    const { citation: number, source, quote, start, end, matched } = task;
+    all.push({ number, source, quote, start, end, matched });
+  }
+  const cited = all.flatMap((citation) => {
     const passage = read.passages[citation.source - 1];
     return passage ? [{ citation, passage }] : [];
   });
@@ -40,7 +49,7 @@ export function answerSources(message: Pick<ChatUIMessage, "parts">): AnswerSour
     passages: read.passages,
     cited,
     uncited: read.passages.filter((p) => !citedIds.has(p.chunkId)),
-    final: citations?.final ?? false,
+    final: (citations?.final ?? false) || !!proposal,
   };
 }
 

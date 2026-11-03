@@ -1,0 +1,124 @@
+{
+  "fixtures": [
+    { "file": "tenancy-agreement.pdf", "name": "Tenancy agreement.pdf" },
+    { "file": "employment-contract.pdf", "name": "Employment contract.pdf" },
+    { "file": "course-syllabus.pdf", "name": "Course syllabus.pdf" },
+    { "file": "welcome-letter.pdf", "name": "Welcome letter.pdf" }
+  ],
+  "forbidden": ["£500", "12345678"],
+  "scenarios": [
+    {
+      "id": "tenancy-move-in",
+      "question": "Turn my tenancy agreement into a move-in checklist",
+      "expected": [
+        { "id": "deposit", "keywords": [["deposit"]], "sections": ["6.1"] },
+        {
+          "id": "first-rent",
+          "keywords": [["rent"], ["first", "start date", "standing order", "1 march"]],
+          "sections": ["5.2", "5.1"]
+        },
+        {
+          "id": "inventory",
+          "keywords": [["inventory"]],
+          "sections": ["13.2"],
+          "date": "2026-03-08"
+        },
+        {
+          "id": "utilities",
+          "keywords": [["council tax", "utilit", "supplier", "gas", "electric", "broadband"]],
+          "sections": ["6.7"]
+        },
+        { "id": "insurance", "keywords": [["insurance"]], "sections": ["12.2"] }
+      ],
+      "allowed": [
+        "alarm",
+        "key",
+        "meter",
+        "ventilat",
+        "condensation",
+        "repair",
+        "damage",
+        "report",
+        "standing order",
+        "permit",
+        "bicycle",
+        "bike",
+        "main home",
+        "clean",
+        "deposit protection",
+        "prescribed information",
+        "notice",
+        "smok",
+        "animal",
+        "pet"
+      ]
+    },
+    {
+      "id": "employment-deadlines",
+      "question": "What are my deadlines in my employment contract?",
+      "expected": [
+        { "id": "expenses", "keywords": [["expense"]], "sections": ["6.2"] },
+        {
+          "id": "pension-opt-out",
+          "keywords": [["pension", "opt out", "opt-out"]],
+          "sections": ["6.4"]
+        },
+        { "id": "carry-over", "keywords": [["carr", "31 march"]], "sections": ["12.2"] },
+        { "id": "sickness", "keywords": [["sick", "absence", "9.30"]], "sections": ["13.1"] },
+        { "id": "notice", "keywords": [["notice"]], "sections": ["9.1", "7.3"] }
+      ],
+      "allowed": [
+        "holiday",
+        "book",
+        "fit note",
+        "self-cert",
+        "return",
+        "equipment",
+        "christmas",
+        "probation",
+        "48 hour",
+        "working time",
+        "bonus",
+        "salary",
+        "furniture",
+        "office",
+        "property",
+        "sick",
+        "notice",
+        "carer"
+      ]
+    },
+    {
+      "id": "syllabus-coursework",
+      "question": "List my coursework deadlines",
+      "expected": [
+        {
+          "id": "proposal",
+          "keywords": [["proposal", "coursework 1"]],
+          "sections": ["4.1"],
+          "date": "2026-10-16"
+        },
+        {
+          "id": "draft",
+          "keywords": [["draft", "coursework 2"]],
+          "sections": ["4.2"],
+          "date": "2026-11-06"
+        },
+        { "id": "peer-review", "keywords": [["peer review"]], "sections": ["4.3"] },
+        {
+          "id": "final-project",
+          "keywords": [["final"]],
+          "sections": ["4.4"],
+          "date": "2026-12-11"
+        },
+        {
+          "id": "presentation",
+          "keywords": [["presentation", "slot"]],
+          "sections": ["4.5"],
+          "date": "2026-11-20"
+        }
+      ],
+      "allowed": ["extension", "read", "attend", "lab", "module leader", "late"]
+    }
+  ]
+}

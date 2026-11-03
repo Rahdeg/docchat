@@ -1,7 +1,8 @@
 # DocChat
 
-Users upload documents and ask questions; answers come back with cited sources (RAG). A later
-phase adds an agent that creates tasks from conversations.
+Users upload documents and ask questions; answers come back with cited sources (RAG). When they
+ask for tasks, an agent proposes tasks from their documents, each linked to its clause, and saves
+them only when the user approves (`docs/adr/0007`). The Tasks page holds those and the user's own.
 
 Next.js-specific agent rules live in AGENTS.md (generated and kept up to date by `next dev`). Read it;
 don't duplicate or hand-edit the managed block:
@@ -25,7 +26,7 @@ don't duplicate or hand-edit the managed block:
   development only) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`, production).
   Chat from `CHAT_PROVIDER`: `google` (default; `gemini-3.6-flash`, free tier, development only) or
   `gateway` (`anthropic/claude-sonnet-5.5`, production); `@ai-sdk/react` (`useChat`) in the
-  browser (`docs/adr/0006`)
+  browser (`docs/adr/0006`). Tool calling with the SDK's built-in approval (`docs/adr/0007`)
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
   serving stored files (`src/app/api/documents/`), and streaming answers (`POST /api/chat`)
@@ -55,6 +56,7 @@ or run `corepack enable pnpm` once if you want a bare `pnpm`.
 | `pnpm db:backfill-embeddings` | (Re-)embed chunks missing a current-model vector |
 | `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration    |
 | `pnpm eval:answers`           | Answer eval: citations, grounding, honesty       |
+| `pnpm eval:agent`             | Agent eval: task recall, precision, sources      |
 
 `pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
 up after signing in. It deletes that user's existing rows first.
@@ -69,7 +71,7 @@ src/app/(app)/         authenticated app routes
 src/components/ui/     shadcn-generated. Do not hand-edit.
 src/components/        shared app components built on ui/
 src/features/<name>/   feature modules: documents, chat, tasks (components, actions, schemas,
-                       queries.ts for user-scoped reads)
+                       queries.ts for user-scoped reads, mutations.ts for writes)
 src/server/auth.ts     requireUserId() for Server Components
 src/server/db/         Drizzle client (index.ts) and schema/ (one file per area)
 src/server/ai/         AI SDK setup, chunking, retrieval, prompts, tools (server-only)
@@ -83,11 +85,12 @@ drizzle/               generated SQL migrations and snapshots (committed)
 scripts/               standalone scripts run with tsx (seed, backfill-embeddings)
 tests/e2e/             Playwright end-to-end tests (`*.spec.ts`)
 tests/fixtures/        test files (PDFs), the PDF writer (pdf.mjs) and the script that uses it
-tests/evals/           retrieval and answer evals: fixtures, questions (retrieval.json), runners,
-                       results/
+tests/evals/           retrieval, answer and agent evals: fixtures, questions (retrieval.json),
+                       scenarios (agent.json), runners, results/
 ```
 
-Unit tests sit next to the code as `*.test.ts(x)`. Playwright tests live in `tests/e2e/` and run
+Unit tests sit next to the code as `*.test.ts(x)`. Component tests that need a DOM start with
+`// @vitest-environment happy-dom` and use `@testing-library/react`. Playwright tests live in `tests/e2e/` and run
 against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 
 ## Rules
@@ -245,6 +248,33 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   (`ensureChat`). Keep one page per chat id so `useChat` keeps its state across `router.refresh()`.
 - Before and after changing the chat model, the prompts or citation handling, run
   `pnpm eval:answers` and commit both results files.
+
+## Tasks and agent rules (`docs/adr/0007`)
+
+- The agent's tools are offered only when the user's own message asks for tasks
+  (`asksForTasks`, `src/features/chat/task-request.ts`) or they click "Turn this into tasks"
+  (which sends `TURN_INTO_TASKS`). Never decide from document text or the model's output. Plain
+  questions run exactly as in PR 6, with no tools.
+- Tools are built per request in `agentTools` (`src/server/ai/agent.ts`) with the session's
+  `userId`; no tool input may carry a user id. `searchDocuments` stays within the documents the
+  user chose.
+- `proposeTasks` uses `toolApproval: "user-approval"` and has **no `execute`**. The agent's tasks
+  are written only by `answerProposal` (`src/features/tasks/agent-tasks.ts`), from an approval
+  request, in one transaction that locks the answer's row and records the decision. Don't add
+  another write path, and don't rebuild approvals from browser-sent history.
+- Proposed tasks go through `checkProposal` (`src/server/ai/proposal.ts`): source in this run's
+  passages, quote matched with `matchQuote` (whole passage otherwise), dates only when a passage
+  or the user states them or the due note counts from a stated date (`dueDateIsGrounded`). Never
+  set a date the documents or the user didn't give.
+- Agent runs: at most `AGENT_MAX_STEPS` (5) model calls, each a `chat` `ai_usage` row, so the
+  daily limit counts calls. The reply to an approval is a fixed line, with no model call.
+- Task offsets (`source_start_offset`, `source_end_offset`) index into the chunk's content. A
+  re-read document's tasks lose the chunk link and keep the quote (TODO: re-link by quote).
+- Before and after changing the agent prompt, tools or proposal checks, run `pnpm eval:agent`
+  (about 6 to 12 of the free tier's 20 daily requests) and commit the results file.
+- Task writes on the Tasks page are `authedAction`s in `src/features/tasks/actions.ts` and call
+  `refresh()`, so the sidebar's open-task count follows. Undo re-inserts a deleted task through
+  `restoreTask`, keeping links only to rows the user still owns.
 
 ## Auth rules (Clerk)
 
