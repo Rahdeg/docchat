@@ -1,5 +1,6 @@
 // A minimal PDF writer for test fixtures. No dependencies: it builds the objects by hand and
-// computes the cross-reference offsets. Text is Helvetica and must be plain ASCII.
+// computes the cross-reference offsets. Text is Helvetica and must be plain ASCII, apart from
+// "£", which is written as its code in Helvetica's standard encoding.
 
 // A PDF with one page per entry; each entry is that page's content stream.
 export function pdf(pageContents) {
@@ -32,9 +33,9 @@ export function pdf(pageContents) {
   return out;
 }
 
-// Backslashes and parentheses are special inside a PDF string.
+// Backslashes and parentheses are special inside a PDF string; "£" is octal 243.
 function escape(line) {
-  return line.replace(/[\\()]/g, (c) => `\\${c}`);
+  return line.replace(/[\\()]/g, (c) => `\\${c}`).replace(/£/g, "\\243");
 }
 
 // One line of text per entry, top to bottom.

@@ -20,7 +20,7 @@ import {
 } from "@/features/chat/agent-parts";
 import { messageText, type ChatUIMessage, type PassageData } from "@/features/chat/message";
 
-import { callChatModel } from "./answer";
+import { callChatModel, findAnswerPassages, rewriteQuery } from "./answer";
 import { CitationFilter, parseCitationBlock, resolveCitations, type Resolved } from "./citations";
 import { checkDailyLimit } from "./limits";
 import { chatConfig, MIN_SIMILARITY } from "./models";
@@ -272,4 +272,63 @@ function agentTransform(
         controller.enqueue(part);
       },
     });
+}
+
+export type AgentResult = {
+  query: string;
+  // Every passage the run read, numbered from 1.
+  passages: PassageData[];
+  text: string;
+  // What the model proposed, before the server's checks.
+  proposed: ProposeTasksInput | null;
+  // What the approval card would show.
+  proposal: Proposal | null;
+  // Model calls made.
+  steps: number;
+};
+
+type RunOptions = {
+  userId: string;
+  question: string;
+  documentIds?: readonly string[];
+  documents: readonly { id: string; name: string }[];
+  history?: readonly ChatUIMessage[];
+};
+
+// A task request to completion, without streaming to anyone: for the agent eval. Proposes
+// only; nothing is ever approved or saved here.
+export async function runAgent({
+  userId,
+  question,
+  documentIds,
+  documents,
+  history = [],
+}: RunOptions): Promise<AgentResult> {
+  const query = await rewriteQuery(userId, history, question);
+  const passages = await findAnswerPassages({
+    userId,
+    query,
+    documentIds,
+    limit: AGENT_PASSAGES,
+  });
+  const agent = streamAgent({
+    userId,
+    question,
+    history,
+    passages,
+    documents,
+    scope: documentIds,
+  });
+  let failure: unknown = null;
+  await agent.result.consumeStream({ onError: (error) => (failure = error) });
+  if (failure) throw failure;
+  const { proposal } = agent.finish();
+  return {
+    query,
+    passages: agent.run.passages,
+    text: agent.filter.text,
+    proposed: agent.run.proposal?.input ?? null,
+    proposal,
+    steps: (await agent.result.steps).length,
+  };
 }
