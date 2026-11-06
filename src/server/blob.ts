@@ -1,6 +1,6 @@
 import "server-only";
 
-import { del, get, type GetBlobResult } from "@vercel/blob";
+import { del, get, list, type GetBlobResult } from "@vercel/blob";
 
 import { env } from "@/lib/env";
 
@@ -61,4 +61,24 @@ export async function readBlobHead(
 // Doesn't throw when the file is already gone.
 export async function deleteBlob(pathname: string): Promise<void> {
   await del(pathname, { token: env.BLOB_READ_WRITE_TOKEN });
+}
+
+// Deletes every stored file whose path starts with `prefix`, a page of up to 1,000 at a time.
+// Returns how many it deleted. Safe to run again: files already gone aren't listed.
+export async function deleteBlobsWithPrefix(prefix: string): Promise<number> {
+  if (!prefix.endsWith("/")) throw new Error("A Blob prefix must be a folder (end with /)");
+  let deleted = 0;
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix, cursor, limit: 1000, token: env.BLOB_READ_WRITE_TOKEN });
+    if (page.blobs.length > 0) {
+      await del(
+        page.blobs.map((blob) => blob.pathname),
+        { token: env.BLOB_READ_WRITE_TOKEN },
+      );
+      deleted += page.blobs.length;
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return deleted;
 }
