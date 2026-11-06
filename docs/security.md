@@ -114,8 +114,23 @@ Make these changes on the **development** instance for local work and again on t
 1. **MCP server.** Agents → MCP servers → **Add MCP server** (or **Get started**). MCP URL:
    `http://localhost:3000/mcp` on development; `https://<your domain>/mcp` on production,
    exactly as `APP_URL` + `/mcp` (no trailing slash). Select **Allow public clients to connect**.
-   Adding it turns on audience (`aud`) claims, which `verifyMcpToken` requires.
-2. **OAuth applications → Settings → Client onboarding.**
+2. **Audience claims.** `verifyMcpToken` refuses any token without `aud`, and Clerk only adds
+   `aud` (from the client's RFC 8707 `resource`) when the instance's OAuth application settings
+   have `aud_claim_enabled` on. Adding the MCP server doesn't turn it on. Set it, and
+   `aud_claim_refresh_backfill_enabled` so refreshed tokens of older grants get `aud` too,
+   through the Backend API with that instance's secret key:
+
+   ```sh
+   curl -X PATCH https://api.clerk.com/v1/instance/oauth_application_settings \
+     -H "Authorization: Bearer $CLERK_SECRET_KEY" -H "Content-Type: application/json" \
+     -d '{"aud_claim_enabled": true, "aud_claim_refresh_backfill_enabled": true}'
+   ```
+
+   Read it back with a `GET` on the same URL. Without it, sign-in succeeds but every `/mcp`
+   request answers 401 and the client loops back to the metadata. Apps connected before the
+   change sign in again.
+
+3. **OAuth applications → Settings → Client onboarding.**
    - **Publish CIMD support:** on. Claude, Cursor and VS Code identify themselves with a Client
      ID Metadata Document.
    - **Publish DCR support:** off. It opens a public endpoint that anyone can register clients
@@ -125,9 +140,9 @@ Make these changes on the **development** instance for local work and again on t
      refresh its token instead of asking the user to sign in again. Don't add `email`: the tools
      don't need it.
    - Keep the consent screen on (it is always on for CIMD clients).
-3. **Account deletion.** User & authentication → **Allow users to delete their accounts**: on,
+4. **Account deletion.** User & authentication → **Allow users to delete their accounts**: on,
    so the Delete account button shows in the profile (Settings → Manage account).
-4. **Webhook.** Webhooks → **Add endpoint**: `https://<your domain>/api/webhooks/clerk`,
+5. **Webhook.** Webhooks → **Add endpoint**: `https://<your domain>/api/webhooks/clerk`,
    subscribed to **`user.deleted`** only. Copy its **Signing Secret** (`whsec_…`) into
    `CLERK_WEBHOOK_SIGNING_SECRET`. For local testing, `clerk webhooks listen --forward-to
 http://localhost:3000/api/webhooks/clerk` relays events to your machine (use that relay
