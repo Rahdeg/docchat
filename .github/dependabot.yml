@@ -1,7 +1,7 @@
-# Dependency updates (docs/adr/0008). Weekly, grouped so minor and patch bumps arrive as one PR
-# per ecosystem; majors come one by one. pnpm uses the npm ecosystem. Security updates for
-# known vulnerabilities come as they're published; enable Dependabot alerts and security
-# updates in the repository's settings (Code security).
+# Dependency updates (docs/adr/0008). Weekly, with minor and patch bumps grouped into one PR per
+# ecosystem. pnpm uses the npm ecosystem. Security updates for known vulnerabilities come as
+# they're published (the ignore rules below don't apply to them); enable Dependabot alerts and
+# security updates in the repository's settings (Code security).
 version: 2
 updates:
   - package-ecosystem: npm
@@ -10,9 +10,21 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    # Matches pnpm's minimumReleaseAge: pnpm 12's built-in 1440 minutes (1 day). We don't set it
+    # in pnpm-workspace.yaml; if we ever do, change this to the same number of days.
+    cooldown:
+      default-days: 1
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # @types/node follows the Node major we run (24: engines, CI, Vercel). Raise both together.
+      - dependency-name: "@types/node"
+        versions: [">=25"]
+      # No semver-major updates until after launch. TypeScript 6 and unpdf 2 get a dedicated
+      # upgrade PR then; remove this rule at the same time.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore(deps)
 
