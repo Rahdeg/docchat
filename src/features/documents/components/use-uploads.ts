@@ -174,7 +174,17 @@ export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptio
   }, []);
 
   // A registered upload hands over to its document row as soon as the list includes it.
-  const visible = items.filter((item) => !item.documentId || !listedIds.has(item.documentId));
+  const handedOver = (item: UploadItem) => !!item.documentId && listedIds.has(item.documentId);
+  const visible = items.filter((item) => !handedOver(item));
+
+  // ...and is then done for good: drop it, or removing the document later would bring back an
+  // "Uploading 100%" card.
+  useEffect(() => {
+    setItems((current) => {
+      const left = current.filter((item) => !item.documentId || !listedIds.has(item.documentId));
+      return left.length === current.length ? current : left;
+    });
+  }, [listedIds]);
 
   return { items: visible, addFiles, cancel: removeItem, dismiss: removeItem };
 }
