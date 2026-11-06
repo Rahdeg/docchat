@@ -11,26 +11,26 @@ import type { ChatUIMessage, Feedback, MessageStatus } from "./message";
 // by it.
 
 // The chat a message is posted to. The browser picks a new chat's id (a UUID) before its first
-// message; the chat is created then, titled after that question. Returns null when the id
-// belongs to another user's chat.
+// message; the chat is created then, titled after that question. Each question saves the
+// documents it searched (`documentIds`, empty for all; src/features/chat/scope.ts), so the
+// chat reopens with them. Returns null, changing nothing, when the id belongs to another
+// user's chat.
 export async function ensureChat(
   userId: string,
   chatId: string,
   title: string,
+  documentIds: string[],
 ): Promise<Chat | null> {
-  const [created] = await db
+  const [row] = await db
     .insert(chat)
-    .values({ id: chatId, userId, title })
-    .onConflictDoNothing({ target: chat.id })
+    .values({ id: chatId, userId, title, documentIds })
+    .onConflictDoUpdate({
+      target: chat.id,
+      set: { documentIds },
+      setWhere: eq(chat.userId, userId),
+    })
     .returning();
-  if (created) return created;
-
-  const [existing] = await db
-    .select()
-    .from(chat)
-    .where(and(eq(chat.userId, userId), eq(chat.id, chatId)))
-    .limit(1);
-  return existing ?? null;
+  return row ?? null;
 }
 
 // Saves the user's question as soon as it arrives. Sending the same message again ("Try again"

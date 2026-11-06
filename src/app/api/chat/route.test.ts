@@ -239,7 +239,7 @@ describe("POST /api/chat", () => {
     const response = await post(body());
 
     expect(response.status).toBe(404);
-    expect(mocks.ensureChat).toHaveBeenCalledWith("user_bob", chatId, expect.any(String));
+    expect(mocks.ensureChat).toHaveBeenCalledWith("user_bob", chatId, expect.any(String), []);
     expect(mocks.saveUserMessage).not.toHaveBeenCalled();
     expect(mocks.searchPassages).not.toHaveBeenCalled();
   });
@@ -251,12 +251,44 @@ describe("POST /api/chat", () => {
       alice,
       chatId,
       "How much notice does my landlord need to give before raising…",
+      [],
     );
     expect(mocks.saveUserMessage).toHaveBeenCalledWith(alice, chatId, {
       id: questionId,
       role: "user",
       parts: [{ type: "text", text: question }],
     });
+  });
+
+  it("saves the chosen documents on the chat, so follow-ups and reloads keep them", async () => {
+    await chunks(await post(body({ documentIds: [passages[0]!.documentId] })));
+
+    expect(mocks.ensureChat).toHaveBeenCalledWith(alice, chatId, expect.any(String), [
+      passages[0]!.documentId,
+    ]);
+  });
+
+  it("ignores another user's document id and searches all of the user's documents", async () => {
+    const bobsDocument = "99999999-9999-4999-8999-999999999999";
+
+    await chunks(await post(body({ documentIds: [bobsDocument] })));
+
+    expect(mocks.listReadyDocuments).toHaveBeenCalledWith(alice);
+    expect(mocks.ensureChat).toHaveBeenCalledWith(alice, chatId, expect.any(String), []);
+    expect(mocks.searchPassages).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: alice, documentIds: undefined }),
+    );
+  });
+
+  it("keeps the user's own ready documents and drops the rest", async () => {
+    const own = passages[0]!.documentId;
+
+    await chunks(await post(body({ documentIds: [own, "99999999-9999-4999-8999-999999999999"] })));
+
+    expect(mocks.ensureChat).toHaveBeenCalledWith(alice, chatId, expect.any(String), [own]);
+    expect(mocks.searchPassages).toHaveBeenCalledWith(
+      expect.objectContaining({ documentIds: [own] }),
+    );
   });
 
   it("streams a cited answer, renumbered, with the quote found in the passage", async () => {

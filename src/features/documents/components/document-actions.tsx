@@ -23,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { documentFileUrl, routes } from "@/lib/routes";
+import { askAboutUrl, documentFileUrl } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 import { deleteDocument, retryDocument } from "../actions";
@@ -132,8 +132,9 @@ export function DocumentMenu({
       <DropdownMenuContent align="end" className="min-w-40">
         <DropdownMenuGroup>
           {includeAsk && doc.status === "ready" ? (
-            // TODO(chat): open a chat scoped to this document once chat lands.
-            <DropdownMenuItem render={<Link href={routes.chat} />}>Ask about this</DropdownMenuItem>
+            <DropdownMenuItem render={<Link href={askAboutUrl(doc.id)} />}>
+              Ask about this
+            </DropdownMenuItem>
           ) : null}
           {actions.canOpen ? (
             <DropdownMenuItem

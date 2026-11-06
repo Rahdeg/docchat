@@ -5,24 +5,25 @@ import { z } from "zod";
 
 import { ChatView } from "@/features/chat/components/chat-view";
 import { getChat, listMessages } from "@/features/chat/queries";
-import { listReadyDocuments } from "@/features/documents/queries";
+import { startingScope } from "@/features/chat/scope";
+import { getDocument, listReadyDocuments } from "@/features/documents/queries";
 import { requireUserId } from "@/server/auth";
 
 import { ChatSkeleton } from "../chat-skeleton";
 
 export const metadata: Metadata = { title: "Chat · DocChat" };
 
-export default function ChatPage({ params }: PageProps<"/chat/[chatId]">) {
+export default function ChatPage({ params, searchParams }: PageProps<"/chat/[chatId]">) {
   return (
     <Suspense fallback={<ChatSkeleton />}>
-      <Chat params={params} />
+      <Chat params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function Chat({ params }: Pick<PageProps<"/chat/[chatId]">, "params">) {
+async function Chat({ params, searchParams }: PageProps<"/chat/[chatId]">) {
   const userId = await requireUserId();
-  const { chatId } = await params;
+  const [{ chatId }, { documentId }] = await Promise.all([params, searchParams]);
   if (!z.uuid().safeParse(chatId).success) notFound();
 
   // An id with no chat yet is a new chat (see ../page.tsx). Someone else's chat looks the same:
@@ -33,6 +34,19 @@ async function Chat({ params }: Pick<PageProps<"/chat/[chatId]">, "params">) {
   ]);
   const messages = chat ? await listMessages(userId, chatId) : [];
 
+  // "Ask about this" (?documentId=…) only starts a new chat; a saved chat keeps its own scope.
+  const linkedId = typeof documentId === "string" ? documentId : null;
+  const linked =
+    !chat && linkedId && z.uuid().safeParse(linkedId).success
+      ? await getDocument(userId, linkedId)
+      : null;
+  const scope = startingScope({
+    ready: documents,
+    saved: chat?.documentIds ?? null,
+    linkedId,
+    linkedExists: linked !== null,
+  });
+
   return (
     <ChatView
       key={chatId}
@@ -40,6 +54,9 @@ async function Chat({ params }: Pick<PageProps<"/chat/[chatId]">, "params">) {
       title={chat?.title ?? null}
       initialMessages={messages}
       documents={documents}
+      initialDocumentIds={scope.documentIds}
+      notice={scope.notice}
+      fromLink={linkedId !== null}
     />
   );
 }
