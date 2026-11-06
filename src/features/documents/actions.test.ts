@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   resetForRetry: vi.fn(),
   deleteDocument: vi.fn(),
   indexDocument: vi.fn(),
+  peekRateLimit: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
@@ -20,6 +21,7 @@ vi.mock("@/server/blob", () => ({
   deleteBlob: mocks.deleteBlob,
 }));
 vi.mock("@/server/ingest/index-document", () => ({ indexDocument: mocks.indexDocument }));
+vi.mock("@/server/rate-limit", () => ({ peekRateLimit: mocks.peekRateLimit }));
 vi.mock("./queries", () => ({
   countDocuments: mocks.countDocuments,
   getDocumentByBlobPathname: mocks.getDocumentByBlobPathname,
@@ -30,7 +32,8 @@ vi.mock("./mutations", () => ({
   deleteDocument: mocks.deleteDocument,
 }));
 
-const { registerDocument, retryDocument, deleteDocument } = await import("./actions");
+const { registerDocument, retryDocument, deleteDocument, uploadLimitReason } =
+  await import("./actions");
 
 const alice = "user_alice";
 const uuid = "0b6f3a4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
@@ -198,5 +201,31 @@ describe("deleteDocument", () => {
       error: "That document was already removed.",
     });
     expect(mocks.deleteBlob).not.toHaveBeenCalled();
+  });
+});
+
+describe("uploadLimitReason", () => {
+  beforeEach(() => {
+    mocks.auth.mockResolvedValue({ userId: alice });
+  });
+
+  it("explains a refused upload without counting one", async () => {
+    mocks.peekRateLimit.mockResolvedValue({
+      ok: false,
+      retryAfterSeconds: 300,
+      message: "You've uploaded 20 files in the last hour. You can upload more in 5 minutes.",
+    });
+
+    expect(await uploadLimitReason({})).toEqual({
+      ok: true,
+      data: "You've uploaded 20 files in the last hour. You can upload more in 5 minutes.",
+    });
+    expect(mocks.peekRateLimit).toHaveBeenCalledWith(alice, "upload");
+  });
+
+  it("is null when uploads are allowed", async () => {
+    mocks.peekRateLimit.mockResolvedValue({ ok: true, remaining: 3 });
+
+    expect(await uploadLimitReason({})).toEqual({ ok: true, data: null });
   });
 });

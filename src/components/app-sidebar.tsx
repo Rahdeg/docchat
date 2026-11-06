@@ -1,10 +1,10 @@
-import { UserButton } from "@clerk/nextjs";
 import { LibraryIcon, ListTodoIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { Logo } from "@/components/logo";
 import { NavMain } from "@/components/nav-main";
+import { UserMenu } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -83,7 +83,7 @@ export function AppSidebar() {
         <Suspense fallback={<Skeleton className="h-[58px] rounded-[10px]" />}>
           <DocumentsUsage />
         </Suspense>
-        <UserButton showName />
+        <UserMenu />
       </SidebarFooter>
     </Sidebar>
   );

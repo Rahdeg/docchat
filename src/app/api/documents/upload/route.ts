@@ -5,6 +5,7 @@ import { z } from "zod";
 import { checkUploadPath } from "@/features/documents/upload-policy";
 import { fileKinds, MAX_FILE_BYTES } from "@/features/documents/upload-rules";
 import { env } from "@/lib/env";
+import { consumeRateLimit } from "@/server/rate-limit";
 
 // Issues short-lived tokens so the browser can upload straight to the private Blob store
 // (Vercel functions cap request bodies at 4.5 MB). Registration happens afterwards in the
@@ -20,6 +21,7 @@ const tokenRequest = z.object({
 });
 
 class UploadRejected extends Error {}
+class UploadLimited extends Error {}
 
 export async function POST(request: Request): Promise<Response> {
   const { userId } = await auth();
@@ -40,6 +42,9 @@ export async function POST(request: Request): Promise<Response> {
       onBeforeGenerateToken: async (tokenPathname) => {
         const check = await checkUploadPath(userId, tokenPathname);
         if (!check.ok) throw new UploadRejected(check.error);
+        // One token per file: RATE_LIMITS.upload (src/lib/rate-limits.ts).
+        const limit = await consumeRateLimit(userId, "upload");
+        if (!limit.ok) throw new UploadLimited(limit.message);
         return {
           allowedContentTypes: [fileKinds[check.kind].mimeType],
           maximumSizeInBytes: MAX_FILE_BYTES,
@@ -53,6 +58,9 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     if (error instanceof UploadRejected) {
       return Response.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof UploadLimited) {
+      return Response.json({ error: error.message }, { status: 429 });
     }
     console.error(error);
     return Response.json({ error: "Couldn't start the upload." }, { status: 500 });

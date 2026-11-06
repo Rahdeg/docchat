@@ -21,6 +21,47 @@ export async function createTask(
   return created!;
 }
 
+export type McpTaskSource = {
+  documentId: string;
+  chunkId: string;
+  quote: string;
+  // The quote's offsets in the chunk's content.
+  start: number;
+  end: number;
+  label: string | null;
+};
+
+// A task from the user's connected AI app (MCP create_task, docs/adr/0008). The source, if
+// any, was already checked against the user's own document (src/server/mcp/tools.ts).
+export async function createMcpTask(
+  userId: string,
+  input: {
+    title: string;
+    dueDate: CalendarDay | null;
+    dueNote: string | null;
+    source: McpTaskSource | null;
+  },
+): Promise<Task> {
+  const { source } = input;
+  const [created] = await db
+    .insert(task)
+    .values({
+      userId,
+      title: input.title,
+      dueDate: input.dueDate,
+      dueNote: input.dueNote,
+      createdBy: "mcp",
+      sourceDocumentId: source?.documentId ?? null,
+      sourceChunkId: source?.chunkId ?? null,
+      sourceQuote: source?.quote ?? null,
+      sourceStartOffset: source?.start ?? null,
+      sourceEndOffset: source?.end ?? null,
+      sourceLabel: source?.label ?? null,
+    })
+    .returning();
+  return created!;
+}
+
 // Changes the title, the due date (null clears it), or both. Returns false when the task
 // isn't the user's.
 export async function updateTask(

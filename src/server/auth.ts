@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 
 import { routes } from "@/lib/routes";
 
-// TODO(webhooks): handle Clerk's user.deleted event and delete that user's rows (documents,
-// chunks, chats, messages, tasks). Until then, deleting a user in Clerk leaves their data behind.
+// Deleting a user in Clerk deletes their rows and files: POST /api/webhooks/clerk
+// (src/server/account.ts).
 
 // For Server Components. Call it inside a <Suspense> boundary: auth() reads the request.
 export async function requireUserId(): Promise<string> {

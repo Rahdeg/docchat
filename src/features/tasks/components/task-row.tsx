@@ -15,7 +15,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-import { dueLabel, TASK_TITLE_MAX_CHARS, type CalendarDay, type TaskItem } from "../task-rules";
+import {
+  creatorLabels,
+  dueLabel,
+  TASK_TITLE_MAX_CHARS,
+  type CalendarDay,
+  type TaskItem,
+} from "../task-rules";
 import { DueDatePicker } from "./due-date-picker";
 import { TaskSourceLink } from "./task-source";
 
@@ -65,9 +71,7 @@ export function TaskRow({ task, today, onToggle, onRename, onDueDate, onDelete }
         {task.source ? (
           <TaskSourceLink source={task.source} title={task.title} />
         ) : (
-          <span className="text-[13px] text-muted-foreground">
-            {task.createdBy === "user" ? "Added by you" : "From a chat"}
-          </span>
+          <span className="text-[13px] text-muted-foreground">{creatorLabels[task.createdBy]}</span>
         )}
         {task.dueNote && !task.dueDate ? (
           <span className="text-[13px] text-muted-foreground">Due {task.dueNote}</span>

@@ -90,3 +90,26 @@ export async function listReadyDocuments(userId: string): Promise<ReadyDocument[
     .where(and(eq(document.userId, userId), eq(document.status, "ready")))
     .orderBy(asc(document.name));
 }
+
+export type DocumentChunk = { id: string; content: string; page: number | null };
+
+// A ready document's passages in order, for finding a quote in it (an MCP task's source).
+// Empty when the document isn't the user's or isn't ready.
+export async function listDocumentChunks(
+  userId: string,
+  documentId: string,
+): Promise<DocumentChunk[]> {
+  return db
+    .select({ id: chunk.id, content: chunk.content, page: chunk.page })
+    .from(chunk)
+    .innerJoin(
+      document,
+      and(
+        eq(document.id, chunk.documentId),
+        eq(document.userId, userId),
+        eq(document.status, "ready"),
+      ),
+    )
+    .where(and(eq(chunk.userId, userId), eq(chunk.documentId, documentId)))
+    .orderBy(asc(chunk.position));
+}

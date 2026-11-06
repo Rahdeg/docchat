@@ -50,6 +50,7 @@ import {
 } from "@/server/ai/answer";
 import { isQuotaError } from "@/server/ai/call-model";
 import { checkDailyLimit } from "@/server/ai/limits";
+import { consumeRateLimit } from "@/server/rate-limit";
 
 // Answers a question in a chat, streaming the answer with its sources and citations
 // (docs/adr/0006). A route handler rather than a Server Action because it streams.
@@ -101,6 +102,9 @@ async function answerQuestion(
   // Before any model call: the free tier's daily quota is shared by every user.
   const limit = await checkDailyLimit(userId);
   if (!limit.ok) return fail(429, limit.message);
+  // Every question embeds a search query: RATE_LIMITS.search (src/lib/rate-limits.ts).
+  const searches = await consumeRateLimit(userId, "search");
+  if (!searches.ok) return fail(429, searches.message);
 
   // Creates the chat on its first question. Another user's chat id is a 404, as if it didn't
   // exist.

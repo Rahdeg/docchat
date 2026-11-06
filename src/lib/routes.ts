@@ -5,6 +5,8 @@ export const routes = {
   library: "/library",
   chat: "/chat",
   tasks: "/tasks",
+  settings: "/settings",
+  mcp: "/mcp",
 } as const;
 
 // One chat. A new chat's id is chosen before its first question; the chat is stored then.
@@ -20,8 +22,10 @@ export function documentFileUrl(documentId: string, page?: number | null): strin
 }
 
 // Pages a signed-out visitor may open. The auth pages are catch-all routes (Clerk renders
-// steps like /sign-in/factor-one), so their sub-paths are public too.
-const publicPrefixes = [routes.signIn, routes.signUp];
+// steps like /sign-in/factor-one), so their sub-paths are public too. The MCP server and its
+// OAuth metadata are public to the proxy: /mcp checks its own bearer token (withMcpAuth), and
+// clients read /.well-known/* before they have one (docs/adr/0008).
+const publicPrefixes = [routes.signIn, routes.signUp, routes.mcp, "/.well-known"];
 
 export function isPublicPath(pathname: string): boolean {
   if (pathname === routes.home) return true;

@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { db, type Db } from "@/server/db";
 import { chunk, document } from "@/server/db/schema";
 
-import { embedQuery } from "./embed";
+import { embedQuery, type QueryUsageKind } from "./embed";
 import { EMBEDDING_MODEL } from "./models";
 
 export type Passage = {
@@ -36,13 +36,14 @@ type SearchOptions = {
 };
 
 // The user's passages closest to a question, best first. Embeds the query (recorded as
-// `embed-query` usage), then searches only the user's ready documents, and only chunks embedded
-// by the same model as the query.
+// `embed-query` usage, or `usageKind`), then searches only the user's ready documents, and only
+// chunks embedded by the same model as the query.
 export async function searchPassages({
   query,
+  usageKind,
   ...options
-}: SearchOptions & { query: string }): Promise<Passage[]> {
-  const embedding = await embedQuery(options.userId, query);
+}: SearchOptions & { query: string; usageKind?: QueryUsageKind }): Promise<Passage[]> {
+  const embedding = await embedQuery(options.userId, query, usageKind);
   return searchByEmbedding(embedding, options);
 }
 

@@ -11,6 +11,7 @@ import { FREE_LIMIT_MESSAGE } from "@/features/chat/message";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   checkDailyLimit: vi.fn(),
+  consumeRateLimit: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -30,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
 vi.mock("@/server/ai/limits", () => ({ checkDailyLimit: mocks.checkDailyLimit }));
+vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -212,6 +214,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
   mocks.checkDailyLimit.mockResolvedValue({ ok: true });
+  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 29 });
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Move in" });
   mocks.getChat.mockResolvedValue({ id: chatId, userId: alice, title: "Move in" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-11-03T10:00:00Z"));

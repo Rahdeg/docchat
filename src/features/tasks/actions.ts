@@ -16,6 +16,7 @@ import {
   calendarDaySchema,
   DUE_NOTE_MAX_CHARS,
   SOURCE_LABEL_MAX_CHARS,
+  taskCreators,
   taskTitleSchema,
 } from "./task-rules";
 
@@ -68,7 +69,7 @@ const snapshotSchema = z.object({
   dueNote: z.string().max(DUE_NOTE_MAX_CHARS).nullable(),
   done: z.boolean(),
   completedAt: z.coerce.date().nullable(),
-  createdBy: z.enum(["user", "agent"]),
+  createdBy: z.enum(taskCreators),
   chatId: z.uuid().nullable(),
   sourceDocumentId: z.uuid().nullable(),
   sourceChunkId: z.uuid().nullable(),

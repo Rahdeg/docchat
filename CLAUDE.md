@@ -3,6 +3,9 @@
 Users upload documents and ask questions; answers come back with cited sources (RAG). When they
 ask for tasks, an agent proposes tasks from their documents, each linked to its clause, and saves
 them only when the user approves (`docs/adr/0007`). The Tasks page holds those and the user's own.
+Users can also connect their own AI app over MCP (`/mcp`, Clerk OAuth) to search their documents
+and manage their tasks with that app's model (`docs/adr/0008`). Security notes, the authorization
+table and the Clerk dashboard steps are in `docs/security.md`.
 
 Next.js-specific agent rules live in AGENTS.md (generated and kept up to date by `next dev`). Read it;
 don't duplicate or hand-edit the managed block:
@@ -30,8 +33,10 @@ don't duplicate or hand-edit the managed block:
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
   serving stored files (`src/app/api/documents/`), and streaming answers (`POST /api/chat`)
+- MCP: `mcp-handler` 2 (MCP SDK v2, stateless Streamable HTTP, no SSE), `@clerk/backend` for OAuth
+  token checks, `@clerk/mcp-tools` for the `.well-known` metadata routes
 - Tooling: pnpm (pinned via `packageManager`), ESLint 9 flat config, Prettier, lefthook, Vitest,
-  Playwright (e2e)
+  Playwright (e2e, `@clerk/testing` for signed-in specs), Dependabot
 
 ## Commands
 
@@ -57,11 +62,13 @@ or run `corepack enable pnpm` once if you want a bare `pnpm`.
 | `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration    |
 | `pnpm eval:answers`           | Answer eval: citations, grounding, honesty       |
 | `pnpm eval:agent`             | Agent eval: task recall, precision, sources      |
+| `pnpm eval:injection`         | Prompt-injection eval: hostile documents         |
 
 `pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
 up after signing in. It deletes that user's existing rows first.
 
 Before you call a change done: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build`.
+CI also runs `pnpm audit --prod --audit-level=high`.
 
 ## Folder conventions
 
@@ -70,23 +77,27 @@ src/app/(auth)/        sign-in / sign-up routes (Clerk)
 src/app/(app)/         authenticated app routes
 src/components/ui/     shadcn-generated. Do not hand-edit.
 src/components/        shared app components built on ui/
-src/features/<name>/   feature modules: documents, chat, tasks (components, actions, schemas,
+src/features/<name>/   feature modules: documents, chat, tasks, settings (components, actions, schemas,
                        queries.ts for user-scoped reads, mutations.ts for writes)
 src/server/auth.ts     requireUserId() for Server Components
 src/server/db/         Drizzle client (index.ts) and schema/ (one file per area)
 src/server/ai/         AI SDK setup, chunking, retrieval, prompts, tools (server-only)
 src/server/ingest/     text extraction and the indexing pipeline (server-only)
+src/server/mcp/        MCP server: token check (auth.ts), tools, untrusted-content wrapping
+src/server/account.ts  deleting a user's rows and files (the Clerk webhook)
+src/server/rate-limit.ts  sliding-window rate limits in Postgres (numbers in src/lib/rate-limits.ts)
 src/server/blob.ts     the only place that calls the Vercel Blob SDK
-src/lib/               utilities (cn, env, format, routes) and authedAction() (action.ts)
+src/lib/               utilities (cn, env, format, routes, app-url, security-headers, rate-limits)
+                       and authedAction() (action.ts)
 src/proxy.ts           clerkMiddleware with optimistic redirects (Next 16 replaces middleware.ts)
 docs/adr/              architecture decision records
 docs/design/           HTML design mockups per area; match them when building that UI
 drizzle/               generated SQL migrations and snapshots (committed)
 scripts/               standalone scripts run with tsx (seed, backfill-embeddings)
-tests/e2e/             Playwright end-to-end tests (`*.spec.ts`)
+tests/e2e/             Playwright end-to-end tests (`*.spec.ts`); signed-in ones need E2E_CLERK_USER_EMAIL
 tests/fixtures/        test files (PDFs), the PDF writer (pdf.mjs) and the script that uses it
-tests/evals/           retrieval, answer and agent evals: fixtures, questions (retrieval.json),
-                       scenarios (agent.json), runners, results/
+tests/evals/           retrieval, answer, agent and injection evals: fixtures, questions
+                       (retrieval.json), scenarios (agent.json, injection.json), runners, results/
 ```
 
 Unit tests sit next to the code as `*.test.ts(x)`. Component tests that need a DOM start with
@@ -276,6 +287,35 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   `refresh()`, so the sidebar's open-task count follows. Undo re-inserts a deleted task through
   `restoreTask`, keeping links only to rows the user still owns.
 
+## MCP and safety rules (`docs/adr/0008`, `docs/security.md`)
+
+- The MCP server is `src/app/mcp/route.ts` (not `[transport]`: mcp-handler 2 has no SSE). Every
+  request needs a Clerk OAuth access token for exactly `MCP_URL` (`<APP_URL>/mcp`, audience
+  checked in `verifyMcpToken`) with the `profile` scope. `/mcp` and `/.well-known/*` are public to
+  the proxy (`isPublicPath`); the route checks the token. `MCP_ENABLED=false` answers 503.
+- Tools are defined in `src/server/mcp/server.ts` and implemented in `tools.ts`. They get the user
+  only from the verified token (`runTool` → `userIdFrom`), never from input; no input schema has a
+  user field. Mark reads `readOnly: true` and writes `false`. Tools never call our chat model; a
+  search is one embedding recorded as `mcp-search`.
+- Document text returned by a tool goes through `documentContentBlock` (`content.ts`) under
+  `UNTRUSTED_NOTICE`. Never return passage text outside a block.
+- Rate limits: every number lives in `src/lib/rate-limits.ts`; count with `consumeRateLimit`
+  (`src/server/rate-limit.ts`) before the work, and answer 429 with its message.
+- The Clerk webhook (`/api/webhooks/clerk`, `user.deleted`) deletes through `deleteUserData`
+  (`src/server/account.ts`). A new user-data table must be added to `deleteUserRows` (and to
+  `schema.test.ts`'s list).
+- Security headers come from `src/lib/security-headers.ts` via `next.config.ts`. The CSP is
+  enforced with no nonce (keeps Cache Components' static shells). A new third-party script, host,
+  iframe or fetch target must be added there, or the browser blocks it; check with the e2e specs
+  against `pnpm build && pnpm start`. `CSP_REPORT_ONLY=1` is an escape hatch, not a mode to stay in.
+- The browser runs Zod `jitless` (`src/components/zod-browser-config.tsx`); without it Zod's eval
+  probe is reported as a CSP violation.
+- New Server Actions: `authedAction` only (a test enforces it). New route handlers: add them to
+  the list in `src/server/authorization-audit.test.ts` with their check, and to `docs/security.md`.
+- Before and after changing prompts, `escapeSourceText`, the MCP wrapping or the agent tools, run
+  `pnpm eval:injection` (about 15 of the free tier's 20 daily requests; `--only` for a few) and
+  commit the results file.
+
 ## Auth rules (Clerk)
 
 - Auth uses `@clerk/nextjs`, the decided provider (`docs/adr/0002`). Treat the project as having
@@ -300,8 +340,9 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   id is a 404, never a new chat).
 - Tables store Clerk's `userId` as `text`. There is no local `users` table; profile data stays in
   Clerk.
-- No Clerk webhooks yet. Deleting a user's data when Clerk sends `user.deleted` comes in a later
-  PR (TODO in `src/server/auth.ts`). Until then, deleting a user in Clerk leaves their rows behind.
+- One Clerk webhook: `user.deleted` deletes the user's rows and Blob files
+  (`POST /api/webhooks/clerk`, verified with `CLERK_WEBHOOK_SIGNING_SECRET`). Its route is public:
+  `verifyWebhook` is its only check; never put `auth.protect()` on it.
 
 ## Installed agent skills
 

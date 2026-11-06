@@ -4,3 +4,10 @@ allowBuilds:
   lefthook: true
   sharp: false
   unrs-resolver: false
+overrides:
+  # GHSA-mrhx-c7xc-m3w5 (high): @vercel/blob > @vercel/oidc > @vercel/cli-config pins zod 4.1.
+  # Remove once @vercel/blob ships a patched chain (pnpm audit --prod in CI will say).
+  "@vercel/cli-config>zod": "^4.6.6"
+  # GHSA-27r3-jxmh-p828 (high): express in @clerk/mcp-tools (and its MCP SDK 1.x) pins
+  # body-parser 2.3. We never run that express code (only its Next.js metadata handlers).
+  "body-parser@>=2.0.0 <2.4.0": "^2.4.0"

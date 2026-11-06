@@ -5,3 +5,4 @@ export * from "./documents";
 export * from "./chats";
 export * from "./tasks";
 export * from "./ai-usage";
+export * from "./rate-limits";

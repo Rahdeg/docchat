@@ -38,10 +38,12 @@ function escape(line) {
   return line.replace(/[\\()]/g, (c) => `\\${c}`).replace(/£/g, "\\243");
 }
 
-// One line of text per entry, top to bottom.
-export function textPage(lines, { size = 12, leading = 18, top = 720 } = {}) {
+// One line of text per entry, top to bottom. `color` is the fill as RGB from 0 to 1: [1, 1, 1]
+// is white, invisible on the white page but still in the text a PDF reader extracts.
+export function textPage(lines, { size = 12, leading = 18, top = 720, color = null } = {}) {
+  const fill = color ? `${color.join(" ")} rg ` : "";
   const body = lines.map(
-    (line, i) => `BT /F1 ${size} Tf 72 ${top - i * leading} Td (${escape(line)}) Tj ET`,
+    (line, i) => `BT ${fill}/F1 ${size} Tf 72 ${top - i * leading} Td (${escape(line)}) Tj ET`,
   );
   return body.join("\n");
 }

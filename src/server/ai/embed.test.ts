@@ -213,6 +213,16 @@ describe("embedQuery", () => {
       tokens: 5,
     });
   });
+
+  it("records a connected AI app's search as mcp-search", async () => {
+    useModel(async () => ({ embeddings: [vectorFor("3")], usage: { tokens: 4 } }));
+
+    await embedQuery("user_b", "deposit", "mcp-search");
+
+    expect(state.recordUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user_b", kind: "mcp-search", tokens: 4 }),
+    );
+  });
 });
 
 describe("retryDelayMs", () => {

@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { EMBEDDING_DIMENSIONS } from "@/server/ai/constants";
 
-import { aiUsage, chat, chunk, document, documentPage, message, task } from ".";
+import { aiUsage, chat, chunk, document, documentPage, message, rateLimitEvent, task } from ".";
 
-const userTables = { document, documentPage, chunk, chat, message, task, aiUsage };
+const userTables = { document, documentPage, chunk, chat, message, task, aiUsage, rateLimitEvent };
 
 describe("schema", () => {
   it.each(Object.entries(userTables))("%s has an indexed user_id column", (_name, table) => {

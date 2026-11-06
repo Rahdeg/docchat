@@ -6,6 +6,7 @@ import { GeistSans } from "geist/font/sans";
 import { Newsreader } from "next/font/google";
 
 import { Toaster } from "@/components/ui/sonner";
+import { ZodBrowserConfig } from "@/components/zod-browser-config";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { routes } from "@/lib/routes";
 import "./globals.css";
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${GeistSans.variable} ${GeistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <ZodBrowserConfig />
         <ClerkProvider
           appearance={{ theme: shadcn }}
           signInUrl={routes.signIn}

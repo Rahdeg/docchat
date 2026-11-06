@@ -28,6 +28,8 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      # Known vulnerabilities in what ships (not dev tools): fail on high or critical.
+      - run: pnpm audit --prod --audit-level=high
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check

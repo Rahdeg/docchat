@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { registerDocument } from "../actions";
+import { registerDocument, uploadLimitReason } from "../actions";
 import {
   buildBlobPathname,
   checkFile,
@@ -102,8 +102,12 @@ export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptio
         controllers.current.delete(item.key);
         if (controller.signal.aborted) return;
         console.error(error);
-        // The token route's reason doesn't survive the Blob client, so keep this general.
-        const message = `Couldn't upload ${item.file.name}. Check your connection and try again.`;
+        // The token route's reason doesn't survive the Blob client: ask whether it was the
+        // upload limit, and otherwise keep this general.
+        const limited = await uploadLimitReason({}).catch(() => null);
+        const message =
+          (limited?.ok && limited.data) ||
+          `Couldn't upload ${item.file.name}. Check your connection and try again.`;
         update(item.key, { state: "failed", error: message });
         toast.error(message);
       }
@@ -170,7 +174,17 @@ export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptio
   }, []);
 
   // A registered upload hands over to its document row as soon as the list includes it.
-  const visible = items.filter((item) => !item.documentId || !listedIds.has(item.documentId));
+  const handedOver = (item: UploadItem) => !!item.documentId && listedIds.has(item.documentId);
+  const visible = items.filter((item) => !handedOver(item));
+
+  // ...and is then done for good: drop it, or removing the document later would bring back an
+  // "Uploading 100%" card.
+  useEffect(() => {
+    setItems((current) => {
+      const left = current.filter((item) => !item.documentId || !listedIds.has(item.documentId));
+      return left.length === current.length ? current : left;
+    });
+  }, [listedIds]);
 
   return { items: visible, addFiles, cancel: removeItem, dismiss: removeItem };
 }

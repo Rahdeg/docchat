@@ -4,12 +4,14 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   countDocuments: vi.fn(),
   handleUpload: vi.fn(),
+  consumeRateLimit: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
 vi.mock("@/features/documents/queries", () => ({ countDocuments: mocks.countDocuments }));
 // Stand-in for the SDK: run the route's onBeforeGenerateToken and return what it allowed.
 vi.mock("@vercel/blob/client", () => ({ handleUpload: mocks.handleUpload }));
+vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 
 const { POST } = await import("./route");
 
@@ -29,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: "user_alice" });
   mocks.countDocuments.mockResolvedValue(0);
+  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 19 });
   mocks.handleUpload.mockImplementation(
     async ({
       body,
@@ -55,6 +58,25 @@ describe("POST /api/documents/upload", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "That upload doesn't belong to your library." });
+    // A refused path doesn't use up an upload.
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("counts each token against the upload limit, and answers 429 once it's used up", async () => {
+    const ok = await POST(tokenRequest(`users/user_alice/${uuid}-a.pdf`));
+    expect(ok.status).toBe(200);
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith("user_alice", "upload");
+
+    mocks.consumeRateLimit.mockResolvedValue({
+      ok: false,
+      retryAfterSeconds: 600,
+      message: "You've uploaded 20 files in the last hour. You can upload more in 10 minutes.",
+    });
+    const limited = await POST(tokenRequest(`users/user_alice/${uuid}-b.pdf`));
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toEqual({
+      error: "You've uploaded 20 files in the last hour. You can upload more in 10 minutes.",
+    });
   });
 
   it("refuses a disallowed file type", async () => {
