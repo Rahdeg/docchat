@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ActionError, authedAction } from "@/lib/action";
 import { deleteBlob, readBlobHead } from "@/server/blob";
 import { indexDocument } from "@/server/ingest/index-document";
+import { peekRateLimit } from "@/server/rate-limit";
 
 import { createDocument, deleteDocument as deleteDocumentRow, resetForRetry } from "./mutations";
 import { getDocumentByBlobPathname } from "./queries";
@@ -90,6 +91,14 @@ export const deleteDocument = authedAction(documentIdInput, async ({ id }, { use
 
   if (deleted.blobPathname) await deleteQuietly(deleted.blobPathname);
   return { name: deleted.name };
+});
+
+// Why an upload failed, when it's the upload limit: the token route's 429 message doesn't
+// survive the Blob client, so the browser asks afterwards. Counts nothing. Null when uploads
+// are allowed (the failure was something else).
+export const uploadLimitReason = authedAction(z.object({}), async (_input, { userId }) => {
+  const check = await peekRateLimit(userId, "upload");
+  return check.ok ? null : check.message;
 });
 
 // The row is the source of truth; a leftover file is only wasted storage, so log and move on.

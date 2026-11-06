@@ -8,6 +8,7 @@ import { FREE_LIMIT_MESSAGE } from "@/features/chat/message";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   checkDailyLimit: vi.fn(),
+  consumeRateLimit: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
 vi.mock("@/server/ai/limits", () => ({ checkDailyLimit: mocks.checkDailyLimit }));
+vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -157,6 +159,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
   mocks.checkDailyLimit.mockResolvedValue({ ok: true });
+  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 29 });
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Rent" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-10-28T10:00:00Z"));
   mocks.listMessages.mockResolvedValue([]);
@@ -207,6 +210,26 @@ describe("POST /api/chat", () => {
     expect(mocks.ensureChat).not.toHaveBeenCalled();
     expect(mocks.searchPassages).not.toHaveBeenCalled();
     expect(mocks.checkDailyLimit).toHaveBeenCalledWith(alice);
+    // Refused before it counted as a search.
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("refuses with the search rate limit message before saving or searching", async () => {
+    mocks.consumeRateLimit.mockResolvedValue({
+      ok: false,
+      retryAfterSeconds: 12,
+      message: "That's a lot of searches in a minute. Try again in 12 seconds.",
+    });
+
+    const response = await post(body());
+
+    expect(response.status).toBe(429);
+    expect(await response.text()).toBe(
+      "That's a lot of searches in a minute. Try again in 12 seconds.",
+    );
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(alice, "search");
+    expect(mocks.ensureChat).not.toHaveBeenCalled();
+    expect(mocks.searchPassages).not.toHaveBeenCalled();
   });
 
   it("returns 404 for another user's chat, without saving or searching", async () => {
