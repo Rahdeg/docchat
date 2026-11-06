@@ -2,6 +2,7 @@
 // by the retrieval and answer evals.
 import { eq } from "drizzle-orm";
 
+import { fileKindOf, fileKinds } from "@/features/documents/upload-rules";
 import { db } from "@/server/db";
 import { document } from "@/server/db/schema";
 import { indexDocument } from "@/server/ingest/index-document";
@@ -22,9 +23,10 @@ export async function indexFixtures(
       .values({
         userId,
         name: fixture.name,
-        mimeType: "application/pdf",
+        // PDF, Markdown or text, by the file's extension.
+        mimeType: fileKinds[fileKindOf(fixture.file) ?? "pdf"].mimeType,
         sizeBytes: bytes.length,
-        blobPathname: `users/${userId}/eval-${fixture.file}`,
+        blobPathname: `users/${userId}/eval-${fixture.file.replaceAll("/", "-")}`,
       })
       .returning({ id: document.id });
     await indexDocument(userId, row!.id, { load: async () => bytes });
