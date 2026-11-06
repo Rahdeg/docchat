@@ -97,8 +97,15 @@ export async function embedChunks(
   return embeddings;
 }
 
-// Embeds a search query and records an `embed-query` usage row.
-export async function embedQuery(userId: string, query: string): Promise<number[]> {
+// What a query embedding is recorded as: a search in DocChat, or one from a connected AI app.
+export type QueryUsageKind = "embed-query" | "mcp-search";
+
+// Embeds a search query and records a usage row (`embed-query` unless told otherwise).
+export async function embedQuery(
+  userId: string,
+  query: string,
+  kind: QueryUsageKind = "embed-query",
+): Promise<number[]> {
   const result = await callModel(() =>
     embed({
       model: embeddingConfig.model,
@@ -109,7 +116,7 @@ export async function embedQuery(userId: string, query: string): Promise<number[
   );
   await recordUsage({
     userId,
-    kind: "embed-query",
+    kind,
     model: EMBEDDING_MODEL,
     tokens: tokensOf(result.usage, [{ content: query, tokenCount: countTokens(query) }]),
   });

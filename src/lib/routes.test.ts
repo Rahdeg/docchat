@@ -3,19 +3,32 @@ import { describe, expect, it } from "vitest";
 import { documentFileUrl, isPublicPath } from "./routes";
 
 describe("isPublicPath", () => {
-  it.each(["/", "/sign-in", "/sign-in/factor-one", "/sign-up", "/sign-up/verify-email-address"])(
-    "allows %s",
-    (pathname) => {
-      expect(isPublicPath(pathname)).toBe(true);
-    },
-  );
+  it.each([
+    "/",
+    "/sign-in",
+    "/sign-in/factor-one",
+    "/sign-up",
+    "/sign-up/verify-email-address",
+    "/mcp",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/.well-known/oauth-authorization-server",
+  ])("allows %s", (pathname) => {
+    expect(isPublicPath(pathname)).toBe(true);
+  });
 
-  it.each(["/library", "/chat", "/tasks", "/sign-inx", "/sign-up-admin", "/api/chat"])(
-    "protects %s",
-    (pathname) => {
-      expect(isPublicPath(pathname)).toBe(false);
-    },
-  );
+  it.each([
+    "/library",
+    "/chat",
+    "/tasks",
+    "/settings",
+    "/sign-inx",
+    "/sign-up-admin",
+    "/api/chat",
+    "/mcpx",
+    "/.well-knownx",
+  ])("protects %s", (pathname) => {
+    expect(isPublicPath(pathname)).toBe(false);
+  });
 });
 
 describe("documentFileUrl", () => {
