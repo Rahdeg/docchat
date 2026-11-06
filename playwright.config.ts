@@ -1,4 +1,8 @@
+import { loadEnvConfig } from "@next/env";
 import { defineConfig, devices } from "@playwright/test";
+
+// The Clerk keys (and E2E_CLERK_USER_EMAIL) from .env.local, for the signed-in specs.
+loadEnvConfig(process.cwd());
 
 // Runs against `pnpm dev` (started here, or reused if it's already running). Set E2E_BASE_URL
 // to test a server you started yourself instead, e.g. `pnpm build && pnpm start`.
@@ -7,6 +11,7 @@ const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
