@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { routes } from "@/lib/routes";
+import { askAboutUrl } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 import { displayState, type LibraryDocument } from "../library-document";
@@ -49,8 +49,11 @@ export function DocumentCard({ doc }: { doc: LibraryDocument }) {
           )}
         >
           {doc.status === "ready" ? (
-            // TODO(chat): open a chat scoped to this document once chat lands.
-            <Button nativeButton={false} render={<Link href={routes.chat} />} className="flex-1">
+            <Button
+              nativeButton={false}
+              render={<Link href={askAboutUrl(doc.id)} />}
+              className="flex-1"
+            >
               Ask about this
             </Button>
           ) : null}

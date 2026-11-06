@@ -11,6 +11,8 @@ import { asksForTasks, TURN_INTO_TASKS } from "../task-request";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("../actions", () => ({ rateAnswer: vi.fn() }));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 const { ChatView } = await import("./chat-view");
 
@@ -232,5 +234,84 @@ describe("the approval card", () => {
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(requests[0]).toMatchObject({ approval: { approved: false } });
     expect((requests[0] as { approval: { tasks?: unknown } }).approval.tasks).toBeUndefined();
+  });
+});
+
+describe("a chat opened from Ask about this", () => {
+  const lease = documents[0]!;
+  const contract = { id: "22222222-2222-4222-8222-222222222222", name: "Work contract.pdf" };
+
+  beforeEach(() => {
+    toast.mockClear();
+    window.history.replaceState(null, "", `/chat/${chatId}?documentId=${lease.id}`);
+  });
+
+  function renderLinked(props: { initialDocumentIds: string[]; notice?: string | null }) {
+    return render(
+      <ChatView
+        chatId={chatId}
+        title={null}
+        initialMessages={[]}
+        documents={[lease, contract]}
+        fromLink
+        {...props}
+      />,
+    );
+  }
+
+  it("starts with the document chosen, its name in the composer, focused", () => {
+    renderLinked({ initialDocumentIds: [lease.id] });
+
+    const composer = screen.getByRole("textbox", { name: "Ask about Tenancy agreement" });
+    expect(composer.getAttribute("placeholder")).toBe("Ask about Tenancy agreement");
+    expect(document.activeElement).toBe(composer);
+    expect(screen.getByRole("button", { name: /Tenancy agreement/ })).toBeTruthy();
+    expect(screen.getByText("Searching Tenancy agreement")).toBeTruthy();
+  });
+
+  it("drops the query from the URL, so a refresh doesn't reapply it", () => {
+    renderLinked({ initialDocumentIds: [lease.id] });
+
+    expect(window.location.pathname).toBe(`/chat/${chatId}`);
+    expect(window.location.search).toBe("");
+  });
+
+  it("sends the chosen document with the first question", async () => {
+    renderLinked({ initialDocumentIds: [lease.id] });
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "When is rent due?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ chatId, documentIds: [lease.id] });
+  });
+
+  it("shows why the document wasn't chosen, and searches everything", () => {
+    renderLinked({ initialDocumentIds: [], notice: "That document isn't ready yet" });
+
+    expect(toast).toHaveBeenCalledWith("That document isn't ready yet", expect.anything());
+    expect(screen.getByText("Searching all documents")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Ask about your documents" })).toBeTruthy();
+  });
+});
+
+describe("a saved chat reopened (reload or Recent chats)", () => {
+  it("keeps its saved scope and sends it with the next question", async () => {
+    render(
+      <ChatView
+        chatId={chatId}
+        title="Inventory"
+        initialMessages={[question]}
+        documents={documents}
+        initialDocumentIds={[documents[0]!.id]}
+      />,
+    );
+
+    expect(screen.getByText("Searching Tenancy agreement")).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "And the deposit?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ documentIds: [documents[0]!.id] });
   });
 });

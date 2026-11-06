@@ -64,6 +64,13 @@
       "when": 1793985718305,
       "tag": "0008_mcp_and_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794004068751,
+      "tag": "0009_chat_document_ids",
+      "breakpoints": true
     }
   ]
 }

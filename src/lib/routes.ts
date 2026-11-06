@@ -14,6 +14,12 @@ export function chatUrl(chatId: string): string {
   return `${routes.chat}/${chatId}`;
 }
 
+// "Ask about this" on a document: a new chat that starts scoped to it. The chat page reads the
+// id once, then drops it from the URL (src/features/chat/scope.ts).
+export function askAboutUrl(documentId: string): string {
+  return `${routes.chat}?documentId=${encodeURIComponent(documentId)}`;
+}
+
 // A document's original file, served to its owner only (src/app/api/documents/[id]/file).
 // `page` adds #page=N, which browsers' PDF viewers open at; pass it only for PDFs.
 export function documentFileUrl(documentId: string, page?: number | null): string {

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { sql } from "drizzle-orm";
 import { index, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core";
 
 import { createdAt, id, updatedAt, userId } from "./columns";
@@ -17,6 +18,12 @@ export const chat = pgTable(
     id: id(),
     userId: userId(),
     title: text("title").notNull(),
+    // The documents the chat searches, as last sent with a question; empty means all ready
+    // documents. Not foreign keys: a removed document just drops out (src/features/chat/scope.ts).
+    documentIds: uuid("document_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

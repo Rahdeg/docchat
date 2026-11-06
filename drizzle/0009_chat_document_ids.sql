@@ -1,0 +1,1 @@
+ALTER TABLE "chat" ADD COLUMN "document_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL;

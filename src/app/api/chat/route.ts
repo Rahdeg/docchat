@@ -37,6 +37,7 @@ import {
   saveUserMessage,
 } from "@/features/chat/mutations";
 import { getChat, listMessages } from "@/features/chat/queries";
+import { readyScope } from "@/features/chat/scope";
 import { asksForTasks } from "@/features/chat/task-request";
 import { listReadyDocuments } from "@/features/documents/queries";
 import { answerProposal } from "@/features/tasks/agent-tasks";
@@ -88,7 +89,7 @@ async function answerQuestion(
   body: z.output<typeof questionRequestSchema>,
   signal: AbortSignal,
 ) {
-  const { chatId, trigger, documentIds } = body;
+  const { chatId, trigger } = body;
   const question = questionSchema.safeParse(messageText(body.message));
   if (!question.success) {
     return fail(400, `Ask with ${QUERY_MIN_CHARS} to ${QUERY_MAX_CHARS} characters.`);
@@ -106,9 +107,16 @@ async function answerQuestion(
   const searches = await consumeRateLimit(userId, "search");
   if (!searches.ok) return fail(429, searches.message);
 
-  // Creates the chat on its first question. Another user's chat id is a 404, as if it didn't
-  // exist.
-  const chat = await ensureChat(userId, chatId, chatTitle(question.data));
+  // Only the user's ready documents: another user's id, or one being read or removed, is
+  // dropped, and nothing left means all documents (src/features/chat/scope.ts).
+  const scope = body.documentIds
+    ? readyScope(await listReadyDocuments(userId), body.documentIds)
+    : [];
+  const documentIds = scope.length > 0 ? scope : undefined;
+
+  // Creates the chat on its first question and saves the scope on it, so follow-ups and reloads
+  // keep it. Another user's chat id is a 404, as if it didn't exist.
+  const chat = await ensureChat(userId, chatId, chatTitle(question.data), scope);
   if (!chat) return fail(404, "This chat doesn't exist.");
 
   const askedAt = await saveUserMessage(userId, chatId, userMessage);

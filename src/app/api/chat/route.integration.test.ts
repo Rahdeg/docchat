@@ -80,7 +80,7 @@ describe.skipIf(!hasDatabase)("chat ownership (integration)", () => {
   const chatId = randomUUID();
 
   beforeAll(async () => {
-    await m.mutations.ensureChat(alice, chatId, "Alice's chat");
+    await m.mutations.ensureChat(alice, chatId, "Alice's chat", []);
     await m.mutations.saveUserMessage(alice, chatId, {
       id: randomUUID(),
       parts: [{ type: "text", text: "What is my rent?" }],
@@ -109,6 +109,37 @@ describe.skipIf(!hasDatabase)("chat ownership (integration)", () => {
     const [question] = await m.queries.listMessages(alice, chatId);
     expect(await m.mutations.setFeedback(bob, question!.id, "down")).toBe(false);
     expect(await m.queries.getChat(alice, chatId)).not.toBeNull();
+  });
+});
+
+describe.skipIf(!hasDatabase)("chat scope (integration)", () => {
+  const chatId = randomUUID();
+  const lease = randomUUID();
+  const contract = randomUUID();
+
+  it("saves the first question's documents and reopens with them", async () => {
+    await m.mutations.ensureChat(alice, chatId, "Rent", [lease]);
+
+    // A reload reads the chat again (src/app/(app)/chat/[chatId]/page.tsx).
+    expect(await m.queries.getChat(alice, chatId)).toMatchObject({ documentIds: [lease] });
+  });
+
+  it("updates the scope when a later question changes it", async () => {
+    await m.mutations.ensureChat(alice, chatId, "Rent", [lease, contract]);
+    expect((await m.queries.getChat(alice, chatId))?.documentIds).toEqual([lease, contract]);
+
+    await m.mutations.ensureChat(alice, chatId, "Rent", []);
+    expect((await m.queries.getChat(alice, chatId))?.documentIds).toEqual([]);
+  });
+
+  it("doesn't let user B change user A's scope", async () => {
+    await m.mutations.ensureChat(alice, chatId, "Rent", [lease]);
+
+    expect(await m.mutations.ensureChat(bob, chatId, "Mine", [contract])).toBeNull();
+    expect(await m.queries.getChat(alice, chatId)).toMatchObject({
+      title: "Rent",
+      documentIds: [lease],
+    });
   });
 });
 

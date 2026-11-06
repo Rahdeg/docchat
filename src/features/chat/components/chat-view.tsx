@@ -6,6 +6,7 @@ import { ArrowUpIcon, MessageSquareIcon, SquareIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { toast } from "sonner";
 
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
@@ -23,9 +24,10 @@ import {
 } from "@/components/ui/input-group";
 import { Message, MessageContent } from "@/components/ui/message";
 import type { ReadyDocument } from "@/features/documents/queries";
+import { displayName } from "@/features/documents/upload-rules";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { plural } from "@/lib/format";
-import { routes } from "@/lib/routes";
+import { chatUrl, routes } from "@/lib/routes";
 
 import type { ApprovedTask } from "../agent-parts";
 import { proposalState } from "../agent-view";
@@ -51,16 +53,32 @@ type ChatViewProps = {
   title: string | null;
   initialMessages: ChatUIMessage[];
   documents: ReadyDocument[];
+  // The documents it starts with: the saved chat's, or the one "Ask about this" named. Empty
+  // means all (src/features/chat/scope.ts).
+  initialDocumentIds?: string[];
+  // Why the linked document couldn't be chosen ("That document isn't ready yet").
+  notice?: string | null;
+  // Opened from "Ask about this" (?documentId=…): focus the composer and drop the query.
+  fromLink?: boolean;
 };
 
 // The citation the reader is looking at: which answer, which chip.
 type Active = { messageId: string; number: number };
 
-export function ChatView({ chatId, title, initialMessages, documents }: ChatViewProps) {
+export function ChatView({
+  chatId,
+  title,
+  initialMessages,
+  documents,
+  initialDocumentIds = [],
+  notice = null,
+  fromLink = false,
+}: ChatViewProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [input, setInput] = useState("");
-  const [documentIds, setDocumentIds] = useState<string[]>([]);
+  const [documentIds, setDocumentIds] = useState<string[]>(initialDocumentIds);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const [active, setActive] = useState<Active | null>(null);
   // Answers the user stopped in this session (saved ones carry their status).
   const [stoppedIds, setStoppedIds] = useState<string[]>([]);
@@ -155,6 +173,15 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
   const question = input.trim();
   const canSend = documents.length > 0 && question.length >= QUERY_MIN_CHARS && !busy;
 
+  // From "Ask about this": the link has done its job, so a refresh starts plain. The scope
+  // itself is saved on the chat with the first question.
+  useEffect(() => {
+    if (!fromLink) return;
+    window.history.replaceState(null, "", chatUrl(chatId));
+    composerRef.current?.focus();
+    if (notice) toast(notice, { id: "chat-scope-notice" });
+  }, [fromLink, chatId, notice]);
+
   // Follow the conversation as it grows.
   const count = messages.length;
   useEffect(() => {
@@ -217,6 +244,15 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
     setActive({ messageId, number });
     if (isMobile) setSheetOpen(true);
   }
+
+  const chosen = chosenDocuments(documents, documentIds);
+  const only = chosen.length === 1 ? documents.find((d) => d.id === chosen[0]) : undefined;
+  const prompt =
+    messages.length > 0
+      ? "Ask a follow-up"
+      : only
+        ? `Ask about ${displayName(only.name)}`
+        : "Ask about your documents";
 
   const firstQuestion = messages.find((m) => m.role === "user");
   const heading = title ?? (firstQuestion ? chatTitle(messageText(firstQuestion)) : "New chat");
@@ -288,8 +324,9 @@ export function ChatView({ chatId, title, initialMessages, documents }: ChatView
           ) : null}
           <InputGroup className="h-auto gap-2.5 rounded-[14px] border-border-strong bg-card p-3 shadow-composer paper">
             <InputGroupTextarea
-              aria-label={messages.length > 0 ? "Ask a follow-up" : "Ask about your documents"}
-              placeholder={messages.length > 0 ? "Ask a follow-up" : "Ask about your documents"}
+              ref={composerRef}
+              aria-label={prompt}
+              placeholder={prompt}
               rows={2}
               maxLength={QUERY_MAX_CHARS}
               value={input}
