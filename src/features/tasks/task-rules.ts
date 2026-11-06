@@ -17,6 +17,18 @@ export const calendarDaySchema = z.iso.date();
 
 export type CalendarDay = string;
 
+// Who added a task: the user on the Tasks page, the agent from a chat (approved by the user),
+// or the user's connected AI app over MCP (docs/adr/0008).
+export const taskCreators = ["user", "agent", "mcp"] as const;
+export type TaskCreator = (typeof taskCreators)[number];
+
+// Shown under a task that has no source.
+export const creatorLabels: Record<TaskCreator, string> = {
+  user: "Added by you",
+  agent: "From a chat",
+  mcp: "From your AI app",
+};
+
 // A task with what the Tasks page needs to show it. Dates are strings so it can cross from a
 // Server Component to the browser as is.
 export type TaskItem = {
@@ -28,7 +40,7 @@ export type TaskItem = {
   // ISO timestamps.
   completedAt: string | null;
   createdAt: string;
-  createdBy: "user" | "agent";
+  createdBy: TaskCreator;
   source: TaskSource | null;
 };
 
