@@ -11,7 +11,7 @@ import { requireUserId } from "@/server/auth";
 
 import { ChatSkeleton } from "../chat-skeleton";
 
-export const metadata: Metadata = { title: "Chat · DocChat" };
+export const metadata: Metadata = { title: "Chat" };
 
 export default function ChatPage({ params, searchParams }: PageProps<"/chat/[chatId]">) {
   return (

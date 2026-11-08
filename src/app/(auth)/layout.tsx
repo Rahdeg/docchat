@@ -1,51 +1,62 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { CitationChip } from "@/components/citation-chip";
+import { AuthProvider } from "@/components/auth-provider";
 import { Logo } from "@/components/logo";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { SkipLink } from "@/components/skip-link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { site } from "@/content/site";
+import { DeskComposition } from "@/features/public/components/compositions";
 import { routes } from "@/lib/routes";
 
+export const metadata: Metadata = {
+  description: "Sign in to DocChat to ask questions about your documents and check every answer.",
+};
+
+// docs/design/public/sign-in.html: the grey desk with the headline and a sheet-and-answer
+// picture on the left (from 900px), Clerk's form on white paper on the right. The page's h1 is
+// Clerk's own title ("Sign in to DocChat", set in AuthProvider's localization), so the desk
+// headline is a paragraph: on phones, where the desk is hidden, the h1 is still there.
 export default function AuthLayout({ children }: LayoutProps<"/">) {
   return (
-    <main className="grid min-h-svh flex-1 lg:grid-cols-2">
-      <section className="flex flex-col gap-8 bg-primary px-6 py-8 text-primary-foreground sm:px-10 lg:justify-between lg:p-12">
-        <Link href={routes.home} className="w-fit">
-          <Logo inverted />
-        </Link>
-
-        <div className="flex max-w-lg flex-col gap-4">
-          <h1 className="text-3xl font-semibold tracking-tight text-balance lg:text-4xl">
-            Answers from your documents,{" "}
-            <span className="rounded-sm bg-highlight box-decoration-clone px-1 text-highlight-foreground">
-              with the sources to prove it.
-            </span>
-          </h1>
-          <p className="text-primary-foreground/70">
-            Upload your files, ask in plain language, and check every answer against the passage it
-            came from.
+    <AuthProvider>
+      <div data-site className="flex min-h-svh flex-1 text-[15px] leading-[1.55] text-foreground">
+        <SkipLink />
+        <section
+          aria-label="About DocChat"
+          className="hidden flex-[1_1_560px] flex-col gap-10 overflow-hidden px-14 py-10 min-[900px]:flex"
+        >
+          <Link href={routes.home} className="self-start rounded-md">
+            <Logo size="lg" />
+          </Link>
+          <div className="mt-auto flex max-w-[520px] flex-col gap-7">
+            <p className="font-serif text-[46px] leading-[1.08] font-medium tracking-[-0.02em]">
+              {site.tagline}
+            </p>
+            <DeskComposition />
+          </div>
+          <p className="text-[13px] text-muted-foreground">
+            Your files are private and only reachable through your account.
           </p>
-        </div>
+        </section>
 
-        {/* Hidden on phones so the form stays near the top. */}
-        <Card className="hidden max-w-lg sm:flex">
-          <CardHeader>
-            <CardDescription>How many days of leave do new starters get?</CardDescription>
-          </CardHeader>
-          <CardContent className="leading-7">
-            New starters get 25 days of annual leave plus bank holidays{" "}
-            <CitationChip index={1} source="employee-handbook.pdf" page={2} />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="flex items-center justify-center px-6 py-10 sm:px-10">
-        {/* Clerk's components read the URL (usePathname), which Cache Components streams in. */}
-        <Suspense fallback={<Skeleton className="h-120 w-full max-w-100 rounded-xl" />}>
-          {children}
-        </Suspense>
-      </section>
-    </main>
+        <main
+          id="main"
+          tabIndex={-1}
+          className="flex flex-[1_1_480px] flex-col items-center gap-8 bg-card px-6 py-6 outline-none paper min-[900px]:justify-center min-[900px]:border-l min-[900px]:border-border min-[900px]:py-12"
+        >
+          <Link href={routes.home} className="self-start rounded-md min-[900px]:hidden">
+            <Logo size="lg" />
+          </Link>
+          <div className="flex w-full max-w-[380px] flex-1 flex-col justify-center min-[900px]:flex-none">
+            {/* Clerk's components read the URL (usePathname), which Cache Components streams in. */}
+            <Suspense fallback={<Skeleton className="h-[460px] w-full rounded-lg" />}>
+              {children}
+            </Suspense>
+          </div>
+        </main>
+      </div>
+    </AuthProvider>
   );
 }

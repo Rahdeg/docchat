@@ -15,7 +15,7 @@ import { TasksView } from "@/features/tasks/components/tasks-view";
 import { listTasks } from "@/features/tasks/queries";
 import { requireUserId } from "@/server/auth";
 
-export const metadata: Metadata = { title: "Tasks · DocChat" };
+export const metadata: Metadata = { title: "Tasks" };
 
 export default function TasksPage() {
   return (

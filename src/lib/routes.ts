@@ -7,6 +7,7 @@ export const routes = {
   tasks: "/tasks",
   settings: "/settings",
   mcp: "/mcp",
+  howWeTest: "/how-we-test",
 } as const;
 
 // One chat. A new chat's id is chosen before its first question; the chat is stored then.
@@ -30,10 +31,25 @@ export function documentFileUrl(documentId: string, page?: number | null): strin
 // Pages a signed-out visitor may open. The auth pages are catch-all routes (Clerk renders
 // steps like /sign-in/factor-one), so their sub-paths are public too. The MCP server and its
 // OAuth metadata are public to the proxy: /mcp checks its own bearer token (withMcpAuth), and
-// clients read /.well-known/* before they have one (docs/adr/0008).
-const publicPrefixes = [routes.signIn, routes.signUp, routes.mcp, "/.well-known"];
+// clients read /.well-known/* before they have one (docs/adr/0008). Crawlers and link previews
+// read robots.txt, the sitemap and the generated images signed out: /opengraph-image and
+// /apple-icon have no file extension, so the proxy's matcher doesn't skip them as it does
+// /icon.svg.
+const publicPrefixes = [
+  routes.signIn,
+  routes.signUp,
+  routes.mcp,
+  routes.howWeTest,
+  "/.well-known",
+  "/opengraph-image",
+  "/apple-icon",
+];
+const publicFiles = new Set(["/robots.txt", "/sitemap.xml"]);
+
+// Public pages that belong in the sitemap (src/app/sitemap.ts).
+export const indexablePaths = [routes.home, routes.howWeTest, routes.signUp, routes.signIn];
 
 export function isPublicPath(pathname: string): boolean {
-  if (pathname === routes.home) return true;
+  if (pathname === routes.home || publicFiles.has(pathname)) return true;
   return publicPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
