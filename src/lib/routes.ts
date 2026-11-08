@@ -32,8 +32,9 @@ export function documentFileUrl(documentId: string, page?: number | null): strin
 // steps like /sign-in/factor-one), so their sub-paths are public too. The MCP server and its
 // OAuth metadata are public to the proxy: /mcp checks its own bearer token (withMcpAuth), and
 // clients read /.well-known/* before they have one (docs/adr/0008). Crawlers and link previews
-// read robots.txt, the sitemap and the generated Open Graph image signed out. (The proxy's
-// matcher already skips static files such as /icon.svg and /apple-icon.png.)
+// read robots.txt, the sitemap and the generated images signed out: /opengraph-image and
+// /apple-icon have no file extension, so the proxy's matcher doesn't skip them as it does
+// /icon.svg.
 const publicPrefixes = [
   routes.signIn,
   routes.signUp,
@@ -41,6 +42,7 @@ const publicPrefixes = [
   routes.howWeTest,
   "/.well-known",
   "/opengraph-image",
+  "/apple-icon",
 ];
 const publicFiles = new Set(["/robots.txt", "/sitemap.xml"]);
 
