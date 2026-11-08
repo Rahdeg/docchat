@@ -36,7 +36,10 @@ don't duplicate or hand-edit the managed block:
 - MCP: `mcp-handler` 2 (MCP SDK v2, stateless Streamable HTTP, no SSE), `@clerk/backend` for OAuth
   token checks, `@clerk/mcp-tools` for the `.well-known` metadata routes
 - Tooling: pnpm (pinned via `packageManager`), ESLint 9 flat config, Prettier, lefthook, Vitest,
-  Playwright (e2e, `@clerk/testing` for signed-in specs), Dependabot
+  Playwright (e2e, `@clerk/testing` for signed-in specs; in CI with test doubles), Dependabot
+- Ops (`docs/adr/0009`): Docker (standalone output) + docker compose with Postgres/pgvector,
+  Sentry (`@sentry/nextjs` 11, errors only, only with `SENTRY_DSN`), structured JSON logs,
+  Vercel Web Analytics and Speed Insights. Launch steps: `docs/launch-checklist.md`
 
 ## Commands
 
@@ -53,7 +56,7 @@ or run `corepack enable pnpm` once if you want a bare `pnpm`.
 | `pnpm format`                 | Prettier write                                      |
 | `pnpm format:check`           | Prettier check (CI)                                 |
 | `pnpm test`                   | Vitest, single run                                  |
-| `pnpm test:e2e`               | Playwright e2e (local only, not in CI yet)          |
+| `pnpm test:e2e`               | Playwright e2e (CI: the `e2e` job, test doubles)    |
 | `pnpm db:generate`            | Generate a SQL migration from the schema            |
 | `pnpm db:migrate`             | Apply pending migrations (direct connection)        |
 | `pnpm db:studio`              | Drizzle Studio against `DATABASE_URL_UNPOOLED`      |
@@ -89,15 +92,19 @@ src/server/ingest/     text extraction and the indexing pipeline (server-only)
 src/server/mcp/        MCP server: token check (auth.ts), tools, untrusted-content wrapping
 src/server/account.ts  deleting a user's rows and files (the Clerk webhook)
 src/server/rate-limit.ts  sliding-window rate limits in Postgres (numbers in src/lib/rate-limits.ts)
-src/server/blob.ts     the only place that calls the Vercel Blob SDK
-src/lib/               utilities (cn, env, format, routes, app-url, security-headers, rate-limits)
-                       and authedAction() (action.ts)
+src/server/blob.ts     the only place that calls the Vercel Blob SDK (or the local store, storage/)
+src/server/log.ts      structured logs: typed events, fixed fields
+src/server/monitoring.ts  identifyUser / reportError for Sentry (src/lib/monitoring.ts: options, scrubbing)
+src/instrumentation.ts  server start: test-double guard, Sentry init, onRequestError
+src/lib/               utilities (cn, env, format, routes, app-url, security-headers, rate-limits,
+                       monitoring, test-doubles) and authedAction() (action.ts)
 src/proxy.ts           clerkMiddleware with optimistic redirects (Next 16 replaces middleware.ts)
 docs/adr/              architecture decision records
 docs/design/           HTML design mockups per area; match them when building that UI
 drizzle/               generated SQL migrations and snapshots (committed)
 scripts/               standalone scripts run with tsx (seed, backfill-embeddings)
-tests/e2e/             Playwright end-to-end tests (`*.spec.ts`); signed-in ones need E2E_CLERK_USER_EMAIL
+tests/e2e/             Playwright end-to-end tests (`*.spec.ts`); signed-in ones need E2E_CLERK_USER_EMAIL.
+                       flows.spec.ts: the signed-in user flows (serial, one user, setup project)
 tests/fixtures/        test files (PDFs), the PDF writer (pdf.mjs) and the script that uses it
 tests/evals/           retrieval, answer, agent and injection evals: fixtures, questions
                        (retrieval.json), scenarios (agent.json, injection.json), runners, results/
@@ -319,6 +326,35 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Before and after changing prompts, `escapeSourceText`, the MCP wrapping or the agent tools, run
   `pnpm eval:injection` (about 15 of the free tier's 20 daily requests; `--only` for a few) and
   commit the results file.
+
+## Production readiness rules (`docs/adr/0009`, `docs/launch-checklist.md`)
+
+- **Test doubles**: `EMBEDDING_PROVIDER=fake`, `CHAT_PROVIDER=fake` (`src/server/ai/fake.ts`,
+  built on `ai/test`'s mocks) and `STORAGE_DRIVER=local` (`src/server/storage/local.ts`) are for
+  CI's e2e job and Vitest only. Env validation rejects them unless `NODE_ENV=test` or `CI` is
+  set, never with `VERCEL`, and `src/instrumentation.ts` refuses to start with them. Don't loosen
+  that guard, and never run the fakes against a Neon branch (their vectors would sit next to
+  real ones). The fakes don't replace the evals.
+- Storage goes through `src/server/blob.ts` whatever the driver; `PUT /api/documents/upload/local`
+  must keep the token route's checks.
+- E2E in CI: Postgres service, build, `pnpm start`, fakes. The flows (`tests/e2e/flows.spec.ts`)
+  run serially as one Clerk dev-instance user created by global setup; give rows a run id so
+  reruns work. Steps that call a real chat model skip locally unless `CHAT_PROVIDER=fake` or
+  `E2E_LIVE_AI=1`. Repository secrets: the dev instance's Clerk keys, `E2E_CLERK_USER_EMAIL`,
+  `E2E_CLERK_USER_PASSWORD`.
+- Sentry: on only with `SENTRY_DSN`, errors only, no tracing or Replay. Never send document
+  text, passages, prompts, answers, file names or emails; only the Clerk user id. Init only with
+  `sentryOptions` (`src/lib/monitoring.ts`), and report handled errors with `reportError(error,
+"<fixed label>")`. Don't add integrations or `dataCollection` fields without updating
+  `monitoring.test.ts`. The browser loads the SDK lazily; keep it off the public pages' first
+  load.
+- Logs: important events go through `log()` (`src/server/log.ts`) with a typed event and fixed
+  fields (ids, counts, durations, model, `errorKind(error)`), never messages or text. A new event
+  is added to `LogEvents`.
+- Docker: `docker compose up` must work from a clean clone plus `.env.local` (built as a BuildKit
+  secret, never a layer). Standalone output only with `BUILD_STANDALONE=1`. Keep the pgvector
+  image on Neon's Postgres major (18) and pgvector version.
+- `/api/health` stays a database ping with a bare `{"status"}` body.
 
 ## Public pages rules (`docs/design/public`)
 

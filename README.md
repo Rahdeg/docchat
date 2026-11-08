@@ -22,6 +22,41 @@ discussed.
 Architecture decisions are in [`docs/adr`](docs/adr). Conventions for contributors and coding agents
 are in [`CLAUDE.md`](CLAUDE.md).
 
+## Run with Docker
+
+`docker compose up` runs DocChat at [localhost:3000](http://localhost:3000) with its own Postgres,
+so you don't need Node, pnpm or a Neon branch on your machine. You need Docker (Compose v2.17+
+for build secrets) and the same `.env.local` as for `pnpm dev`.
+
+```bash
+cp .env.example .env.local   # then fill it in: see "Local setup" below
+docker compose up --build    # first run builds the image (a few minutes)
+```
+
+What it starts (`docker-compose.yml`):
+
+- **db**: Postgres 18 with pgvector 0.8.6 (`pgvector/pgvector:0.8.6-pg18`), the same major and
+  extension as Neon. Data lives in the `db-data` volume; `docker compose down -v` deletes it.
+- **migrate**: applies the migrations in `drizzle/`, then exits. The app waits for it.
+- **app**: the production build (`Dockerfile`: Next.js standalone output on Node 24, as a
+  non-root user, with a `HEALTHCHECK` on `/api/health`). `docker compose ps` shows it as healthy
+  once the database answers.
+
+The database settings in `.env.local` are ignored: compose points the app at its own Postgres.
+Everything else comes from `.env.local`, and these services **stay external**, so their keys
+must be there:
+
+| Service         | Keys in `.env.local`                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| Clerk (sign-in) | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`    |
+| Vercel Blob     | `BLOB_READ_WRITE_TOKEN` (the private store; browsers upload straight to it)                |
+| The AI provider | `GOOGLE_GENERATIVE_AI_API_KEY` (default, fictional documents only) or `AI_GATEWAY_API_KEY` |
+
+`.env.local` reaches the build as a BuildKit secret (the public Clerk key and the CSP are built
+in), never as an image layer. After changing it, rebuild: `docker compose up --build`. Port 3000
+taken? `DOCCHAT_PORT=3200 docker compose up` (the MCP server's URL follows it). The database
+publishes no port; Neon stays the database for `pnpm dev`.
+
 ## Local setup
 
 Requires Node.js 24+ and Git. pnpm is pinned in `package.json` and runs through Corepack, so you
@@ -270,6 +305,23 @@ calls are limited to 60 a minute; set `MCP_ENABLED=false` to turn the server off
 This needs the Clerk dashboard steps in `docs/security.md` (MCP server URL, CIMD, default scopes)
 on the instance you're using.
 
+## Monitoring and logs
+
+- **Errors: Sentry** (`@sentry/nextjs`), on only when `SENTRY_DSN` is set. Errors only (no
+  tracing, Replay or feedback), and nothing personal: no document text, passages, prompts,
+  answers, file names, emails, headers, cookies or request bodies. The Clerk user id is the only
+  identifier. Reports go through our own origin (`/monitoring`). Source maps upload during the
+  Vercel build when `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` are set. Setup steps
+  are in `docs/launch-checklist.md`; the scrubbing is in `src/lib/monitoring.ts`.
+- **Logs**: one JSON line per important event (`src/server/log.ts`): `document.indexed`,
+  `document.index_failed`, `answer.generated` (tokens and latency), `agent.approved`,
+  `agent.cancelled` and `quota.hit`. Fixed fields only (ids, counts, durations, model, error
+  kind), never text. In Vercel's logs, filter on `"event":"quota.hit"`, for example.
+- **Analytics**: Vercel Web Analytics and Speed Insights, cookie-free, rendered only on Vercel.
+  Turn them on in the Vercel project (**Analytics** and **Speed Insights** tabs, then Enable).
+- **Health**: `GET /api/health` answers `{"status":"ok"}` (200) when the database answers, and
+  `{"status":"error"}` (503) otherwise. Nothing else: no versions, hosts or errors.
+
 ## Scripts
 
 | Script                        | Description                                       |
@@ -311,13 +363,42 @@ on the instance you're using.
   `node tests/fixtures/make-pdfs.mjs`. The indexing integration test reads them from disk, so it
   needs a database but not Blob.
 - Signed-in e2e specs (`tests/e2e/signed-in.spec.ts`: every page under the Content-Security-Policy
-  and a real upload to Blob) run when `E2E_CLERK_USER_EMAIL` names a user on your Clerk
-  development instance with no MFA. They sign in with `@clerk/testing` and `CLERK_SECRET_KEY`, so
+  and a real upload to Blob, which skips with `STORAGE_DRIVER=local`) run when
+  `E2E_CLERK_USER_EMAIL` names a user on your Clerk development instance with no MFA. They sign in with `@clerk/testing` and `CLERK_SECRET_KEY`, so
   no password is needed; Clerk's test addresses like `docchat-e2e+clerk_test@example.com` work.
   Run them against a production build to check the policy as deployed (development adds
   `'unsafe-eval'`).
-- **E2E tests don't run in CI yet.** CI runs the dependency audit, typecheck, lint, format check,
-  unit tests and the build.
+- **E2E in CI.** Every pull request runs two jobs in parallel: `ci` (dependency audit, typecheck,
+  lint, format check, unit tests, build) and `e2e`. The `e2e` job starts Postgres with pgvector,
+  migrates, builds, and runs Playwright against `pnpm start` with **test doubles** instead of the
+  services that cost quota or need a store (`docs/adr/0009`): `EMBEDDING_PROVIDER=fake` (hashed
+  bag-of-words vectors), `CHAT_PROVIDER=fake` (copies the best-matching sentence with a valid
+  citation, and proposes tasks from must/should sentences, built on the AI SDK's mock model) and
+  `STORAGE_DRIVER=local` (uploads on disk). They're allowed only when `NODE_ENV=test` or `CI` is
+  set, never on Vercel, and the server refuses to start with them otherwise. On failure the job
+  uploads the Playwright report and traces as the `playwright-report` artifact.
+- The CI job signs in to Clerk's **development** instance with a testing token. It needs four
+  repository secrets: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` (`pk_test_`,
+  `sk_test_`), `E2E_CLERK_USER_EMAIL` (a `+clerk_test` address, so no email is sent and the code
+  is `424242`) and `E2E_CLERK_USER_PASSWORD`. Global setup creates that user through the Backend
+  API if it doesn't exist. Forks don't get the secrets, so their `e2e` job skips with a notice.
+- The signed-in flows (`tests/e2e/flows.spec.ts`): upload `sample-tenancy-agreement.pdf` until
+  Ready, a cited answer and its highlighted source, "Ask about this", a task request approved with
+  one task unticked, a cancelled one, and a task added, ticked, edited and deleted by hand. To run
+  them like CI, against a local Postgres:
+
+  ```bash
+  docker run -d --name docchat-e2e-db -p 5433:5432 -e POSTGRES_USER=docchat \
+    -e POSTGRES_PASSWORD=docchat -e POSTGRES_DB=docchat pgvector/pgvector:0.8.6-pg18
+  export CI=1 EMBEDDING_PROVIDER=fake CHAT_PROVIDER=fake STORAGE_DRIVER=local \
+    DATABASE_URL=postgres://docchat:docchat@localhost:5433/docchat
+  export DATABASE_URL_UNPOOLED=$DATABASE_URL
+  corepack pnpm db:migrate && corepack pnpm build && corepack pnpm test:e2e
+  ```
+
+  Without the fakes, the steps that call the chat model skip (they'd spend the free tier's 20
+  requests a day) unless you set `E2E_LIVE_AI=1`. Never point the fakes at your Neon branch: their
+  vectors would sit next to real ones.
 
 ### Retrieval eval
 
