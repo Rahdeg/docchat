@@ -63,7 +63,7 @@ describe("Server Actions", () => {
 
 describe("route handlers", () => {
   // Each route and how it checks who's calling. A new route must be added here, with a check.
-  const checks: Record<string, RegExp | "public"> = {
+  const checks: Record<string, RegExp | "public" | "health"> = {
     "src/app/api/chat/route.ts": /await auth\(\)/,
     "src/app/api/documents/upload/route.ts": /await auth\(\)/,
     "src/app/api/documents/[id]/file/route.ts": /await auth\(\)/,
@@ -72,6 +72,8 @@ describe("route handlers", () => {
     // OAuth metadata: public by design, no user data (RFC 9728, RFC 8414).
     "src/app/.well-known/oauth-protected-resource/mcp/route.ts": "public",
     "src/app/.well-known/oauth-authorization-server/route.ts": "public",
+    // Liveness: public, pings the database and reads no user data.
+    "src/app/api/health/route.ts": "health",
   };
   const routes = files.filter((f) => /\/route\.tsx?$/.test(f.path));
 
@@ -83,6 +85,11 @@ describe("route handlers", () => {
     const check = checks[path];
     if (check === "public") {
       expect(source).not.toMatch(/@\/server\/db|@\/features\//);
+      return;
+    }
+    if (check === "health") {
+      expect(source).not.toMatch(/@\/features\/|auth\(|schema/);
+      expect(source).toMatch(/select 1/);
       return;
     }
     expect(source).toMatch(check!);
