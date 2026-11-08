@@ -16,6 +16,7 @@ import {
 import { env } from "@/lib/env";
 
 import { EMBEDDING_DIMENSIONS } from "./constants";
+import { fakeChatModel, fakeEmbeddingModel } from "./fake";
 
 // The "gateway" chat and embedding providers go through Vercel AI Gateway
 // (docs/adr/0005). With no key it falls back to the Vercel OIDC token, which is how deployments
@@ -24,7 +25,8 @@ export const gateway = createGateway({ apiKey: env.AI_GATEWAY_API_KEY });
 
 const google = createGoogleGenerativeAI({ apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY });
 
-export type EmbeddingProvider = "google" | "gateway";
+// "fake" is a test double for CI (src/server/ai/fake.ts, docs/adr/0009).
+export type EmbeddingProvider = "google" | "gateway" | "fake";
 // Some models embed documents and questions differently (asymmetric retrieval).
 export type EmbeddingTask = "document" | "query";
 type ProviderOptions = Parameters<typeof embed>[0]["providerOptions"];
@@ -87,6 +89,17 @@ export const EMBEDDING_CONFIGS: Record<EmbeddingProvider, EmbeddingConfig> = {
     // Not calibrated yet: run the eval with EMBEDDING_PROVIDER=gateway before launch.
     minSimilarity: 0.25,
   },
+  // Test double: hashed bag of words, offline. Scores are shared words over text length: a
+  // passage sharing one word with a short question scores about 0.1, one sharing none about 0.
+  // fake.test.ts checks this floor against the retrieval eval's questions.
+  fake: {
+    id: "fake/hashed-bag-of-words",
+    dimensions: 1536,
+    model: fakeEmbeddingModel,
+    providerOptions: () => undefined,
+    limits: { maxValues: 100, maxTokens: 50_000, parallel: 3, minIntervalMs: 0, maxRetries: 0 },
+    minSimilarity: 0.05,
+  },
 };
 
 // Validated env defaults to "google"; the fallback covers CI, which skips validation.
@@ -101,12 +114,16 @@ export const MIN_SIMILARITY = embeddingConfig.minSimilarity;
 
 // Whether the configured provider has a key here. Tests that embed for real skip without one.
 // (On Vercel the gateway can authenticate with OIDC instead.)
-export const hasEmbeddingKey =
-  EMBEDDING_PROVIDER === "google" ? !!env.GOOGLE_GENERATIVE_AI_API_KEY : !!env.AI_GATEWAY_API_KEY;
+export const hasEmbeddingKey = hasKey(EMBEDDING_PROVIDER);
+
+function hasKey(provider: EmbeddingProvider | ChatProvider): boolean {
+  if (provider === "fake") return true;
+  return provider === "google" ? !!env.GOOGLE_GENERATIVE_AI_API_KEY : !!env.AI_GATEWAY_API_KEY;
+}
 
 // Chat (docs/adr/0006). Three jobs, each with its own model: answering, rewriting a follow-up
 // into a standalone search query (small and cheap), and judging answers in the eval.
-export type ChatProvider = "google" | "gateway";
+export type ChatProvider = "google" | "gateway" | "fake";
 export type ChatTask = "answer" | "rewrite" | "judge";
 
 export type ChatModel = {
@@ -168,6 +185,16 @@ export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
     },
     limits: { minIntervalMs: 0, maxRetries: 2, maxDelayMs: 10_000 },
   },
+  // Test double: copies the best-matching sentence with a valid citation, and proposes tasks
+  // from must/should sentences (src/server/ai/fake.ts). One model for all three jobs.
+  fake: {
+    models: {
+      answer: { id: "fake/extractive", model: fakeChatModel },
+      rewrite: { id: "fake/extractive", model: fakeChatModel },
+      judge: { id: "fake/extractive", model: fakeChatModel },
+    },
+    limits: { minIntervalMs: 0, maxRetries: 0, maxDelayMs: 0 },
+  },
 };
 
 // Validated env defaults to "google"; the fallback covers CI, which skips validation.
@@ -180,7 +207,7 @@ export const chatConfig: ChatConfig = withAnswerModel(
 );
 
 function withAnswerModel(config: ChatConfig, modelId: string | undefined): ChatConfig {
-  if (!modelId) return config;
+  if (!modelId || CHAT_PROVIDER === "fake") return config;
   const answer: ChatModel =
     CHAT_PROVIDER === "google"
       ? {
@@ -193,5 +220,4 @@ function withAnswerModel(config: ChatConfig, modelId: string | undefined): ChatC
 }
 
 // Whether the chat provider has a key here. Tests that generate for real skip without one.
-export const hasChatKey =
-  CHAT_PROVIDER === "google" ? !!env.GOOGLE_GENERATIVE_AI_API_KEY : !!env.AI_GATEWAY_API_KEY;
+export const hasChatKey = hasKey(CHAT_PROVIDER);

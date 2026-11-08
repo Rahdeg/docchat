@@ -8,12 +8,15 @@ import { aiUsage } from "@/server/db/schema";
 
 // Answers per user per UTC day: CHAT_DAILY_LIMIT, or by provider. The Gemini free tier allows
 // about 20 answers a day for the whole project, so one user gets 10 of them; the gateway is paid.
+// The fake provider (CI's end-to-end tests) costs nothing.
+const DEFAULT_DAILY_LIMIT = { google: 10, gateway: 50, fake: 1_000 } as const;
+
 export function dailyLimitFrom(config: {
   CHAT_DAILY_LIMIT?: number;
-  CHAT_PROVIDER?: "google" | "gateway";
+  CHAT_PROVIDER?: keyof typeof DEFAULT_DAILY_LIMIT;
 }): number {
   // The provider fallback covers CI, which skips env validation.
-  return config.CHAT_DAILY_LIMIT ?? ((config.CHAT_PROVIDER ?? "google") === "google" ? 10 : 50);
+  return config.CHAT_DAILY_LIMIT ?? DEFAULT_DAILY_LIMIT[config.CHAT_PROVIDER ?? "google"];
 }
 
 export const CHAT_DAILY_LIMIT = dailyLimitFrom(env);
