@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DocChat – Sign in</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;display=swap">
+<style>
+body{margin:0;background:#E8EBEE}
+a{color:#1D2433}a:hover{color:#5A6272}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #1D2433;outline-offset:2px}
+</style>
+</helmet>
+<div style="font-family: Geist, system-ui, sans-serif; color: #1D2433; background: #E8EBEE; min-height: 900px; display: flex; flex-wrap: wrap; font-size: 15px; line-height: 1.55">
+
+<section aria-label="About DocChat" style="flex: 1 1 560px; box-sizing: border-box; padding: 40px 56px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<a href="landing.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; align-self: flex-start">
+<span style="width: 30px; height: 30px; border-radius: 7px; background: #1D2433; display: flex; align-items: center; justify-content: center"><span style="width: 14px; height: 5px; border-radius: 2px; background: #FFE45C"></span></span>
+<span style="font-weight: 600; font-size: 18px">DocChat</span></a>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 28px; max-width: 520px">
+<h1 style="margin: 0; font-family: Newsreader, Georgia, serif; font-size: 46px; line-height: 1.08; font-weight: 500; letter-spacing: -0.02em">Ask your documents. Check every answer.</h1>
+
+<div aria-hidden="true" style="position: relative; height: 300px">
+<div style="position: absolute; left: 10px; top: 10px; width: 340px; height: 270px; background: #F4F6F8; border: 1px solid #D5DAE0; border-radius: 3px; transform: rotate(-3deg)"></div>
+<div style="position: absolute; left: 0; top: 0; width: 340px; height: 270px; background: #FFFFFF; border: 1px solid #C7CED7; border-radius: 3px; box-shadow: 0 24px 40px -26px rgba(29,36,51,0.5); transform: rotate(-1deg); padding: 24px; box-sizing: border-box; font-family: Newsreader, Georgia, serif; font-size: 12.5px; line-height: 1.65; color: #3B4250; overflow: hidden">
+<div style="font-weight: 600; font-size: 14px; color: #1D2433; margin-bottom: 12px">Contract of employment</div>
+<p style="margin: 0 0 8px">8. Notice. <mark style="background: #FFE45C; color: #1D2433; padding: 1px 2px">8.1 After probation, either party may end your employment by giving four weeks' notice in writing.</mark></p>
+<p style="margin: 0 0 8px">8.2 After five years of service, the notice the Company must give increases by one week for each further complete year.</p>
+<p style="margin: 0">8.3 The Company may pay you in lieu of notice.</p>
+</div>
+<div style="position: absolute; left: 190px; top: 170px; width: 300px; background: #FFFFFF; border: 1px solid #C7CED7; border-radius: 12px; box-shadow: 0 24px 40px -24px rgba(29,36,51,0.55); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+<span style="align-self: flex-end; background: #1D2433; color: #FFFFFF; padding: 7px 11px; border-radius: 11px 11px 3px 11px; font-size: 13px">How much notice do I give?</span>
+<span style="font-size: 14px">Four weeks, in writing <span style="display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; height: 18px; min-width: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 4px; border: 1px solid #1D2433; background: #FFE45C; vertical-align: 2px">1</span></span>
+</div>
+</div>
+</div>
+<p style="margin: 0; font-size: 13px; color: #5A6272">Your files are private and only reachable through your account.</p>
+</section>
+
+<main style="flex: 1 1 480px; box-sizing: border-box; background: #FFFFFF; border-left: 1px solid #D5DAE0; padding: 48px 24px; display: flex; align-items: center; justify-content: center">
+<div style="width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Sign in to DocChat</h2>
+<p style="margin: 0; color: #5A6272">Welcome back. Your documents are where you left them.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<button type="button" style="font-family: inherit; font-size: 15px; font-weight: 500; height: 44px; border-radius: 8px; border: 1px solid #C7CED7; background: #FFFFFF; color: #1D2433; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>Continue with GitHub</button>
+<button type="button" style="font-family: inherit; font-size: 15px; font-weight: 500; height: 44px; border-radius: 8px; border: 1px solid #C7CED7; background: #FFFFFF; color: #1D2433; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M21 12h-9"></path></svg>Continue with Google</button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; color: #5A6272; font-size: 13px"><span style="flex: 1; height: 1px; background: #D5DAE0"></span>or<span style="flex: 1; height: 1px; background: #D5DAE0"></span></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="email" style="font-size: 14px; font-weight: 500">Email address</label>
+<input id="email" type="email" autocomplete="email" style="font-family: inherit; font-size: 15px; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid #C7CED7; background: #FFFFFF; color: #1D2433; box-sizing: border-box">
+</div>
+<a href="../library/library.html" style="height: 44px; border-radius: 8px; background: #1D2433; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Continue</a>
+<p style="margin: 0; text-align: center; color: #5A6272">New to DocChat? <a href="sign-in.html" style="font-weight: 500">Create an account</a></p>
+<p style="margin: 8px 0 0; text-align: center; font-size: 12px; color: #8A93A1">Secured by Clerk</p>
+</div>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
