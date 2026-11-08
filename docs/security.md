@@ -34,6 +34,7 @@ and don't depend on it. Signed-in pages are `noindex`, and `robots.txt` disallow
 | `GET/POST /mcp`                                 | A connected AI app, for the user who approved it | `withMcpAuth` + `verifyMcpToken`: a Clerk OAuth access token whose audience is exactly `<APP_URL>/mcp`, with the `profile` scope. 401 or 403 otherwise; 503 when `MCP_ENABLED=false`.                                                                  |
 | `GET /.well-known/oauth-protected-resource/mcp` | Anyone                                           | Public by design (RFC 9728): the resource URL, Clerk as authorization server, supported scopes. No user data.                                                                                                                                          |
 | `GET /.well-known/oauth-authorization-server`   | Anyone                                           | Public by design (RFC 8414): Clerk's metadata, fetched from Clerk. No user data.                                                                                                                                                                       |
+| `POST /monitoring` (`src/app/sentry-tunnel`)    | Anyone                                           | Public by design: Sentry's tunnel. Forwards error reports to Sentry for our own DSN only (403 otherwise, 413 over 20 MiB). Reports are scrubbed before they leave the browser. No user data read.                                                      |
 | `GET /api/health`                               | Anyone                                           | Public by design: a database ping (`select 1`) for the Docker `HEALTHCHECK` and uptime checks. `{"status":"ok"}` or a 503 `{"status":"error"}`; no versions, hosts or error text. `no-store`.                                                          |
 
 ### Server Actions
@@ -84,7 +85,8 @@ input schema has a user field). Each call counts against the MCP rate limit firs
     publishable key), Cloudflare's challenge and Clerk's protection hosts; `'unsafe-inline'`
     for scripts and styles (no nonce, see ADR 0008); `'unsafe-eval'` only under `next dev`.
   - `connect-src`: ourselves, Clerk, `*.protect.clerk.com:*`, `https://vercel.com/api/blob/`
-    (browser uploads), and Clerk's telemetry only with a development key.
+    (browser uploads), and Clerk's telemetry only with a development key. Sentry reports and
+    Vercel Analytics are same-origin (`/monitoring`, `/_vercel/*`), so they need no host.
   - `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`,
     `upgrade-insecure-requests` in production.
   - Fonts are self-hosted by `next/font`, so no Google Fonts hosts. Stored files are served by
@@ -102,11 +104,22 @@ input schema has a user field). Each call counts against the MCP rate limit firs
   | ------------------- | -------------- | ---------------------------------------------------------------- |
   | Questions (answers) | 10 or 50 a day | `POST /api/chat`, `CHAT_DAILY_LIMIT` (`src/server/ai/limits.ts`) |
   | Searches            | 30 a minute    | `POST /api/chat` questions and MCP `search_documents`            |
-  | Uploads             | 20 an hour     | `POST /api/documents/upload`, one per file                       |
+  | Uploads             | 20 an hour     | `POST /api/documents/upload` (or `/upload/local`), one per file  |
   | MCP calls           | 60 a minute    | Every MCP tool call                                              |
 
   Each refusal is a 429 (or an MCP error result) saying when to try again.
 
+- **Monitoring without personal data** (`docs/adr/0009`). Sentry runs only with `SENTRY_DSN`,
+  for errors only. It never receives document text, passages, prompts, answers, file names,
+  emails, headers, cookies, request bodies or query strings. The Clerk user id is the only
+  identifier (`src/lib/monitoring.ts`: `dataCollection` off, AI/console/Zod integrations
+  dropped, an allowlist `beforeSend` that scrubs messages; `monitoring.test.ts` checks it).
+  Server logs are typed JSON events with fixed fields (`src/server/log.ts`), never free text.
+  Vercel Web Analytics and Speed Insights are cookie-free and run only on Vercel.
+- **Test doubles never reach production.** The fake AI providers and the local file store
+  (`EMBEDDING_PROVIDER=fake`, `CHAT_PROVIDER=fake`, `STORAGE_DRIVER=local`) are rejected by env
+  validation unless `NODE_ENV=test` or `CI` is set, and never on Vercel. The server also refuses
+  to start with them (`src/instrumentation.ts`), even with validation skipped.
 - **Prompt injection.** Document text reaches a model only as marked, untrusted data: in
   `<source>` blocks for our answer model (`prompts.ts`), and in `<document_content
 untrusted="true">` blocks under a notice for a connected app's model (`src/server/mcp/content.ts`),
