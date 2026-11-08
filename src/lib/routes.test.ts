@@ -16,6 +16,7 @@ describe("isPublicPath", () => {
     "/robots.txt",
     "/sitemap.xml",
     "/opengraph-image",
+    "/apple-icon",
   ])("allows %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(true);
   });
