@@ -29,6 +29,8 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV BUILD_STANDALONE=1
+# public/ has no tracked files, so a fresh clone has no folder for the runner to copy.
+RUN mkdir -p public
 RUN --mount=type=secret,id=env_local,target=/app/.env.local,required=true \
     pnpm build
 
