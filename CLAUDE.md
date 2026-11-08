@@ -43,26 +43,27 @@ don't duplicate or hand-edit the managed block:
 pnpm is pinned per project and not installed globally. Run it through Corepack (`corepack pnpm <cmd>`),
 or run `corepack enable pnpm` once if you want a bare `pnpm`.
 
-| Command                       | What it does                                     |
-| ----------------------------- | ------------------------------------------------ |
-| `pnpm dev`                    | Dev server (Turbopack)                           |
-| `pnpm build`                  | Production build (also validates env)            |
-| `pnpm start`                  | Serve the production build                       |
-| `pnpm lint`                   | ESLint (`next lint` no longer exists in Next 16) |
-| `pnpm typecheck`              | `next typegen` then `tsc --noEmit`               |
-| `pnpm format`                 | Prettier write                                   |
-| `pnpm format:check`           | Prettier check (CI)                              |
-| `pnpm test`                   | Vitest, single run                               |
-| `pnpm test:e2e`               | Playwright e2e (local only, not in CI yet)       |
-| `pnpm db:generate`            | Generate a SQL migration from the schema         |
-| `pnpm db:migrate`             | Apply pending migrations (direct connection)     |
-| `pnpm db:studio`              | Drizzle Studio against `DATABASE_URL_UNPOOLED`   |
-| `pnpm db:seed`                | Reset and insert sample data (development only)  |
-| `pnpm db:backfill-embeddings` | (Re-)embed chunks missing a current-model vector |
-| `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration    |
-| `pnpm eval:answers`           | Answer eval: citations, grounding, honesty       |
-| `pnpm eval:agent`             | Agent eval: task recall, precision, sources      |
-| `pnpm eval:injection`         | Prompt-injection eval: hostile documents         |
+| Command                       | What it does                                        |
+| ----------------------------- | --------------------------------------------------- |
+| `pnpm dev`                    | Dev server (Turbopack)                              |
+| `pnpm build`                  | Eval summary, then production build (validates env) |
+| `pnpm start`                  | Serve the production build                          |
+| `pnpm lint`                   | ESLint (`next lint` no longer exists in Next 16)    |
+| `pnpm typecheck`              | `next typegen` then `tsc --noEmit`                  |
+| `pnpm format`                 | Prettier write                                      |
+| `pnpm format:check`           | Prettier check (CI)                                 |
+| `pnpm test`                   | Vitest, single run                                  |
+| `pnpm test:e2e`               | Playwright e2e (local only, not in CI yet)          |
+| `pnpm db:generate`            | Generate a SQL migration from the schema            |
+| `pnpm db:migrate`             | Apply pending migrations (direct connection)        |
+| `pnpm db:studio`              | Drizzle Studio against `DATABASE_URL_UNPOOLED`      |
+| `pnpm db:seed`                | Reset and insert sample data (development only)     |
+| `pnpm db:backfill-embeddings` | (Re-)embed chunks missing a current-model vector    |
+| `pnpm eval:retrieval`         | Retrieval eval: hit@k, MRR, floor calibration       |
+| `pnpm eval:answers`           | Answer eval: citations, grounding, honesty          |
+| `pnpm eval:agent`             | Agent eval: task recall, precision, sources         |
+| `pnpm eval:injection`         | Prompt-injection eval: hostile documents            |
+| `pnpm eval:summary`           | Write `src/content/eval-summary.json` from results  |
 
 `pnpm db:seed --user user_…` (or `SEED_USER_ID=user_…`) seeds a real Clerk user so the data shows
 up after signing in. It deletes that user's existing rows first.
@@ -73,11 +74,13 @@ CI also runs `pnpm audit --prod --audit-level=high`.
 ## Folder conventions
 
 ```
+src/app/(public)/      the landing page and /how-we-test (static, no Clerk)
 src/app/(auth)/        sign-in / sign-up routes (Clerk)
 src/app/(app)/         authenticated app routes
 src/components/ui/     shadcn-generated. Do not hand-edit.
 src/components/        shared app components built on ui/
-src/features/<name>/   feature modules: documents, chat, tasks, settings (components, actions, schemas,
+src/content/           site facts (site.ts: footer name and links) and the build-time eval summary
+src/features/<name>/   feature modules: documents, chat, tasks, settings, public (components, actions, schemas,
                        queries.ts for user-scoped reads, mutations.ts for writes)
 src/server/auth.ts     requireUserId() for Server Components
 src/server/db/         Drizzle client (index.ts) and schema/ (one file per area)
@@ -125,8 +128,9 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   (`bg-status-ready`, `-reading`, `-problem`, `-neutral`, each with a `-foreground` text colour).
   shadcn controls fill with `bg-background`, so on a white surface add the `paper` utility (it
   sets `--background` to the card colour) rather than overriding the control's colours.
-- `font-serif` (Newsreader) is only for document names and document text. All UI stays Geist;
-  don't use Geist Mono for UI labels.
+- `font-serif` (Newsreader) is only for document names and document text, plus the public
+  pages' headings and metric numbers (as `docs/design/public` shows). All UI stays Geist; don't
+  use Geist Mono for UI labels. Geist Mono is loaded only in the `(app)` layout.
 - Suspense fallbacks are prerendered, so they can't use `Math.random()` or the current time. That
   rules out shadcn's `SidebarMenuSkeleton`; use `Skeleton` with fixed widths.
 - Make small, focused commits with Conventional Commit messages (`feat:`, `fix:`, `chore:`,
@@ -316,6 +320,33 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   `pnpm eval:injection` (about 15 of the free tier's 20 daily requests; `--only` for a few) and
   commit the results file.
 
+## Public pages rules (`docs/design/public`)
+
+- `/` and `/how-we-test` live in `src/app/(public)/`: static (○ in `pnpm build`), no
+  `ClerkProvider`, no `auth()`. The proxy redirects signed-in visitors from `/` to `/library`
+  before the page renders; don't read the session in the page (it would make it dynamic).
+- Keep Clerk and Zod off the public and error pages: links from them to `/sign-in`, `/sign-up`
+  or app pages use `prefetch={false}` (a prefetch downloads Clerk's components).
+  `tests/e2e/public.spec.ts` fails if any script they load mentions Clerk.
+- "Measured, not promised" reads `src/content/eval-summary.json`, written by
+  `scripts/eval-summary.ts` before every build from the newest full run of each eval. Partial
+  (`--only`) and unfinished runs are skipped, and a metric the newest run lacks is hidden, never
+  taken from an older run. After saving new eval results, run `pnpm eval:summary` and commit the
+  JSON (a unit test checks they agree). Never hardcode a number on a public page.
+- Footer name and links: `src/content/site.ts`. Metadata: the root layout's `%s | DocChat` title
+  template, so pages set just their own title. Signed-in pages are `noindex`; the sitemap lists
+  `indexablePaths` (`src/lib/routes.ts`). A new public URL must be added to `isPublicPath`, or the
+  proxy sends signed-out visitors (and crawlers) to sign-in.
+- Clerk's forms are themed in `src/features/public/clerk-appearance.ts` with style objects
+  (Clerk's rules outrank Tailwind classes there) and worded through `AuthProvider`'s
+  `localization`; Clerk's title is the auth pages' h1.
+- Before calling public-page work done: the e2e and axe specs against `pnpm build && pnpm start`,
+  and Lighthouse (mobile) 95+ for performance and accessibility on `/`. Clerk's development
+  instance adds a handshake redirect for new browsers that production doesn't (about 2 s of
+  simulated mobile LCP), so also measure once with its cookies: visit `/` in a browser, copy the
+  `__clerk_db_jwt` and `__client_uat` cookies, and pass them with Lighthouse's
+  `--extra-headers='{"Cookie":"…"}'`.
+
 ## Auth rules (Clerk)
 
 - Auth uses `@clerk/nextjs`, the decided provider (`docs/adr/0002`). Treat the project as having
@@ -323,6 +354,9 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Never use Neon Auth or Better Auth (managed or self-hosted). The `neon` skills send login work
   to `neon-auth` and say to fetch it from neon.com; don't install or fetch it. We removed it
   on purpose. Skip their auth, `NEON_AUTH_*` and "Managed Better Auth" examples too.
+- `ClerkProvider` wraps only the `(app)` and `(auth)` groups, through `AuthProvider`
+  (`src/components/auth-provider.tsx`, which also holds the redirect URLs and the sign-in wording).
+  Don't move it back to the root layout: the public pages would load Clerk's SDK.
 - `src/proxy.ts` exports `clerkMiddleware` (there is no `middleware.ts` in Next 16). It only does
   optimistic redirects: signed-out visitors to `/sign-in`, signed-in visitors from `/` to
   `/library`. Public pages are listed in `isPublicPath()` (`src/lib/routes.ts`). Don't use
