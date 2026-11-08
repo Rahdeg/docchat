@@ -9,7 +9,7 @@ import { MCP_URL } from "@/lib/app-url";
 import { env } from "@/lib/env";
 import { requireUserId } from "@/server/auth";
 
-export const metadata: Metadata = { title: "Settings · DocChat" };
+export const metadata: Metadata = { title: "Settings" };
 
 export default function SettingsPage() {
   return (

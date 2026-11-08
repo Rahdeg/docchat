@@ -1,51 +1,27 @@
-import { ClerkProvider } from "@clerk/nextjs";
-import { shadcn } from "@clerk/ui/themes";
-import type { Metadata } from "next";
-import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
-import { Newsreader } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 
-import { Toaster } from "@/components/ui/sonner";
-import { ZodBrowserConfig } from "@/components/zod-browser-config";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { routes } from "@/lib/routes";
+import { site } from "@/content/site";
+import { APP_ORIGIN } from "@/lib/app-url";
+import { fontVariables } from "./fonts";
 import "./globals.css";
 
-// Serif for document names and document text only (font-serif). opsz keeps the 10px previews
-// and the large headings each in their optical size.
-const newsreader = Newsreader({
-  subsets: ["latin"],
-  axes: ["opsz"],
-  style: ["normal", "italic"],
-  variable: "--font-newsreader",
-});
-
 export const metadata: Metadata = {
-  title: "DocChat",
-  description: "Ask questions about your documents and get answers with cited sources.",
+  metadataBase: new URL(APP_ORIGIN),
+  title: { default: site.name, template: `%s | ${site.name}` },
+  description: site.description,
+  applicationName: site.name,
+  openGraph: { type: "website", siteName: site.name, locale: "en_GB" },
+  twitter: { card: "summary_large_image" },
 };
 
+export const viewport: Viewport = { themeColor: "#e8ebee" };
+
+// No ClerkProvider here: it wraps only the (app) and (auth) groups (src/components/auth-provider.tsx),
+// so the public and error pages ship no Clerk JavaScript.
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable} ${newsreader.variable} h-full antialiased`}
-    >
-      <body className="flex min-h-full flex-col">
-        <ZodBrowserConfig />
-        <ClerkProvider
-          appearance={{ theme: shadcn }}
-          signInUrl={routes.signIn}
-          signUpUrl={routes.signUp}
-          signInFallbackRedirectUrl={routes.library}
-          signUpFallbackRedirectUrl={routes.library}
-          afterSignOutUrl={routes.home}
-        >
-          <TooltipProvider>{children}</TooltipProvider>
-          {/* No theme provider yet, so pin it: "system" would follow the OS into dark toasts. */}
-          <Toaster position="bottom-right" theme="light" />
-        </ClerkProvider>
-      </body>
+    <html lang="en" className={`${fontVariables} h-full antialiased`}>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

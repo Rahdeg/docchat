@@ -35,6 +35,11 @@
   --shadow-sheet-raised: 0 18px 30px -18px rgb(29 36 51 / 0.45);
   /* The chat composer, floating over the page. */
   --shadow-composer: 0 12px 30px -18px rgb(29 36 51 / 0.4);
+  /* The public pages' hero: a lifted sheet and the answer card floating over it. */
+  --shadow-hero-sheet: 0 30px 50px -30px rgb(29 36 51 / 0.5);
+  --shadow-hero-card: 0 30px 50px -28px rgb(29 36 51 / 0.55);
+  --shadow-desk-sheet: 0 24px 40px -26px rgb(29 36 51 / 0.5);
+  --shadow-desk-card: 0 24px 40px -24px rgb(29 36 51 / 0.55);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -183,5 +188,14 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Public, auth and error pages (data-site): links and buttons show a 2px ink outline on
+     keyboard focus, as in docs/design/public. On the dark band it turns white (data-inverted). */
+  [data-site] :is(a, button):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+  [data-site] [data-inverted] :is(a, button):focus-visible {
+    outline-color: var(--primary-foreground);
   }
 }

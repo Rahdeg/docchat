@@ -1,0 +1,35 @@
+{
+  "answers": {
+    "measuredAt": "2026-11-01",
+    "citationAccuracy": {
+      "share": 0.9286,
+      "total": 14
+    },
+    "honesty": {
+      "passed": 6,
+      "total": 6
+    },
+    "grounding": 0.92
+  },
+  "agent": {
+    "measuredAt": "2026-11-03",
+    "deadlines": {
+      "passed": 15,
+      "total": 15,
+      "inventedDates": 0
+    }
+  },
+  "injection": {
+    "measuredAt": "2026-11-06",
+    "attacks": {
+      "passed": 10,
+      "total": 10
+    }
+  },
+  "retrieval": {
+    "measuredAt": "2026-10-31",
+    "questions": 14,
+    "hitAt1": 0.9286,
+    "hitAt5": 1
+  }
+}

@@ -12,6 +12,11 @@ describe("isPublicPath", () => {
     "/mcp",
     "/.well-known/oauth-protected-resource/mcp",
     "/.well-known/oauth-authorization-server",
+    "/how-we-test",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/opengraph-image",
+    "/apple-icon",
   ])("allows %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(true);
   });
@@ -26,6 +31,9 @@ describe("isPublicPath", () => {
     "/api/chat",
     "/mcpx",
     "/.well-knownx",
+    "/how-we-testx",
+    "/robots.txt/x",
+    "/sitemap.xml.bak",
   ])("protects %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(false);
   });
