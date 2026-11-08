@@ -52,7 +52,7 @@ describe("scrubEvent", () => {
       transaction: "/chat/abc?documentId=x",
       server_name: "host-1",
       extra: { passage: "The rent is 1,150 pounds" },
-      contexts: { os: { name: "Linux" }, response: { body: "answer" }, state: { x: 1 } },
+      contexts: { os: { name: "Linux" }, response: { status_code: 500 } },
       message: 'Failed to save "My lease.pdf" for a@b.co',
       exception: {
         values: [
