@@ -6,7 +6,7 @@ import { LibraryView } from "@/features/documents/components/library-view";
 import { listDocuments } from "@/features/documents/queries";
 import { requireUserId } from "@/server/auth";
 
-export const metadata: Metadata = { title: "Library · DocChat" };
+export const metadata: Metadata = { title: "Library" };
 
 // Server Actions on this page (registerDocument, retryDocument) index documents in after(),
 // which runs inside the same function and stops at this limit. 300 s is the most Vercel allows
