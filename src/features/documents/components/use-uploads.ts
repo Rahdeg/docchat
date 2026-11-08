@@ -37,13 +37,21 @@ export type UploadItem = {
 
 type UseUploadsOptions = {
   userId: string;
+  // Where files go: straight to Vercel Blob, or (CI's end-to-end tests only) to our own route
+  // for the local store (docs/adr/0009).
+  storage?: "blob" | "local";
   // Documents the user already has, for the client-side limit check.
   documentCount: number;
   // Ids currently listed, so registered uploads hand over to their document row.
   listedIds: ReadonlySet<string>;
 };
 
-export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptions) {
+export function useUploads({
+  userId,
+  storage = "blob",
+  documentCount,
+  listedIds,
+}: UseUploadsOptions) {
   const router = useRouter();
   const [items, setItems] = useState<UploadItem[]>([]);
   const controllers = useRef(new Map<string, AbortController>());
@@ -69,19 +77,20 @@ export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptio
       update(item.key, { state: "uploading", progress: 0 });
 
       try {
-        const blob = await upload(
-          buildBlobPathname(userId, item.file.name, crypto.randomUUID()),
-          item.file,
-          {
-            access: "private",
-            handleUploadUrl: "/api/documents/upload",
-            contentType: fileKinds[item.kind].mimeType,
-            multipart: item.file.size > MULTIPART_ABOVE,
-            abortSignal: controller.signal,
-            onUploadProgress: ({ percentage }) =>
-              update(item.key, { progress: Math.round(percentage) }),
-          },
-        );
+        const pathname = buildBlobPathname(userId, item.file.name, crypto.randomUUID());
+        const contentType = fileKinds[item.kind].mimeType;
+        const blob =
+          storage === "local"
+            ? await uploadLocal(pathname, item.file, contentType, controller.signal)
+            : await upload(pathname, item.file, {
+                access: "private",
+                handleUploadUrl: "/api/documents/upload",
+                contentType,
+                multipart: item.file.size > MULTIPART_ABOVE,
+                abortSignal: controller.signal,
+                onUploadProgress: ({ percentage }) =>
+                  update(item.key, { progress: Math.round(percentage) }),
+              });
         controllers.current.delete(item.key);
         update(item.key, { state: "registering", progress: 100 });
 
@@ -112,7 +121,7 @@ export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptio
         toast.error(message);
       }
     },
-    [router, update, userId],
+    [router, storage, update, userId],
   );
 
   // Starts waiting files while fewer than CONCURRENCY are uploading. Runs again whenever one
@@ -187,4 +196,19 @@ export function useUploads({ userId, documentCount, listedIds }: UseUploadsOptio
   }, [listedIds]);
 
   return { items: visible, addFiles, cancel: removeItem, dismiss: removeItem };
+}
+
+// The local store's upload (PUT /api/documents/upload/local): same result shape as Blob's.
+async function uploadLocal(
+  pathname: string,
+  file: File,
+  contentType: string,
+  signal: AbortSignal,
+): Promise<{ pathname: string }> {
+  const response = await fetch(
+    `/api/documents/upload/local?pathname=${encodeURIComponent(pathname)}`,
+    { method: "PUT", body: file, headers: { "content-type": contentType }, signal },
+  );
+  if (!response.ok) throw new Error(`Local upload failed (${response.status})`);
+  return { pathname };
 }

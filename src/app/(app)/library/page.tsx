@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LibraryView } from "@/features/documents/components/library-view";
 import { listDocuments } from "@/features/documents/queries";
 import { requireUserId } from "@/server/auth";
+import { storageDriver } from "@/server/blob";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -25,7 +26,7 @@ export default function LibraryPage() {
 async function Library() {
   const userId = await requireUserId();
   const documents = await listDocuments(userId);
-  return <LibraryView userId={userId} documents={documents} />;
+  return <LibraryView userId={userId} documents={documents} storage={storageDriver} />;
 }
 
 // Prerendered, so fixed sizes only (no random widths or current time).

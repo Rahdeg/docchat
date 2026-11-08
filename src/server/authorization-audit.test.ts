@@ -66,6 +66,8 @@ describe("route handlers", () => {
   const checks: Record<string, RegExp | "public" | "health"> = {
     "src/app/api/chat/route.ts": /await auth\(\)/,
     "src/app/api/documents/upload/route.ts": /await auth\(\)/,
+    // STORAGE_DRIVER=local only (CI's end-to-end tests); a 404 otherwise.
+    "src/app/api/documents/upload/local/route.ts": /await auth\(\)[\s\S]*checkUploadPath\(userId/,
     "src/app/api/documents/[id]/file/route.ts": /await auth\(\)/,
     "src/app/api/webhooks/clerk/route.ts": /verifyWebhook\(/,
     "src/app/mcp/route.ts": /createAuthedMcpHandler\(/,
