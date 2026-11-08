@@ -77,6 +77,15 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: z.string().min(1).optional(),
     // Turns the MCP server off: /mcp answers 503 and Settings says it's off. Default on.
     MCP_ENABLED: z.stringbool().default(true),
+    // Sentry error monitoring (src/lib/monitoring.ts). Unset: monitoring is off everywhere. Read
+    // at build too: next.config.ts copies it to the browser as NEXT_PUBLIC_SENTRY_DSN.
+    SENTRY_DSN: z.url().optional(),
+    // Build only: uploading source maps to Sentry. All three, or no upload.
+    SENTRY_AUTH_TOKEN: z.string().min(1).optional(),
+    SENTRY_ORG: z.string().min(1).optional(),
+    SENTRY_PROJECT: z.string().min(1).optional(),
+    // Set by Vercel: production, preview or development. Sentry's environment.
+    VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
     // Sends the Content-Security-Policy as Content-Security-Policy-Report-Only instead, so a
     // policy that breaks a page can be relaxed without blocking anything. Read at build time
     // (next.config.ts), so changing it needs a redeploy. Default off: the policy is enforced.
@@ -104,6 +113,11 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     MCP_ENABLED: process.env.MCP_ENABLED,
     CSP_REPORT_ONLY: process.env.CSP_REPORT_ONLY,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
+    SENTRY_ORG: process.env.SENTRY_ORG,
+    SENTRY_PROJECT: process.env.SENTRY_PROJECT,
+    VERCEL_ENV: process.env.VERCEL_ENV,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
   // CI builds and tests run without a database. Never set this in a deployed environment.

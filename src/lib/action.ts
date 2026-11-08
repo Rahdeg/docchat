@@ -4,6 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 
+import { identifyUser, reportError } from "@/server/monitoring";
+
 export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
@@ -25,6 +27,7 @@ export function authedAction<Schema extends z.ZodType, Data>(
   return async (input) => {
     const { userId } = await auth();
     if (!userId) return { ok: false, error: "You need to be signed in." };
+    identifyUser(userId);
 
     const parsed = schema.safeParse(input);
     if (!parsed.success) {
@@ -42,6 +45,7 @@ export function authedAction<Schema extends z.ZodType, Data>(
       unstable_rethrow(error);
       if (error instanceof ActionError) return { ok: false, error: error.message };
       console.error(error);
+      reportError(error, "server-action");
       return { ok: false, error: "Something went wrong. Please try again." };
     }
   };

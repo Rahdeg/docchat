@@ -17,6 +17,7 @@ describe("isPublicPath", () => {
     "/sitemap.xml",
     "/opengraph-image",
     "/apple-icon",
+    "/monitoring",
   ])("allows %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(true);
   });
@@ -34,6 +35,8 @@ describe("isPublicPath", () => {
     "/how-we-testx",
     "/robots.txt/x",
     "/sitemap.xml.bak",
+    "/monitoringx",
+    "/sentry-tunnel",
   ])("protects %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(false);
   });

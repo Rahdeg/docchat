@@ -74,6 +74,8 @@ describe("route handlers", () => {
     // OAuth metadata: public by design, no user data (RFC 9728, RFC 8414).
     "src/app/.well-known/oauth-protected-resource/mcp/route.ts": "public",
     "src/app/.well-known/oauth-authorization-server/route.ts": "public",
+    // Sentry's tunnel: public by design, forwards error reports for our own DSN only.
+    "src/app/sentry-tunnel/route.ts": "public",
     // Liveness: public, pings the database and reads no user data.
     "src/app/api/health/route.ts": "health",
   };
