@@ -13,6 +13,8 @@ import { ABOUT_ANSWER, isAboutAnswer, isAboutDocChat } from "@/features/chat/abo
 import type { ChatUIMessage, PassageData } from "@/features/chat/message";
 import { PASSAGE_LIMIT } from "@/features/chat/find-rules";
 
+import { log, since } from "@/server/log";
+
 import { createModelCaller } from "./call-model";
 import { readsStandalone } from "./follow-up";
 import { CitationFilter, parseCitationBlock, resolveCitations, type Resolved } from "./citations";
@@ -149,10 +151,15 @@ export function streamAnswer({
   const messages = answerMessages(history, question, passages);
   const { id, model, providerOptions } = chatConfig.models.answer;
 
+  const started = performance.now();
   let recorded = false;
-  function record(usage?: Parameters<typeof recordGeneration>[0]["usage"]) {
+  function record(
+    status: "complete" | "stopped" | "failed",
+    usage?: Parameters<typeof recordGeneration>[0]["usage"],
+  ) {
     if (recorded) return;
     recorded = true;
+    logAnswer(status, usage);
     void recordGeneration({
       userId,
       kind: "chat",
@@ -160,6 +167,21 @@ export function streamAnswer({
       usage,
       prompt: ANSWER_SYSTEM_PROMPT + messages.map((m) => JSON.stringify(m.content)).join("\n"),
       output: filter.text + filter.block,
+    });
+  }
+
+  function logAnswer(
+    status: "complete" | "stopped" | "failed",
+    usage?: Parameters<typeof recordGeneration>[0]["usage"],
+  ) {
+    log("answer.generated", {
+      userId,
+      mode: "answer",
+      model: id,
+      status,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
+      durationMs: since(started),
     });
   }
 
@@ -173,12 +195,13 @@ export function streamAnswer({
     abortSignal,
     timeout: ANSWER_TIMEOUT,
     experimental_transform: citationTransform(filter),
-    onEnd: ({ totalUsage }) => record(totalUsage),
-    onAbort: () => record(),
+    onEnd: ({ totalUsage }) => record("complete", totalUsage),
+    onAbort: () => record("stopped"),
     // A request that failed before writing anything costs nothing and isn't counted.
     onError: ({ error }) => {
       console.error("Answer generation failed", error);
-      if (filter.text || filter.block) record();
+      if (filter.text || filter.block) record("failed");
+      else logAnswer("failed");
     },
   });
 

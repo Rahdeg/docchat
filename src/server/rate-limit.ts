@@ -11,6 +11,7 @@ import {
 } from "@/lib/rate-limits";
 import { db } from "@/server/db";
 import { rateLimitEvent } from "@/server/db/schema";
+import { log } from "@/server/log";
 
 // Sliding-window rate limits in Postgres (docs/adr/0008). No Redis: the counts live in
 // rate_limit_event, one row per counted request.
@@ -78,7 +79,10 @@ export async function consumeRateLimit(
         ),
       );
     const { used, retryAfterSeconds } = await windowState(tx, userId, bucket);
-    if (used >= limit.max) return result(bucket, limit, used, retryAfterSeconds);
+    if (used >= limit.max) {
+      log("quota.hit", { userId, limit: bucket }, "warn");
+      return result(bucket, limit, used, retryAfterSeconds);
+    }
     await tx.insert(rateLimitEvent).values({ userId, bucket });
     return { ok: true, remaining: limit.max - used - 1 };
   });
