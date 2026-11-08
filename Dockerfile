@@ -39,7 +39,10 @@ FROM base AS migrate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 USER node
-CMD ["pnpm", "db:migrate"]
+# drizzle-kit directly, like `pnpm db:migrate`: pnpm at run time would fetch itself and re-check
+# the lockfile against the registry.
+ENV NODE_OPTIONS=--conditions=react-server
+CMD ["node_modules/.bin/drizzle-kit", "migrate"]
 
 # The image that runs: the traced standalone server and its static files, nothing else.
 FROM node:${NODE_VERSION}-alpine AS runner
