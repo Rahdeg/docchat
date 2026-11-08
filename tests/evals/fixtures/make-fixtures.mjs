@@ -4,7 +4,7 @@
 //
 // Changing the text changes what the eval measures: re-check tests/evals/retrieval.json (pages
 // and quotes) and note it next to the next results file.
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 import { pdf, textPage, wrap } from "../../fixtures/pdf.mjs";
 
@@ -143,3 +143,8 @@ writeFileSync(new URL("tenancy-agreement.pdf", dir), pdf(tenancy));
 writeFileSync(new URL("employment-contract.pdf", dir), pdf(employment));
 writeFileSync(new URL("course-syllabus.pdf", dir), pdf(syllabus));
 writeFileSync(new URL("welcome-letter.pdf", dir), pdf(letter));
+
+// The end-to-end tests' sample upload: the same fictional tenancy agreement.
+const samples = new URL("../../fixtures/samples/", dir);
+mkdirSync(samples, { recursive: true });
+writeFileSync(new URL("sample-tenancy-agreement.pdf", samples), pdf(tenancy));
