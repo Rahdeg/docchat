@@ -28,7 +28,7 @@ const STOP_WORDS = new Set(
   ).split(" "),
 );
 
-// Lowercased words without stop words, with plurals and -ing/-ed endings cut off, so "rents",
+// Lowercased words without stop words, with plurals and -ing/-ed/-ly endings cut off, so "rents",
 // "renting" and "rent" count as one term.
 export function terms(text: string): string[] {
   const words =
@@ -38,7 +38,7 @@ export function terms(text: string): string[] {
       .match(/[a-z0-9]+/g) ?? [];
   return words
     .filter((word) => word.length > 1 && !STOP_WORDS.has(word))
-    .map((word) => (word.length > 4 ? word.replace(/(?:ing|ed|es|s)$/, "") : word));
+    .map((word) => (word.length > 4 ? word.replace(/(?:ing|ed|es|ly|s)$/, "") : word));
 }
 
 // 32-bit FNV-1a.
