@@ -7,7 +7,7 @@ import { requireUserId } from "@/server/auth";
 
 import { ChatSkeleton } from "./chat-skeleton";
 
-export const metadata: Metadata = { title: "Chat · DocChat" };
+export const metadata: Metadata = { title: "Chat" };
 
 // "New chat": picks the new chat's id and opens it. The chat is stored with its first
 // question, so the page that answers it is the one it stays on (docs/adr/0006). "Ask about
