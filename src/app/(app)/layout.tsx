@@ -1,3 +1,4 @@
+import { GeistMono } from "geist/font/mono";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -18,7 +19,8 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <AuthProvider>
       <TooltipProvider>
-        <SidebarProvider>
+        {/* Geist Mono (font-mono) is only used here, so only these pages preload it. */}
+        <SidebarProvider className={GeistMono.variable}>
           <AppSidebar />
           <SidebarInset>
             <header className="flex h-12 items-center gap-2 border-b bg-sidebar px-3 md:hidden">

@@ -34,13 +34,20 @@ export function SiteHeader() {
         ))}
       </nav>
       <div className="ml-auto flex gap-2.5">
+        {/* No prefetch: the auth pages' code includes Clerk's components, which the public
+            pages shouldn't download until someone actually goes to sign in. */}
         <Link
           href={routes.signIn}
+          prefetch={false}
           className={cn(outlineLink, "h-11 px-3.5 text-[15px] md:h-10 md:px-4")}
         >
           Sign in
         </Link>
-        <Link href={routes.signUp} className={cn(inkLink, "hidden h-10 px-4 text-[15px] md:flex")}>
+        <Link
+          href={routes.signUp}
+          prefetch={false}
+          className={cn(inkLink, "hidden h-10 px-4 text-[15px] md:flex")}
+        >
           Get started free
         </Link>
       </div>
