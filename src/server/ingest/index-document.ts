@@ -9,6 +9,8 @@ import { EMBEDDING_MODEL } from "@/server/ai/models";
 import { downloadBlob } from "@/server/blob";
 import { db } from "@/server/db";
 import { chunk, document, documentPage } from "@/server/db/schema";
+import { errorKind, log, since } from "@/server/log";
+import { reportError } from "@/server/monitoring";
 
 import { extractPages, IndexingError, messages } from "./extract";
 
@@ -49,6 +51,7 @@ export async function indexDocument(
   if (!doc) return;
 
   const stillIndexing = and(where, eq(document.status, "indexing"));
+  const started = performance.now();
 
   try {
     const kind = fileKindOfMimeType(doc.mimeType) ?? fileKindOf(doc.name);
@@ -127,11 +130,25 @@ export async function indexDocument(
       // Deleted or reset while we were reading: keep nothing.
       if (!ready) tx.rollback();
     });
+    log("document.indexed", {
+      userId,
+      documentId,
+      pages: pages.length,
+      chunks: chunks.length,
+      durationMs: since(started),
+      model: EMBEDDING_MODEL,
+    });
   } catch (error) {
     if (error instanceof TransactionRollbackError || error instanceof AbandonedError) return;
     if (!(error instanceof IndexingError)) {
       console.error(`Indexing document ${documentId} failed`, error);
+      reportError(error, "indexing");
     }
+    log(
+      "document.index_failed",
+      { userId, documentId, durationMs: since(started), error: errorKind(error) },
+      "warn",
+    );
     const message = error instanceof IndexingError ? error.message : messages.generic;
     await db
       .update(document)

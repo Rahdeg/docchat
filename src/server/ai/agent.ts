@@ -27,6 +27,8 @@ import { chatConfig, MIN_SIMILARITY } from "./models";
 import { AGENT_SYSTEM_PROMPT, agentMessages, searchResultText } from "./prompts";
 import { checkProposal } from "./proposal";
 import { searchPassages } from "./retrieve";
+import { log, since } from "@/server/log";
+
 import { recordGeneration } from "./usage";
 
 // Task mode (docs/adr/0007): when the user asks for tasks, the answer model gets two tools.
@@ -172,7 +174,27 @@ export function streamAgent({
   // Usage: one `chat` row per model call, so each step counts towards the daily limit.
   let stepOutput = "";
   let stepOpen = false;
+  // For the run's log line: model calls and their tokens.
+  const started = performance.now();
+  const totals = { steps: 0, inputTokens: 0, outputTokens: 0, logged: false };
+  function logRun(status: "complete" | "stopped" | "failed") {
+    if (totals.logged) return;
+    totals.logged = true;
+    log("answer.generated", {
+      userId,
+      mode: "agent",
+      model: id,
+      status,
+      inputTokens: totals.inputTokens,
+      outputTokens: totals.outputTokens,
+      durationMs: since(started),
+      steps: totals.steps,
+    });
+  }
   async function record(usage?: Parameters<typeof recordGeneration>[0]["usage"]) {
+    totals.steps += 1;
+    totals.inputTokens += usage?.inputTokens ?? 0;
+    totals.outputTokens += usage?.outputTokens ?? 0;
     stepOpen = false;
     const output = stepOutput;
     stepOutput = "";
@@ -202,13 +224,16 @@ export function streamAgent({
       },
     }),
     onStepEnd: ({ usage }) => record(usage),
+    onEnd: () => logRun("complete"),
     onAbort: () => {
       if (stepOpen) void record();
+      logRun("stopped");
     },
     // A step that failed before writing anything costs nothing and isn't counted.
     onError: ({ error }) => {
       console.error("Agent generation failed", error);
       if (stepOpen) void record();
+      logRun("failed");
     },
   });
 
