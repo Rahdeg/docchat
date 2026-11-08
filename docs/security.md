@@ -10,8 +10,17 @@ Every entry point and how it finds the user. `src/server/authorization-audit.tes
 honest: it fails if a `"use server"` file exports anything not built with `authedAction`, if a
 route handler isn't listed there with its check, or if the MCP handler stops requiring a token.
 
-The proxy (`src/proxy.ts`) only redirects; it is never the check. Public to it: `/`, `/sign-in`,
-`/sign-up`, `/mcp` and `/.well-known/*`. It leaves `/api/*` alone, so routes answer 401 themselves.
+The proxy (`src/proxy.ts`) only redirects; it is never the check. Public to it (`isPublicPath`,
+`src/lib/routes.ts`): `/`, `/how-we-test`, `/sign-in`, `/sign-up`, `/mcp`, `/.well-known/*`, and
+the files crawlers and link previews fetch (`/robots.txt`, `/sitemap.xml`, `/opengraph-image`,
+`/apple-icon`). None of those show user data. It leaves `/api/*` alone, so routes answer 401
+themselves. Signed-in visitors to `/` are redirected to `/library` by the proxy, so the landing
+page itself never reads the session and stays static.
+
+Clerk's browser SDK loads only where `ClerkProvider` is: the `(app)` and `(auth)` groups
+(`AuthProvider`, `src/components/auth-provider.tsx`). The public and error pages run no Clerk
+JavaScript; server-side checks (`auth()`, `verifyMcpToken`, `verifyWebhook`) read the request
+and don't depend on it. Signed-in pages are `noindex`, and `robots.txt` disallows them.
 
 ### Route handlers
 
