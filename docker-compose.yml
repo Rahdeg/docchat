@@ -7,16 +7,18 @@
 name: docchat
 
 x-database: &database
-  DATABASE_URL: postgres://docchat:docchat@db:5432/docchat
-  DATABASE_URL_UNPOOLED: postgres://docchat:docchat@db:5432/docchat
+  DATABASE_URL: postgres://docchat@db:5432/docchat
+  DATABASE_URL_UNPOOLED: postgres://docchat@db:5432/docchat
 
 services:
   db:
     image: pgvector/pgvector:0.8.6-pg18
+    # Local only: no published port, reachable just from the app and migrate containers, so no
+    # password (trust) and no credential in the repo.
     environment:
       POSTGRES_USER: docchat
-      POSTGRES_PASSWORD: docchat
       POSTGRES_DB: docchat
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       # Postgres 18 images keep their data under /var/lib/postgresql/18.
       - db-data:/var/lib/postgresql

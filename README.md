@@ -388,10 +388,10 @@ on the instance you're using.
   them like CI, against a local Postgres:
 
   ```bash
-  docker run -d --name docchat-e2e-db -p 5433:5432 -e POSTGRES_USER=docchat \
-    -e POSTGRES_PASSWORD=docchat -e POSTGRES_DB=docchat pgvector/pgvector:0.8.6-pg18
+  docker run -d --name docchat-e2e-db -p 127.0.0.1:5433:5432 -e POSTGRES_USER=docchat \
+    -e POSTGRES_DB=docchat -e POSTGRES_HOST_AUTH_METHOD=trust pgvector/pgvector:0.8.6-pg18
   export CI=1 EMBEDDING_PROVIDER=fake CHAT_PROVIDER=fake STORAGE_DRIVER=local \
-    DATABASE_URL=postgres://docchat:docchat@localhost:5433/docchat
+    DATABASE_URL=postgres://docchat@localhost:5433/docchat
   export DATABASE_URL_UNPOOLED=$DATABASE_URL
   corepack pnpm db:migrate && corepack pnpm build && corepack pnpm test:e2e
   ```

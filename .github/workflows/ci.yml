@@ -47,10 +47,11 @@ jobs:
       postgres:
         # Same major and pgvector as Neon (Postgres 18, pgvector 0.8.6).
         image: pgvector/pgvector:0.8.6-pg18
+        # A throwaway database on the runner: no password (trust), so no credential in the repo.
         env:
           POSTGRES_USER: docchat
-          POSTGRES_PASSWORD: docchat
           POSTGRES_DB: docchat
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U docchat"
@@ -58,8 +59,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://docchat:docchat@localhost:5432/docchat
-      DATABASE_URL_UNPOOLED: postgres://docchat:docchat@localhost:5432/docchat
+      DATABASE_URL: postgres://docchat@localhost:5432/docchat
+      DATABASE_URL_UNPOOLED: postgres://docchat@localhost:5432/docchat
       APP_URL: http://localhost:3000
       EMBEDDING_PROVIDER: fake
       CHAT_PROVIDER: fake
