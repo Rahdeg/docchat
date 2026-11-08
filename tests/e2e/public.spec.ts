@@ -10,19 +10,27 @@ import { watchCsp } from "./csp";
 // build (`pnpm build && pnpm start`, E2E_BASE_URL=http://localhost:3000) for the real CSP and
 // static output.
 
-// Clerk's browser SDK, loaded by ClerkProvider: the public and error pages must not load it.
-function watchClerkScripts(page: Page): () => string[] {
-  const loaded: string[] = [];
-  page.on("request", (request) => {
-    const url = request.url();
-    if (request.resourceType() === "script" && /clerk/i.test(url)) loaded.push(url);
+// Clerk's browser code: ClerkProvider's SDK from Clerk's host, or our chunks that bundle
+// @clerk/nextjs (which a prefetch of /sign-in would download). The public and error pages
+// must not load either, so every script the page downloads is checked, by URL and content.
+function watchClerkScripts(page: Page): () => Promise<string[]> {
+  const checks: Promise<string | null>[] = [];
+  page.on("response", (response) => {
+    if (response.request().resourceType() !== "script") return;
+    const url = response.url();
+    checks.push(
+      response
+        .text()
+        .then((body) => (/clerk/i.test(url) || /clerk/i.test(body) ? url : null))
+        .catch(() => null),
+    );
   });
-  return () => [...loaded];
+  return async () => (await Promise.all(checks)).filter((url): url is string => url !== null);
 }
 
-async function expectNoClerk(page: Page, clerkScripts: () => string[]) {
+async function expectNoClerk(page: Page, clerkScripts: () => Promise<string[]>) {
   await page.waitForLoadState("networkidle");
-  expect(clerkScripts()).toEqual([]);
+  expect(await clerkScripts()).toEqual([]);
   expect(await page.evaluate(() => "Clerk" in window)).toBe(false);
 }
 

@@ -79,7 +79,7 @@ export function ProblemPage({ title, text, reference, onRetry, links, inset }: P
             ) : null}
             {links ? (
               <>
-                <Link href={routes.library} className={ink}>
+                <Link href={routes.library} prefetch={false} className={ink}>
                   Go to your library
                 </Link>
                 <Link href={routes.home} className={outline}>

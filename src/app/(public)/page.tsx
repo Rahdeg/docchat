@@ -75,6 +75,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href={routes.signUp}
+              prefetch={false}
               className={cn(
                 inkLink,
                 "h-[50px] w-full justify-center rounded-[10px] px-[22px] md:h-12 md:w-auto",
@@ -216,6 +217,7 @@ export default function LandingPage() {
           </h2>
           <Link
             href={routes.signUp}
+            prefetch={false}
             className="flex h-[50px] items-center rounded-[10px] bg-highlight px-6 font-semibold text-highlight-foreground transition-colors hover:bg-highlight/90 motion-reduce:transition-none"
           >
             Get started free
