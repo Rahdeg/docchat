@@ -1,6 +1,12 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
+import { TEST_DOUBLE_RULE, testDoublesAllowed } from "./test-doubles";
+
+// "fake" providers and the "local" store are test doubles: CI and tests only (docs/adr/0009).
+const notInProduction = (double: string) => (value: string) =>
+  value !== double || testDoublesAllowed();
+
 // Variables become required in the PR that wires up their service.
 // Each TODO marks where to drop `.optional()` in that PR.
 export const env = createEnv({
@@ -14,10 +20,23 @@ export const env = createEnv({
     // Private Vercel Blob store for uploaded files. handleUpload() needs this static token to sign
     // browser uploads (OIDC isn't enough), and src/server/blob.ts passes it on every call.
     BLOB_READ_WRITE_TOKEN: z.string().startsWith("vercel_blob_rw_"),
+    // Where uploaded files live. "blob" (default) is the private Vercel Blob store. "local" keeps
+    // them on disk under LOCAL_STORAGE_DIR, for the end-to-end tests in CI only (a test double:
+    // refused outside tests and CI). BLOB_READ_WRITE_TOKEN is still required; CI sets a dummy.
+    STORAGE_DRIVER: z
+      .enum(["blob", "local"])
+      .default("blob")
+      .refine(notInProduction("local"), `STORAGE_DRIVER=local: ${TEST_DOUBLE_RULE}`),
+    // Folder for STORAGE_DRIVER=local. Default: .data/uploads in the working directory.
+    LOCAL_STORAGE_DIR: z.string().min(1).optional(),
     // Who embeds chunks and queries (docs/adr/0005). "google" is the Gemini API's free tier: for
     // development with fictional documents only. Production switches to "gateway" before launch.
     // Changing it means re-embedding: run `pnpm db:backfill-embeddings`.
-    EMBEDDING_PROVIDER: z.enum(["google", "gateway"]).default("google"),
+    // "fake" is a test double: hashed bag-of-words vectors, no network (src/server/ai/fake.ts).
+    EMBEDDING_PROVIDER: z
+      .enum(["google", "gateway", "fake"])
+      .default("google")
+      .refine(notInProduction("fake"), `EMBEDDING_PROVIDER=fake: ${TEST_DOUBLE_RULE}`),
     // Gemini API key (Google AI Studio), used when EMBEDDING_PROVIDER is "google".
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
     // Vercel AI Gateway key, for embeddings when EMBEDDING_PROVIDER is "gateway" and chat when
@@ -27,7 +46,12 @@ export const env = createEnv({
     AI_GATEWAY_API_KEY: z.string().min(1).optional(),
     // Who writes answers (docs/adr/0006). "google" is the Gemini API's free tier, under the same
     // rule as embeddings: fictional documents only. Production switches to "gateway".
-    CHAT_PROVIDER: z.enum(["google", "gateway"]).default("google"),
+    // "fake" is a test double: answers by copying the best-matching sentence, with a valid
+    // citation, and proposes tasks from must/should sentences (src/server/ai/fake.ts).
+    CHAT_PROVIDER: z
+      .enum(["google", "gateway", "fake"])
+      .default("google")
+      .refine(notInProduction("fake"), `CHAT_PROVIDER=fake: ${TEST_DOUBLE_RULE}`),
     // Optional: a different answer model on CHAT_PROVIDER, e.g. "gemini-3.8-flash" or
     // "anthropic/claude-opus-5.5". For trying a model, or when the default's quota is used up.
     CHAT_ANSWER_MODEL: z.string().trim().min(1).max(100).optional(),
@@ -53,6 +77,15 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: z.string().min(1).optional(),
     // Turns the MCP server off: /mcp answers 503 and Settings says it's off. Default on.
     MCP_ENABLED: z.stringbool().default(true),
+    // Sentry error monitoring (src/lib/monitoring.ts). Unset: monitoring is off everywhere. Read
+    // at build too: next.config.ts copies it to the browser as NEXT_PUBLIC_SENTRY_DSN.
+    SENTRY_DSN: z.url().optional(),
+    // Build only: uploading source maps to Sentry. All three, or no upload.
+    SENTRY_AUTH_TOKEN: z.string().min(1).optional(),
+    SENTRY_ORG: z.string().min(1).optional(),
+    SENTRY_PROJECT: z.string().min(1).optional(),
+    // Set by Vercel: production, preview or development. Sentry's environment.
+    VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
     // Sends the Content-Security-Policy as Content-Security-Policy-Report-Only instead, so a
     // policy that breaks a page can be relaxed without blocking anything. Read at build time
     // (next.config.ts), so changing it needs a redeploy. Default off: the policy is enforced.
@@ -67,6 +100,8 @@ export const env = createEnv({
     DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
+    STORAGE_DRIVER: process.env.STORAGE_DRIVER,
+    LOCAL_STORAGE_DIR: process.env.LOCAL_STORAGE_DIR,
     EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER,
     GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
@@ -78,6 +113,11 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     MCP_ENABLED: process.env.MCP_ENABLED,
     CSP_REPORT_ONLY: process.env.CSP_REPORT_ONLY,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
+    SENTRY_ORG: process.env.SENTRY_ORG,
+    SENTRY_PROJECT: process.env.SENTRY_PROJECT,
+    VERCEL_ENV: process.env.VERCEL_ENV,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
   // CI builds and tests run without a database. Never set this in a deployed environment.

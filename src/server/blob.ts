@@ -1,8 +1,25 @@
 import "server-only";
 
-import { del, get, list, type GetBlobResult } from "@vercel/blob";
+import { join } from "node:path";
+
+import { del, get, list } from "@vercel/blob";
 
 import { env } from "@/lib/env";
+
+import { createLocalStore, type LocalFile } from "./storage/local";
+
+// STORAGE_DRIVER=local keeps files on disk instead: a test double for CI's end-to-end tests,
+// refused outside tests and CI (docs/adr/0009). Every function below dispatches on it, so
+// callers don't know which store they use.
+const local =
+  env.STORAGE_DRIVER === "local"
+    ? createLocalStore(env.LOCAL_STORAGE_DIR ?? join(process.cwd(), ".data", "uploads"))
+    : null;
+
+export const storageDriver: "blob" | "local" = local ? "local" : "blob";
+
+// What getBlob returns, from either store: Blob's GetBlobResult has these fields and more.
+export type StoredFile = LocalFile;
 
 // Every call passes the read-write token explicitly. Without it the SDK prefers OIDC whenever
 // VERCEL_OIDC_TOKEN and BLOB_STORE_ID are set, and the OIDC token that `vercel env pull` writes
@@ -14,12 +31,14 @@ const options = { access: "private", token: env.BLOB_READ_WRITE_TOKEN } as const
 export async function getBlob(
   pathname: string,
   init: { ifNoneMatch?: string } = {},
-): Promise<GetBlobResult | null> {
+): Promise<StoredFile | null> {
+  if (local) return local.get(pathname, init);
   return get(pathname, { ...options, ifNoneMatch: init.ifNoneMatch });
 }
 
 // Downloads a whole stored file. Returns null when it doesn't exist.
 export async function downloadBlob(pathname: string): Promise<Uint8Array | null> {
+  if (local) return local.download(pathname);
   const result = await get(pathname, options);
   if (!result?.stream) return null;
   return new Uint8Array(await new Response(result.stream).arrayBuffer());
@@ -30,6 +49,7 @@ export async function readBlobHead(
   pathname: string,
   length: number,
 ): Promise<{ head: Uint8Array; size: number } | null> {
+  if (local) return local.head(pathname, length);
   const result = await get(pathname, options);
   if (!result?.stream) return null;
 
@@ -60,6 +80,7 @@ export async function readBlobHead(
 
 // Doesn't throw when the file is already gone.
 export async function deleteBlob(pathname: string): Promise<void> {
+  if (local) return local.delete(pathname);
   await del(pathname, { token: env.BLOB_READ_WRITE_TOKEN });
 }
 
@@ -67,6 +88,7 @@ export async function deleteBlob(pathname: string): Promise<void> {
 // Returns how many it deleted. Safe to run again: files already gone aren't listed.
 export async function deleteBlobsWithPrefix(prefix: string): Promise<number> {
   if (!prefix.endsWith("/")) throw new Error("A Blob prefix must be a folder (end with /)");
+  if (local) return local.deletePrefix(prefix);
   let deleted = 0;
   let cursor: string | undefined;
   do {
@@ -81,4 +103,15 @@ export async function deleteBlobsWithPrefix(prefix: string): Promise<number> {
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
   return deleted;
+}
+
+// Stores a file the browser sent to PUT /api/documents/upload/local. Only for the local store:
+// with Blob, browsers upload straight to Blob with a token.
+export async function putLocalFile(
+  pathname: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<void> {
+  if (!local) throw new Error("putLocalFile needs STORAGE_DRIVER=local");
+  await local.put(pathname, bytes, contentType);
 }

@@ -26,6 +26,13 @@ export function ErrorView({ error, retry, inset }: ErrorViewProps) {
 
   useEffect(() => {
     console.error(`[ref ${reference}]`, error);
+    // Errors thrown in the browser go to Sentry (when it's on: src/lib/monitoring.ts). Server
+    // errors, which carry a digest, were already reported by the server (onRequestError).
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN && !errorReference(error)) {
+      void import("@sentry/nextjs").then((Sentry) =>
+        Sentry.captureException(error, { tags: { reference } }),
+      );
+    }
   }, [error, reference]);
 
   return (

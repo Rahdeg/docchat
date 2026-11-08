@@ -45,12 +45,22 @@ function matchesFilter(doc: LibraryDocument, filter: Filter): boolean {
   return true;
 }
 
-type LibraryViewProps = { userId: string; documents: LibraryDocument[] };
+type LibraryViewProps = {
+  userId: string;
+  documents: LibraryDocument[];
+  // Where uploads go (src/server/blob.ts): Vercel Blob, or the local store in CI's e2e tests.
+  storage?: "blob" | "local";
+};
 
-export function LibraryView({ userId, documents }: LibraryViewProps) {
+export function LibraryView({ userId, documents, storage }: LibraryViewProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listedIds = useMemo(() => new Set(documents.map((doc) => doc.id)), [documents]);
-  const uploads = useUploads({ userId, documentCount: documents.length, listedIds });
+  const uploads = useUploads({
+    userId,
+    storage,
+    documentCount: documents.length,
+    listedIds,
+  });
   const drag = usePageFileDrop((files) => void uploads.addFiles(files));
   const announcement = useStatusChanges(documents);
   usePolling(documents.some(isInProgress));

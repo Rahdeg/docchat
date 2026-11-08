@@ -51,6 +51,8 @@ import {
 } from "@/server/ai/answer";
 import { isQuotaError } from "@/server/ai/call-model";
 import { checkDailyLimit } from "@/server/ai/limits";
+import { log } from "@/server/log";
+import { identifyUser, reportError } from "@/server/monitoring";
 import { consumeRateLimit } from "@/server/rate-limit";
 
 // Answers a question in a chat, streaming the answer with its sources and citations
@@ -77,6 +79,7 @@ function fail(status: number, message: string) {
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return fail(401, "You need to be signed in.");
+  identifyUser(userId);
 
   const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail(400, "That request wasn't valid.");
@@ -102,7 +105,10 @@ async function answerQuestion(
 
   // Before any model call: the free tier's daily quota is shared by every user.
   const limit = await checkDailyLimit(userId);
-  if (!limit.ok) return fail(429, limit.message);
+  if (!limit.ok) {
+    log("quota.hit", { userId, limit: "daily" }, "warn");
+    return fail(429, limit.message);
+  }
   // Every question embeds a search query: RATE_LIMITS.search (src/lib/rate-limits.ts).
   const searches = await consumeRateLimit(userId, "search");
   if (!searches.ok) return fail(429, searches.message);
@@ -139,8 +145,10 @@ async function answerQuestion(
   // "quota": the provider refused for quota, and the answer isn't saved.
   let failure: "quota" | "error" | null = null;
   function failWith(error: unknown): string {
-    if (isQuotaError(error)) failure = "quota";
-    else failure ??= "error";
+    if (isQuotaError(error)) {
+      if (failure !== "quota") log("quota.hit", { userId, limit: "provider" }, "warn");
+      failure = "quota";
+    } else failure ??= "error";
     return errorMessage(error);
   }
 
@@ -253,6 +261,7 @@ async function answerQuestion(
     },
     onError: (error) => {
       console.error("Chat request failed", error);
+      if (!isQuotaError(error)) reportError(error, "chat");
       return failWith(error);
     },
     // Saves the answer however it ended. Stopped (the user pressed Stop or left) and failed
@@ -281,6 +290,7 @@ async function answerQuestion(
         await saveAnswer(userId, chatId, { id: messageId, parts }, status);
       } catch (error) {
         console.error(`Couldn't save answer ${messageId}`, error);
+        reportError(error, "chat-save");
       }
     },
   });
@@ -304,6 +314,12 @@ async function answerApproval(userId: string, body: z.output<typeof approvalBody
 
   const outcome = await answerProposal(userId, chatId, approval);
   if (!outcome.ok) return fail(outcome.status, outcome.error);
+  const proposed = proposedCount(target);
+  if (outcome.approved) {
+    log("agent.approved", { userId, chatId, proposed, added: outcome.added });
+  } else {
+    log("agent.cancelled", { userId, chatId, proposed });
+  }
 
   const stream = createUIMessageStream<ChatUIMessage>({
     originalMessages: stored,
@@ -328,6 +344,7 @@ async function answerApproval(userId: string, body: z.output<typeof approvalBody
     },
     onError: (error) => {
       console.error("Approval stream failed", error);
+      reportError(error, "approval");
       return "Something went wrong. Reload the chat to see what was saved.";
     },
     // The decision is already stored (answerProposal); this adds the line under it.
@@ -336,6 +353,7 @@ async function answerApproval(userId: string, body: z.output<typeof approvalBody
         await saveAnswer(userId, chatId, responseMessage, "complete");
       } catch (error) {
         console.error(`Couldn't save the reply to approval ${approval.approvalId}`, error);
+        reportError(error, "approval-save");
       }
     },
   });
@@ -438,4 +456,12 @@ function citationsChunk(citations: Citation[], final: boolean): InferUIMessageCh
 function errorMessage(error: unknown): string {
   if (isQuotaError(error)) return FREE_LIMIT_MESSAGE;
   return "Something went wrong while writing the answer. Try again.";
+}
+
+// How many tasks the answer's proposal held, for the logs.
+function proposedCount(message: ChatUIMessage): number {
+  for (const part of message.parts) {
+    if (part.type === "data-proposal") return part.data.tasks.length;
+  }
+  return 0;
 }

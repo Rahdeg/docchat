@@ -34,7 +34,7 @@ export function documentFileUrl(documentId: string, page?: number | null): strin
 // clients read /.well-known/* before they have one (docs/adr/0008). Crawlers and link previews
 // read robots.txt, the sitemap and the generated images signed out: /opengraph-image and
 // /apple-icon have no file extension, so the proxy's matcher doesn't skip them as it does
-// /icon.svg.
+// /icon.svg. Error reports reach Sentry through /monitoring, from signed-out pages too.
 const publicPrefixes = [
   routes.signIn,
   routes.signUp,
@@ -43,6 +43,8 @@ const publicPrefixes = [
   "/.well-known",
   "/opengraph-image",
   "/apple-icon",
+  // Sentry's tunnel (src/app/sentry-tunnel/route.ts): error reports from any page.
+  "/monitoring",
 ];
 const publicFiles = new Set(["/robots.txt", "/sitemap.xml"]);
 

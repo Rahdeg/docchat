@@ -14,9 +14,11 @@ export default clerkMiddleware(
       return NextResponse.redirect(new URL(routes.library, req.url));
     }
 
-    // Route handlers answer 401 themselves instead of redirecting to a page.
+    // Route handlers answer 401 themselves instead of redirecting to a page. Clerk builds the
+    // return URL from the Host and X-Forwarded-* headers; req.url would carry the server's bind
+    // address in a standalone container (http://0.0.0.0:3000/...).
     if (!isAuthenticated && !isPublicPath(pathname) && !pathname.startsWith("/api/")) {
-      return redirectToSignIn({ returnBackUrl: req.url });
+      return redirectToSignIn();
     }
   },
   { signInUrl: routes.signIn, signUpUrl: routes.signUp },
