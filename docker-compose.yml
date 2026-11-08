@@ -1,0 +1,62 @@
+# DocChat on your machine: `docker compose up`, then http://localhost:3000.
+#
+# Runs the app (Dockerfile) and Postgres 18 with pgvector, the same major and extension as Neon,
+# with a one-off service that applies the migrations first. Clerk, Vercel Blob and the AI
+# provider stay external: their keys come from .env.local, as for `pnpm dev` (README, "Run with
+# Docker"). The database settings below override the Neon ones in .env.local.
+name: docchat
+
+x-database: &database
+  DATABASE_URL: postgres://docchat:docchat@db:5432/docchat
+  DATABASE_URL_UNPOOLED: postgres://docchat:docchat@db:5432/docchat
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.6-pg18
+    environment:
+      POSTGRES_USER: docchat
+      POSTGRES_PASSWORD: docchat
+      POSTGRES_DB: docchat
+    volumes:
+      # Postgres 18 images keep their data under /var/lib/postgresql/18.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docchat -d docchat"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment: *database
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+      secrets: [env_local]
+    env_file: [.env.local]
+    environment:
+      <<: *database
+      # The MCP server's URL (<APP_URL>/mcp) follows the port you open it on.
+      APP_URL: http://localhost:${DOCCHAT_PORT:-3000}
+    ports:
+      - "${DOCCHAT_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+secrets:
+  env_local:
+    file: ./.env.local
+
+volumes:
+  db-data:
