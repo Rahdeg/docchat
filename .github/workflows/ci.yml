@@ -35,3 +35,98 @@ jobs:
       - run: pnpm format:check
       - run: pnpm test
       - run: pnpm build
+
+  # Signed-in end-to-end flows against a production build, in parallel with the job above. No
+  # AI quota and no Blob store: the fake AI providers and the local file store (test doubles,
+  # docs/adr/0009), a throwaway Postgres with pgvector, and Clerk's development instance with a
+  # testing token (secrets). Without the secrets (forks), the job says so and skips its steps.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Same major and pgvector as Neon (Postgres 18, pgvector 0.8.6).
+        image: pgvector/pgvector:0.8.6-pg18
+        # A throwaway database on the runner: no password (trust), so no credential in the repo.
+        env:
+          POSTGRES_USER: docchat
+          POSTGRES_DB: docchat
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U docchat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://docchat@localhost:5432/docchat
+      DATABASE_URL_UNPOOLED: postgres://docchat@localhost:5432/docchat
+      APP_URL: http://localhost:3000
+      EMBEDDING_PROVIDER: fake
+      CHAT_PROVIDER: fake
+      STORAGE_DRIVER: local
+      # Required by env validation, never used: uploads stay on disk, no webhooks arrive.
+      BLOB_READ_WRITE_TOKEN: vercel_blob_rw_ci_unused
+      CLERK_WEBHOOK_SIGNING_SECRET: whsec_ci_unused
+      # Clerk's development instance (pk_test_/sk_test_) and its e2e user (…+clerk_test@…).
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      E2E_CLERK_USER_EMAIL: ${{ secrets.E2E_CLERK_USER_EMAIL }}
+      E2E_CLERK_USER_PASSWORD: ${{ secrets.E2E_CLERK_USER_PASSWORD }}
+    steps:
+      - id: secrets
+        name: Check for the Clerk secrets
+        run: |
+          if [ -n "$CLERK_SECRET_KEY" ] && [ -n "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ] && [ -n "$E2E_CLERK_USER_EMAIL" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No Clerk secrets here (a fork?): skipping the e2e tests."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: actions/checkout@v7
+
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: pnpm/action-setup@v6
+
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - if: steps.secrets.outputs.ok == 'true'
+        id: playwright
+        name: Playwright version
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm db:migrate
+
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm build
+
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm test:e2e
+
+      - if: failure() && steps.secrets.outputs.ok == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

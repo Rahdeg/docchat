@@ -16,6 +16,9 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+# Playwright's saved sign-in, and the local file store (STORAGE_DRIVER=local)
+/playwright/.auth/
+/.data/
 
 # next.js
 /.next/

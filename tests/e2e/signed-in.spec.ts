@@ -56,6 +56,10 @@ test.describe("signed in", () => {
   test("uploads a PDF straight to Blob, reads it and removes it, with no CSP violations", async ({
     page,
   }) => {
+    test.skip(
+      process.env.STORAGE_DRIVER === "local",
+      "Uploads to real Blob; CI uses the local store",
+    );
     test.setTimeout(120_000);
     const violations = watchCsp(page);
     await signIn(page);

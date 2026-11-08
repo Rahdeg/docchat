@@ -46,6 +46,10 @@ const promises = [
     title: "Documents are data, not instructions.",
     text: "Text hidden inside a file can’t make DocChat do anything you didn’t ask for.",
   },
+  {
+    title: "No tracking cookies.",
+    text: "We count visits and measure page speed with Vercel’s cookie-free analytics. It never sees your documents, questions or answers.",
+  },
 ];
 
 // Signed-out visitors only: the proxy sends signed-in visitors to /library before this renders,

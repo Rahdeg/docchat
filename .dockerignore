@@ -1,0 +1,18 @@
+# Never in the build context: secrets come in as a build secret (docker-compose.yml).
+.env*
+!.env.example
+
+.git
+node_modules
+.next
+.data
+.vercel
+coverage
+playwright
+playwright-report
+test-results
+blob-report
+*.tsbuildinfo
+.DS_Store
+Dockerfile
+docker-compose.yml
