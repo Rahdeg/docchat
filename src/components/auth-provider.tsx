@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 
+import { MonitoringUser } from "@/components/monitoring-user";
 import { ZodBrowserConfig } from "@/components/zod-browser-config";
 import { routes } from "@/lib/routes";
 
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       afterSignOutUrl={routes.home}
     >
       <ZodBrowserConfig />
+      <MonitoringUser />
       {children}
     </ClerkProvider>
   );
