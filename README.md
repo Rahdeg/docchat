@@ -5,6 +5,9 @@ is grounded in your files and cites the exact passages it came from, so you can 
 trusting it. Later it will also turn conversations into tasks with an agent that acts on what you
 discussed.
 
+Production runs at **[docchat.raheem.online](https://docchat.raheem.online)** (Vercel, Clerk's
+production instance). See "Production" below.
+
 ## Stack
 
 - [Next.js 16](https://nextjs.org) (App Router, Turbopack, Cache Components), React 19, TypeScript
@@ -295,10 +298,13 @@ Connect Claude Code, Claude Desktop, Cursor or another app that supports MCP, an
 your documents and manage your tasks with its own AI, without using DocChat's daily questions
 (`docs/adr/0008`). **Settings** (user menu → Settings) shows your server URL with copy buttons.
 
-- **Claude Code:** `claude mcp add --transport http docchat <your DocChat URL>/mcp`, then `/mcp`
-  in Claude Code to sign in. Locally that's `http://localhost:3000/mcp`.
+The server URL is `<APP_URL>/mcp`: **`https://docchat.raheem.online/mcp`** in production,
+`http://localhost:3000/mcp` locally.
+
+- **Claude Code:** `claude mcp add --transport http docchat https://docchat.raheem.online/mcp`,
+  then `/mcp` in Claude Code to sign in. Locally, use `http://localhost:3000/mcp`.
 - **Claude Desktop:** Customize → Connectors → **Add custom connector**, paste the URL. Claude
-  connects from its own servers, so this needs the deployed HTTPS address, not localhost.
+  connects from its own servers, so this needs the production HTTPS address, not localhost.
 - **Others:** add a remote MCP server (Streamable HTTP) with the URL.
 - **MCP Inspector:** `npx @modelcontextprotocol/inspector`, transport Streamable HTTP, URL
   `http://localhost:3000/mcp`, then connect and complete its OAuth sign-in.
@@ -311,6 +317,21 @@ calls are limited to 60 a minute; set `MCP_ENABLED=false` to turn the server off
 
 This needs the Clerk dashboard steps in `docs/security.md` (MCP server URL, CIMD, default scopes)
 on the instance you're using.
+
+## Production
+
+Production is `https://docchat.raheem.online`: the Vercel project's Production domain, served
+with Clerk's **production** instance (`pk_live_`/`sk_live_` keys). Preview and Development
+keep the development instance (`pk_test_`).
+
+- `APP_URL=https://docchat.raheem.online` in Vercel Production gives the page metadata, the Open
+  Graph image's absolute URL, `sitemap.xml`, `robots.txt` and the MCP server's URL. The public
+  pages are static, so a change needs a redeploy.
+- The CSP allows the Clerk instance its build's publishable key names
+  (`clerk.docchat.raheem.online` in production, `*.clerk.accounts.dev` elsewhere); nothing to
+  set by hand (`src/lib/security-headers.ts`).
+- Every Clerk, Vercel and DNS setting that names the domain is listed in
+  `docs/launch-checklist.md` → "Production domain".
 
 ## Monitoring and logs
 
