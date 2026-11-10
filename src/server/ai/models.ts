@@ -56,11 +56,12 @@ export type EmbeddingConfig = {
 };
 
 export const EMBEDDING_CONFIGS: Record<EmbeddingProvider, EmbeddingConfig> = {
-  // Gemini API free tier: development with fictional documents only (Google may use free-tier
-  // content to improve its products). gemini-embedding-001 outputs 3072 dimensions; we ask for
-  // 1536 so the column stays the same. Cosine similarity doesn't need the shortened vectors to
-  // be normalised. The free tier allows about 100 requests a minute, so requests are small,
-  // one at a time and spaced out, with long backoff on 429.
+  // Gemini API, paid tier (Tier 1 since 2026-11-10): paid-tier content isn't used to improve
+  // Google's products, so real documents are fine. $0.15 per million tokens. gemini-embedding-001
+  // outputs 3072 dimensions; we ask for 1536 so the column stays the same. Cosine similarity
+  // doesn't need the shortened vectors to be normalised. Pacing is still the free tier's (small
+  // requests, one at a time, spaced out, long backoff on 429); Tier 1's per-project limits are in
+  // AI Studio, and loosening this only speeds up indexing.
   google: {
     id: "google/gemini-embedding-001",
     dimensions: 1536,
@@ -78,7 +79,7 @@ export const EMBEDDING_CONFIGS: Record<EmbeddingProvider, EmbeddingConfig> = {
     // right passage (lowest 0.599; docs/adr/0005, recalibrated in docs/adr/0006).
     minSimilarity: 0.58,
   },
-  // Vercel AI Gateway (paid credits): production. OpenAI caps a request at 2048 inputs and about
+  // Vercel AI Gateway (paid credits): an optional alternative. OpenAI caps a request at 2048 inputs and about
   // 300k tokens; smaller batches keep a retry cheap.
   gateway: {
     id: "openai/text-embedding-3-small",
@@ -147,15 +148,15 @@ const thinking = (thinkingLevel: "minimal" | "low") => ({
 });
 
 export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
-  // Gemini API free tier: fictional documents only, like embeddings. gemini-3.8-flash is the
-  // newest Flash model with a free tier (pricing page, 2026-10-28), but its free tier was
-  // overloaded that day: 60 s timeouts and 503s. gemini-3.6-flash, the next newest, answered
-  // in about 3 s. Try 3.8 again with CHAT_ANSWER_MODEL. Flash-Lite rewrites queries.
+  // Gemini API, paid tier, like embeddings. gemini-3.8-flash is the newest Flash model, but on
+  // 2026-10-28 (then on the free tier) it was overloaded: 60 s timeouts and 503s.
+  // gemini-3.6-flash, the next newest, answered in about 3 s. Try 3.8 again with
+  // CHAT_ANSWER_MODEL. Flash-Lite rewrites queries.
   //
-  // The free tier allows 20 requests a day per model for the whole project (429
-  // GenerateRequestsPerDayPerProjectPerModel-FreeTier, 2026-10-28), so it binds before
-  // CHAT_DAILY_LIMIT does. It also answers 503 under load, so requests are spaced out and
-  // retried.
+  // Prices per million tokens (2026-11-10): gemini-3.6-flash $0.75 in, $3.75 out (thinking
+  // counts as output), doubling on 2027-01-01; gemini-3.5-flash-lite $0.30 in, $2.50 out.
+  // CHAT_DAILY_LIMIT caps one user's calls (src/server/ai/limits.ts). Google still answers 503
+  // under load, so requests are spaced out and retried.
   google: {
     models: {
       answer: {
@@ -168,15 +169,17 @@ export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
         model: google("gemini-3.5-flash-lite"),
         providerOptions: thinking("minimal"),
       },
-      // An open model on the same API, with its own free quota: the eval's judge calls don't
-      // use up the answer model's 20 requests a day.
+      // An open model on the same API. Gemma has no paid tier: it stays free of charge, under
+      // the free tier's terms (Google may use what it's sent), so it only ever judges the
+      // eval's fictional fixtures. Never use it for users' documents.
       judge: { id: "google/gemma-4-26b-a4b-it", model: google("gemma-4-26b-a4b-it") },
     },
-    // The free tier's per-minute quota is small (a 429 after a burst of tests on 2026-10-28).
-    // A short wait is worth it; a long one, the user is better off told to try again.
+    // Set for the free tier's small per-minute quota (a 429 after a burst of tests on
+    // 2026-10-28); Tier 1's is larger. A short wait is worth it; a long one, the user is better
+    // off told to try again.
     limits: { minIntervalMs: 1_000, maxRetries: 3, maxDelayMs: 20_000 },
   },
-  // Vercel AI Gateway (paid credits): production.
+  // Vercel AI Gateway (paid credits): an optional alternative to Gemini.
   gateway: {
     models: {
       answer: { id: "anthropic/claude-sonnet-5.5", model: gateway("anthropic/claude-sonnet-5.5") },

@@ -1,8 +1,8 @@
 import "server-only";
 
 // Whether a follow-up can be searched as asked, skipping the rewrite call that works out what
-// it refers to (docs/adr/0006). Each request counts on the free tier. When in doubt it says no:
-// an unneeded rewrite costs one request, while searching "And a dog?" as asked finds the wrong
+// it refers to (docs/adr/0006). Each request is paid for. When in doubt it says no: an
+// unneeded rewrite costs one cheap request, while searching "And a dog?" as asked finds the wrong
 // passages.
 
 // Opens by leaning on the previous turn: "And a dog?", "What about the deposit?".
