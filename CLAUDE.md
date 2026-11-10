@@ -25,10 +25,10 @@ don't duplicate or hand-edit the managed block:
 - Vercel Blob (private store) for uploaded files; `unpdf` for PDF text; `gpt-tokenizer` (cl100k)
   for chunk sizes
 - Vercel AI SDK v7 (`ai`). Embeddings (1536 dimensions, `docs/adr/0005`) from
-  `EMBEDDING_PROVIDER`: `google` (default; `@ai-sdk/google`, `gemini-embedding-001`, free tier,
-  development only) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`, production).
-  Chat from `CHAT_PROVIDER`: `google` (default; `gemini-3.6-flash`, free tier, development only) or
-  `gateway` (`anthropic/claude-sonnet-5.5`, production); `@ai-sdk/react` (`useChat`) in the
+  `EMBEDDING_PROVIDER`: `google` (default; `@ai-sdk/google`, `gemini-embedding-001`, paid tier,
+  development and production) or `gateway` (Vercel AI Gateway, `openai/text-embedding-3-small`,
+  optional). Chat from `CHAT_PROVIDER`: `google` (default; `gemini-3.6-flash`, paid tier) or
+  `gateway` (`anthropic/claude-sonnet-5.5`, optional); `@ai-sdk/react` (`useChat`) in the
   browser (`docs/adr/0006`). Tool calling with the SDK's built-in approval (`docs/adr/0007`)
 - Data flow: Server Components for reads, Server Actions for writes (no tRPC, see
   `docs/adr/0001`). Route handlers only where an action can't work: Blob upload tokens and
@@ -200,14 +200,16 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   them are. While embedding, the Library shows "Almost ready".
 - Regenerate the PDF fixtures with `node tests/fixtures/make-pdfs.mjs`.
 
-## AI rules (AI SDK, Gemini free tier, AI Gateway)
+## AI rules (AI SDK, Gemini paid tier, AI Gateway)
 
 - Read `.claude/skills/ai-sdk` and the installed docs in `node_modules/ai/docs/` (and
   `node_modules/@ai-sdk/google/docs/`) before writing AI SDK code; don't write it from memory.
-- **The Gemini free tier (`EMBEDDING_PROVIDER=google`, the default) is for development with
-  fictional documents only**: seed data, eval fixtures, sample uploads. Google may use free-tier
-  content to improve its products. Never point it at real users' documents. Production switches
-  to `EMBEDDING_PROVIDER=gateway` before launch (`docs/adr/0005`).
+- **The Gemini API runs on its paid tier** (Tier 1, prepaid, since 2026-11-10; `docs/adr/0005`
+  amendment), where Google doesn't use prompts or responses to improve its products. So
+  `google` serves development and production, and the gateway is optional. The key must come
+  from a project with billing on: a free-tier key is for fictional documents only (seed data,
+  eval fixtures). The judge (`gemma-4-26b-a4b-it`) has no paid tier and stays under free-tier
+  terms, so it never reads anything but the evals' fictional fixtures.
 - Models and providers are configured only in `src/server/ai/models.ts`: `embeddingConfig` (model,
   task-type options, request limits, similarity floor) for the current provider, and the `gateway`
   instance for chat later. Keys come from `env`, never `process.env`. Don't add other provider
@@ -238,13 +240,13 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 
 - Chat models live in `CHAT_CONFIGS` (`src/server/ai/models.ts`): `answer`, `rewrite` and
   `judge` per provider. `CHAT_ANSWER_MODEL` overrides the answer model on the same provider.
-- **The Gemini free tier allows 20 requests a day per model for the whole project** (resets at
-  midnight Pacific). Don't spend it casually: tests that call the chat model also need
-  `LIVE_CHAT_TESTS=1`, and `pnpm eval:answers` needs about 17 answers (it resumes a run the
+- **Every chat call costs money** (prepaid balance; `gemini-3.6-flash` is about $0.003 a typical
+  answer, doubling on 2027-01-01). Don't spend it casually: tests that call the chat model also
+  need `LIVE_CHAT_TESTS=1`, and `pnpm eval:answers` needs about 17 answers (it resumes a run a
   quota stopped). To recheck a few questions, pass `--only=<ids>` to either eval.
 - When the provider refuses for quota (429 / `RESOURCE_EXHAUSTED`, `isQuotaError`), the route
-  keeps the question, saves no answer and sends `FREE_LIMIT_MESSAGE`. `CHAT_DAILY_LIMIT`
-  defaults to 10 on `google` and 50 on `gateway`. A follow-up that reads as standalone
+  keeps the question, saves no answer and sends `AI_LIMIT_MESSAGE`. `CHAT_DAILY_LIMIT`
+  defaults to 25 on `google` (sized for a small prepaid budget) and 50 on `gateway`. A follow-up that reads as standalone
   (`readsStandalone`, `src/server/ai/follow-up.ts`) skips the rewrite call.
 - Generate only through `src/server/ai/answer.ts` (`streamAnswer`, `rewriteQuery`,
   `answerQuestion`) and `judge.ts`. They pace and retry through `callChatModel`
@@ -293,7 +295,7 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Task offsets (`source_start_offset`, `source_end_offset`) index into the chunk's content. A
   re-read document's tasks lose the chunk link and keep the quote (TODO: re-link by quote).
 - Before and after changing the agent prompt, tools or proposal checks, run `pnpm eval:agent`
-  (about 6 to 12 of the free tier's 20 daily requests) and commit the results file.
+  (about 6 to 12 model calls, a few cents) and commit the results file.
 - Task writes on the Tasks page are `authedAction`s in `src/features/tasks/actions.ts` and call
   `refresh()`, so the sidebar's open-task count follows. Undo re-inserts a deleted task through
   `restoreTask`, keeping links only to rows the user still owns.
@@ -324,8 +326,8 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - New Server Actions: `authedAction` only (a test enforces it). New route handlers: add them to
   the list in `src/server/authorization-audit.test.ts` with their check, and to `docs/security.md`.
 - Before and after changing prompts, `escapeSourceText`, the MCP wrapping or the agent tools, run
-  `pnpm eval:injection` (about 15 of the free tier's 20 daily requests; `--only` for a few) and
-  commit the results file.
+  `pnpm eval:injection` (about 15 model calls, a few cents; `--only` for a few) and commit the
+  results file.
 
 ## Production readiness rules (`docs/adr/0009`, `docs/launch-checklist.md`)
 

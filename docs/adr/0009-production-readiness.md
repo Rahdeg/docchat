@@ -101,3 +101,10 @@ Clerk, Blob and the AI provider stay external.
   published anywhere yet; deployment stays on Vercel.
 - Sentry sees less than it could (no spans, no request bodies, scrubbed messages). Debugging a
   report may need the structured logs or a reproduction.
+
+## Amendment (2026-11-10)
+
+The Gemini project moved to the paid tier (ADR 0005, amendment), so launch no longer waits for
+the AI Gateway: `docs/launch-checklist.md` now launches on Gemini, and the gateway is an
+optional later step. The test doubles stay: CI has no AI key, every real call now costs money,
+and the fakes keep the e2e job deterministic.

@@ -1,9 +1,11 @@
 # Launch checklist: opening sign-ups
 
-For the day the Vercel AI Gateway is funded. Until then DocChat runs on the Gemini free tier,
-which is for fictional documents only (Google may use free-tier content), behind a Clerk
-sign-up allowlist. Work through this list in order; each step says how to check it. Nothing here
-has been done yet.
+DocChat launches on the Gemini API's paid tier (`EMBEDDING_PROVIDER=google`,
+`CHAT_PROVIDER=google`, the defaults; `docs/adr/0005` amendment). On the paid tier Google doesn't
+use prompts or responses to improve its products, so real documents are fine. Until sign-ups
+open, a Clerk sign-up allowlist keeps the app to invited users. The Vercel AI Gateway is
+optional: see "Optional: switch to the AI Gateway" at the end. Work through this list in order;
+each step says how to check it.
 
 Placeholders: `<domain>` is the production domain (e.g. `docchat.app`), `<neon-project>` is the
 Neon project id (`neonctl projects list`).
@@ -14,112 +16,55 @@ Neon project id (`neonctl projects list`).
 - [ ] Migrations on Neon `main` are current:
       `DATABASE_URL_UNPOOLED="$(neonctl connection-string main --project-id <neon-project>)" corepack pnpm db:migrate`
       prints "migrations applied successfully" (or nothing to apply).
-- [ ] Gateway credits are in place: Vercel dashboard → **AI Gateway** → **Credits** shows a
-      balance. The gateway's free tier answers 403 for these models.
-- [ ] Create an AI Gateway API key for the scripts you'll run locally: **AI Gateway** → **API
-      Keys** → **Create key**. Keep it in your shell, not in a file you commit:
-      `export AI_GATEWAY_API_KEY=…`.
-- [ ] Check that `main` holds only fictional documents. Every document on it was embedded by
-      the Gemini free tier, so nothing real should be there yet:
-      `psql "$(neonctl connection-string main --project-id <neon-project>)" -c "select user_id, count(*) from document group by 1"`.
+- [ ] The Gemini project is on the paid tier: [AI Studio](https://aistudio.google.com) →
+      **Usage & Billing** (or **API keys**, the key's project) shows **Tier 1** or above, with
+      a prepaid balance.
+- [ ] The production key belongs to that project. In Vercel → **Settings** → **Environment
+      Variables**, `GOOGLE_GENERATIVE_AI_API_KEY` for **Production** must be a key listed under
+      the paid project in AI Studio → **API keys**. A key from another (free-tier) project
+      would put users' documents under the free tier's terms. Check Preview too.
+- [ ] Set up a warning before the balance runs out: Google Cloud console → **Billing** →
+      **Budgets & alerts** → a budget on the project at, say, 50% and 90% of the balance. When
+      the balance is used up, Gemini refuses and users see "DocChat's AI service is busy right
+      now. Try again in a few minutes." (their question is kept).
 
-## 1. Calibrate the gateway models (on the `dev` branch)
+## 1. The daily limit and the budget
 
-The evals index their fixtures for an eval user on `DATABASE_URL` (the `dev` branch in
-`.env.local`). Run each eval on the gateway models. The variables set in your shell win over
-`.env.local`.
+`CHAT_DAILY_LIMIT` (model calls per user per UTC day; an answer is one, a task request up to
+five) defaults to **25** on `google` (`src/server/ai/limits.ts`, sized in `docs/adr/0006`
+section 8).
 
-```bash
-export EMBEDDING_PROVIDER=gateway CHAT_PROVIDER=gateway
-corepack pnpm eval:retrieval     # embeddings only: cheap, about a minute
-```
+- [ ] Check the cost against the balance. A typical answer is about $0.003 now and $0.007 from
+      1 January 2027, when `gemini-3.6-flash` doubles in price; a long one up to $0.04. So 25
+      calls cost one user about $0.08 to $0.17 a day typically and at most about $1. The real
+      numbers: `psql "$DATABASE_URL" -c "select model, count(*), avg(input_tokens), avg(output_tokens) from ai_usage where kind = 'chat' group by 1"`.
+- [ ] The limit caps each user, not the total. With N active users, the balance lasts about
+      balance ÷ (N × daily cost). Top up before opening sign-ups widely, or set a lower
+      `CHAT_DAILY_LIMIT` in Vercel Production (no code change, just a redeploy).
+- [ ] Optional: re-run the evals for fresh public numbers (the models haven't changed, so the
+      current ones still hold). A full run of all four costs well under $1:
+      `corepack pnpm eval:retrieval && corepack pnpm eval:answers && corepack pnpm eval:agent && corepack pnpm eval:injection && corepack pnpm eval:summary`,
+      then commit `tests/evals/results` and `src/content/eval-summary.json`.
 
-- [ ] Read the floor calibration at the end of the retrieval output: the lowest similarity of a
-      right passage, and the highest of an off-topic question. Set
-      `EMBEDDING_CONFIGS.gateway.minSimilarity` in `src/server/ai/models.ts` between them,
-      closer to the off-topic maximum. It's still the 0.25 placeholder. Replace the comment
-      above it with the run's numbers and date, as the Gemini entry has.
-- [ ] Then the model evals, with the new floor in place (it decides which passages they see):
-
-```bash
-corepack pnpm eval:answers       # about 17 answers plus judge calls
-corepack pnpm eval:agent         # 6 to 12 agent runs
-corepack pnpm eval:injection     # about 15 runs
-corepack pnpm eval:summary       # rewrites src/content/eval-summary.json
-```
-
-- [ ] Compare each eval with its last Gemini run in `tests/evals/results/`. Look at citation
-      accuracy, grounding, honesty on no-answer questions, task recall and precision, and
-      injection resistance. A drop needs a look before launch, not after.
-- [ ] Commit the results files, the summary JSON and the `minSimilarity` change together:
-      `git add tests/evals/results src/content/eval-summary.json src/server/ai/models.ts`, as
-      `chore(evals): gateway models, calibrated floor`. The public "Measured, not promised"
-      numbers come from these runs, so the landing page now shows the gateway's numbers.
-- [ ] Optional, so `dev` matches production:
-      `EMBEDDING_PROVIDER=gateway corepack pnpm db:backfill-embeddings` re-embeds the dev branch.
-
-## 2. Copy changes (one PR)
-
-- [ ] Raise the daily answer limit. `CHAT_DAILY_LIMIT` defaults to 50 on the gateway
-      (`src/server/ai/limits.ts`). Pick the number from the cost per answer in the eval's
-      `ai_usage` rows. Then set it in Vercel (step 3) rather than changing the default.
-- [ ] Remove the free-tier wording users can see:
-  - `FREE_LIMIT_MESSAGE` in `src/features/chat/message.ts` ("today's free AI limit"). Make it
-    provider-neutral, e.g. "DocChat's AI service is busy right now. Try again in a few
-    minutes.", and rename the constant (`chat-view.tsx` compares against it).
-  - Comments and docs that tie limits to the free tier: `route.ts` ("the free tier's daily
-    quota is shared by every user"), `limits.ts`, the README's "Answers setup" section, and the
-    `CHAT_DAILY_LIMIT` note in `src/lib/env.ts`. Code comments are optional; anything a user
-    reads is not.
-  - Search for leftovers: `grep -rni "free tier\|free ai\|free limit" src`.
-- [ ] Merge it, and let CI pass.
-
-## 3. Switch production to the gateway (Vercel)
+## 2. Production environment (Vercel)
 
 In the Vercel dashboard → the project → **Settings** → **Environment Variables**, for
 **Production** (and **Preview**, if previews should match):
 
-| Variable             | Value                                                             |
-| -------------------- | ----------------------------------------------------------------- |
-| `EMBEDDING_PROVIDER` | `gateway`                                                         |
-| `CHAT_PROVIDER`      | `gateway`                                                         |
-| `CHAT_DAILY_LIMIT`   | the number from step 2                                            |
-| `AI_GATEWAY_API_KEY` | leave unset on Vercel (OIDC). If set, a key always wins over OIDC |
-
-Remove `GOOGLE_GENERATIVE_AI_API_KEY` from Production, so nothing can fall back to the free
-tier. Or with the CLI:
-
-```bash
-vercel env rm EMBEDDING_PROVIDER production && echo gateway | vercel env add EMBEDDING_PROVIDER production
-vercel env rm CHAT_PROVIDER production && echo gateway | vercel env add CHAT_PROVIDER production
-vercel env rm GOOGLE_GENERATIVE_AI_API_KEY production
-```
+| Variable                       | Value                                   |
+| ------------------------------ | --------------------------------------- |
+| `EMBEDDING_PROVIDER`           | `google` (or unset: it's the default)   |
+| `CHAT_PROVIDER`                | `google` (or unset)                     |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | a key from the paid project (step 0)    |
+| `CHAT_DAILY_LIMIT`             | unset for 25, or the number from step 1 |
+| `AI_GATEWAY_API_KEY`           | unset (only for the optional gateway)   |
 
 - [ ] Redeploy production (**Deployments** → the latest → **Redeploy**, or
       `vercel --prod`). Env changes take effect only on a new deployment.
-- [ ] **Re-embed every document on Neon `main` right after the deploy.** Until then, search
-      skips the Gemini-embedded chunks and questions get "Your documents don't say…".
+- [ ] Nothing to re-embed: production already uses `google/gemini-embedding-001`, and the paid
+      tier serves the same model.
 
-```bash
-export EMBEDDING_PROVIDER=gateway AI_GATEWAY_API_KEY=…
-export DATABASE_URL="$(neonctl connection-string main --project-id <neon-project> --pooled)"
-export DATABASE_URL_UNPOOLED="$(neonctl connection-string main --project-id <neon-project>)"
-corepack pnpm db:backfill-embeddings --dry-run   # counts the documents to re-embed
-corepack pnpm db:backfill-embeddings
-corepack pnpm db:backfill-embeddings --dry-run   # expect "0 ready document(s)"
-```
-
-**How long:** documents go one at a time. Each takes one gateway request per 100 chunks (about
-0.5 to 1.5 s for `text-embedding-3-small`), then one row update per chunk (a few ms each from
-a nearby machine, 20 to 40 ms from far away). Count about **1 to 2 s per document plus 30 ms
-per chunk**. A dense 6-page document has about 16 chunks. So 100 documents (about 2,000
-chunks) take 3 to 5 minutes, and 1,000 documents about half an hour. Get the real numbers
-first:
-`psql "$DATABASE_URL" -c "select count(distinct document_id) docs, count(*) chunks from chunk"`.
-Cost is negligible: about 500 tokens per chunk at $0.02 per million tokens, about $0.02 per
-2,000 chunks. The run is safe to stop and rerun: it only picks up chunks still on the old model.
-
-## 4. Clerk production instance
+## 3. Clerk production instance
 
 - [ ] Clerk dashboard → the application → instance switcher (top) → **Create production
       instance** (clone the development settings).
@@ -143,9 +88,9 @@ Cost is negligible: about 500 tokens per chunk at $0.02 per million tokens, abou
       and set the default scopes (the `curl -X PATCH …/oauth_application_settings` call).
 - [ ] **Remove the sign-up allowlist**: production instance → **Configure** → **Restrictions** →
       **Allowlist** → off. Keep the blocklist and bot protection on. Do this last, after
-      step 5 passes.
+      step 4 passes.
 
-## 5. Sentry (if not already on)
+## 4. Sentry (if not already on)
 
 - [ ] Create an organization at [sentry.io](https://sentry.io), choosing the **EU (Frankfurt)**
       data region (our database is in `eu-central-1`). Then **Projects** → **Create project** →
@@ -166,24 +111,24 @@ Cost is negligible: about 500 tokens per chunk at $0.02 per million tokens, abou
       `setTimeout(() => { throw new Error("Sentry check") })`. The issue appears in Sentry
       within a minute, with your Clerk user id and no other user fields.
 
-## 6. Vercel Web Analytics and Speed Insights
+## 5. Vercel Web Analytics and Speed Insights
 
 - [ ] Vercel project → **Analytics** → **Enable**, and **Speed Insights** → **Enable**. The
       code already renders both on Vercel (cookie-free, same-origin `/_vercel/*`, nothing to add
       to the CSP). Data shows up after the next deployment gets visits.
 
-## 7. Smoke test on production
+## 6. Smoke test on production
 
 Use a fresh browser profile on `https://<domain>`:
 
 - [ ] `curl -s https://<domain>/api/health` → `{"status":"ok"}`.
-- [ ] `/` loads signed out, with the eval numbers from step 1. Sign up with a new email (the
-      allowlist is off now), then land on `/library`.
+- [ ] `/` loads signed out, with the eval numbers. Sign up with a new email (the allowlist is
+      off now), then land on `/library`.
 - [ ] Upload a short PDF: it reaches **Ready**. Vercel logs show
-      `"event":"document.indexed"` with `"model":"openai/text-embedding-3-small"`.
+      `"event":"document.indexed"` with `"model":"google/gemini-embedding-001"`.
 - [ ] Ask a question it answers: a cited answer streams. Open the chip: the passage is
       highlighted, and "Open page" opens the PDF. The logs show `"event":"answer.generated"` with
-      `"model":"anthropic/claude-sonnet-5.5"` and token counts.
+      `"model":"google/gemini-3.6-flash"` and token counts.
 - [ ] Ask something it doesn't cover: "Your documents don't say…".
 - [ ] "Turn this into tasks" on an answer with deadlines: untick one, **Add**, and the tasks are
       on `/tasks`. Cancel on a second request adds nothing.
@@ -191,25 +136,74 @@ Use a fresh browser profile on `https://<domain>`:
       (`claude mcp add --transport http docchat https://<domain>/mcp`) and search a document.
 - [ ] Delete the test account (user menu → Manage account → Delete account). The webhook
       removes its rows and files: the Clerk webhook's log shows a 200 for `user.deleted`.
-- [ ] AI Gateway → **Usage** shows the requests. Sentry shows no new issues.
+- [ ] AI Studio → **Usage & Billing** shows the requests and the balance going down. Sentry shows
+      no new issues.
 
 ## Rolling back
 
 **If the problem is the deployment (code)**: Vercel → **Deployments** → the previous production
 deployment → **Instant Rollback**. Env vars are not part of that rollback; they stay as set.
 
-**If the problem is the gateway models**, the order matters.
+**If the problem is the models or the budget:**
 
-- **Before sign-ups open** (allowlist still on, only fictional documents): set
-  `EMBEDDING_PROVIDER=google` and `CHAT_PROVIDER=google`, put `GOOGLE_GENERATIVE_AI_API_KEY`
-  back, and redeploy. Then re-embed with Gemini, the same backfill as step 3 with
-  `EMBEDDING_PROVIDER=google` and the Gemini key. Search ignores the gateway vectors until that
-  runs, and Gemini's free tier embeds slowly (one request every 0.7 s, 20 chunks each). Revert
-  the `minSimilarity` and eval commits only if you're abandoning the gateway.
-- **After sign-ups open, never switch back to the Gemini free tier**: it would send real users'
-  documents and questions to a service that may use them. Use one of these instead:
-  - Change only the answer model on the gateway: `CHAT_ANSWER_MODEL=<another gateway model id>`
-    and redeploy. Embeddings stay as they are.
-  - Or pause new sign-ups (turn the allowlist back on), and if needed set
-    `CHAT_DAILY_LIMIT=1` while you fix it. Uploads keep working: indexing only needs the
-    embedding model.
+- **An answer model misbehaves or is overloaded:** set `CHAT_ANSWER_MODEL` to another Gemini
+  model (e.g. `gemini-3.8-flash`) and redeploy. Embeddings stay as they are. Run
+  `pnpm eval:answers` on it when you can.
+- **The balance is running out faster than expected:** top it up in AI Studio, and lower
+  `CHAT_DAILY_LIMIT` (down to `1` while you look into it) and redeploy. Pausing new sign-ups
+  (turn the allowlist back on) also helps. Uploads keep working while answers are limited, as
+  long as some balance is left for embeddings (a fraction of a cent per document).
+- **Never fall back to a free-tier key** once real users' documents are in: it would send them
+  to a service that may use them.
+
+## Optional: switch to the AI Gateway
+
+Only if you want the gateway's models (`anthropic/claude-sonnet-5.5` for answers,
+`openai/text-embedding-3-small` for embeddings), one bill across providers, or its fallbacks.
+Nothing at launch needs it.
+
+1. **Credits and a key.** Vercel dashboard → **AI Gateway** → **Credits** shows a balance (the
+   gateway's free tier answers 403 for these models). For scripts run locally: **AI Gateway** →
+   **API Keys** → **Create key**, kept in your shell (`export AI_GATEWAY_API_KEY=…`).
+2. **Calibrate on `dev`.** With `export EMBEDDING_PROVIDER=gateway CHAT_PROVIDER=gateway`, run
+   `corepack pnpm eval:retrieval`, set `EMBEDDING_CONFIGS.gateway.minSimilarity` in
+   `src/server/ai/models.ts` between the lowest right-passage similarity and the highest
+   off-topic one (it's still the 0.25 placeholder; replace its comment with the run's numbers
+   and date), then run `eval:answers`, `eval:agent`, `eval:injection` and `eval:summary`.
+   Compare each with its last Gemini run in `tests/evals/results/` (citation accuracy,
+   grounding, honesty, task recall and precision, injection resistance), and commit the
+   results, the summary JSON and the floor together as `chore(evals): gateway models, calibrated
+floor`. Optionally `EMBEDDING_PROVIDER=gateway corepack pnpm db:backfill-embeddings` so `dev`
+   matches.
+3. **Set the daily limit.** `CHAT_DAILY_LIMIT` defaults to 50 on the gateway. Pick a number from
+   the evals' `ai_usage` rows and set it in Vercel.
+4. **Switch production.** In Vercel Production set `EMBEDDING_PROVIDER=gateway`,
+   `CHAT_PROVIDER=gateway` and the limit; leave `AI_GATEWAY_API_KEY` unset (Vercel uses OIDC; a
+   key always wins over OIDC). Keep `GOOGLE_GENERATIVE_AI_API_KEY` if you might switch back.
+   Redeploy.
+5. **Re-embed Neon `main` right after the deploy.** Until then, search skips the
+   Gemini-embedded chunks and questions get "Your documents don't say…":
+
+   ```bash
+   export EMBEDDING_PROVIDER=gateway AI_GATEWAY_API_KEY=…
+   export DATABASE_URL="$(neonctl connection-string main --project-id <neon-project> --pooled)"
+   export DATABASE_URL_UNPOOLED="$(neonctl connection-string main --project-id <neon-project>)"
+   corepack pnpm db:backfill-embeddings --dry-run   # counts the documents to re-embed
+   corepack pnpm db:backfill-embeddings
+   corepack pnpm db:backfill-embeddings --dry-run   # expect "0 ready document(s)"
+   ```
+
+   **How long:** documents go one at a time. Each takes one gateway request per 100 chunks
+   (about 0.5 to 1.5 s), then one row update per chunk (a few ms each from a nearby machine, 20
+   to 40 ms from far away). Count about **1 to 2 s per document plus 30 ms per chunk**: 100
+   documents (about 2,000 chunks) take 3 to 5 minutes, 1,000 about half an hour. Real numbers
+   first: `psql "$DATABASE_URL" -c "select count(distinct document_id) docs, count(*) chunks from chunk"`.
+   Cost: about $0.02 per 2,000 chunks. Safe to stop and rerun: it only picks up chunks still on
+   the old model.
+
+6. **Smoke test** as in step 6, expecting `openai/text-embedding-3-small` and
+   `anthropic/claude-sonnet-5.5` in the logs, and AI Gateway → **Usage** showing the requests.
+
+**Switching back to Gemini** is the same in reverse: `EMBEDDING_PROVIDER=google`,
+`CHAT_PROVIDER=google`, a paid-project key, redeploy, then the backfill with
+`EMBEDDING_PROVIDER=google` (slower: one request every 0.7 s, 20 chunks each).
