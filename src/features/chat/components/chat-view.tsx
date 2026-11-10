@@ -36,7 +36,7 @@ import type { ApprovalRequestBody, QuestionRequestBody } from "../chat-request";
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "../find-rules";
 import {
   chatTitle,
-  FREE_LIMIT_MESSAGE,
+  AI_LIMIT_MESSAGE,
   messageText,
   proposalOf,
   type ChatUIMessage,
@@ -164,7 +164,7 @@ export function ChatView({
       });
       // The provider refused for quota and the server didn't save this answer: drop what had
       // streamed of it (the passages), leaving the question and the message.
-      if (failure.message !== FREE_LIMIT_MESSAGE) return;
+      if (failure.message !== AI_LIMIT_MESSAGE) return;
       setMessages((all) => (all.at(-1)?.role === "assistant" ? all.slice(0, -1) : all));
     },
   });
