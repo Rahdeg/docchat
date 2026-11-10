@@ -2,7 +2,7 @@ import { APICallError, simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FREE_LIMIT_MESSAGE } from "@/features/chat/message";
+import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 
 // The agent in POST /api/chat (docs/adr/0007): tools only when the user asks for tasks, a
 // proposal that only ever reaches the approval card, and approvals that save through
@@ -370,7 +370,7 @@ describe("POST /api/chat, task requests", () => {
 
     const all = await chunks(await post(ask("Turn this into tasks")));
 
-    expect(all.find((c) => c.type === "error")?.errorText).toBe(FREE_LIMIT_MESSAGE);
+    expect(all.find((c) => c.type === "error")?.errorText).toBe(AI_LIMIT_MESSAGE);
     expect(mocks.saveAnswer).not.toHaveBeenCalled();
     expect(mocks.answerProposal).not.toHaveBeenCalled();
   });

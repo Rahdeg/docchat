@@ -16,9 +16,9 @@
 // without spending the day's quota on all of them.
 //
 // Run: pnpm eval:answers. Not in CI: it calls the chat provider (CHAT_PROVIDER, or the model in
-// CHAT_ANSWER_MODEL) about 17 times and the judge about 30. The Gemini free tier allows 20
-// answers a day per model, so calls are spaced out, progress is saved after every call, and a
-// run stopped by the quota continues where it left off when run again (--fresh starts over).
+// CHAT_ANSWER_MODEL) about 17 times (a few cents on Gemini's paid tier) and the judge about 30
+// (Gemma, free of charge, with a daily quota). Calls are spaced out, progress is saved after
+// every call, and a run stopped by a quota continues where it left off when run again (--fresh starts over).
 // Uses DATABASE_URL (your Neon dev branch) and only touches the eval user's rows.
 import "../../scripts/lib/load-env";
 
@@ -54,7 +54,8 @@ import {
 } from "./retrieval-cases";
 
 const EVAL_USER_ID = "eval_answers";
-// Between answer calls, and between judge calls: under the free tier's per-minute limits.
+// Between answer calls, and between judge calls: under the per-minute limits (Gemma's is the
+// free tier's).
 const ANSWER_GAP_MS = 6_000;
 const JUDGE_GAP_MS = 2_500;
 

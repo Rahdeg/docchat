@@ -29,8 +29,9 @@ export const env = createEnv({
       .refine(notInProduction("local"), `STORAGE_DRIVER=local: ${TEST_DOUBLE_RULE}`),
     // Folder for STORAGE_DRIVER=local. Default: .data/uploads in the working directory.
     LOCAL_STORAGE_DIR: z.string().min(1).optional(),
-    // Who embeds chunks and queries (docs/adr/0005). "google" is the Gemini API's free tier: for
-    // development with fictional documents only. Production switches to "gateway" before launch.
+    // Who embeds chunks and queries (docs/adr/0005). "google" is the Gemini API on its paid tier
+    // (paid-tier content isn't used to improve Google's products): development and production.
+    // "gateway" (Vercel AI Gateway) is the optional alternative.
     // Changing it means re-embedding: run `pnpm db:backfill-embeddings`.
     // "fake" is a test double: hashed bag-of-words vectors, no network (src/server/ai/fake.ts).
     EMBEDDING_PROVIDER: z
@@ -44,8 +45,8 @@ export const env = createEnv({
     // instead. Locally, set it: the pulled OIDC token expires after 12 hours. A key always wins
     // over OIDC, even an invalid one.
     AI_GATEWAY_API_KEY: z.string().min(1).optional(),
-    // Who writes answers (docs/adr/0006). "google" is the Gemini API's free tier, under the same
-    // rule as embeddings: fictional documents only. Production switches to "gateway".
+    // Who writes answers (docs/adr/0006). "google" is the Gemini API's paid tier, as for
+    // embeddings; "gateway" is the optional alternative.
     // "fake" is a test double: answers by copying the best-matching sentence, with a valid
     // citation, and proposes tasks from must/should sentences (src/server/ai/fake.ts).
     CHAT_PROVIDER: z
@@ -55,9 +56,9 @@ export const env = createEnv({
     // Optional: a different answer model on CHAT_PROVIDER, e.g. "gemini-3.8-flash" or
     // "anthropic/claude-opus-5.5". For trying a model, or when the default's quota is used up.
     CHAT_ANSWER_MODEL: z.string().trim().min(1).max(100).optional(),
-    // Answers one user may generate per UTC day. The free tier's daily quota is shared by
-    // every user, so one person can't use it all up. Unset: 10 on "google", 50 on "gateway"
-    // (src/server/ai/limits.ts).
+    // Model calls one user may make per UTC day (an answer is one, a task request up to five).
+    // Every call is paid for, so this caps one person's spend. Unset: 25 on "google", 50 on
+    // "gateway" (src/server/ai/limits.ts).
     CHAT_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
     // Svix signing secret (whsec_…) of the Clerk webhook endpoint at /api/webhooks/clerk, which
     // deletes a user's data when Clerk sends user.deleted (docs/adr/0008).

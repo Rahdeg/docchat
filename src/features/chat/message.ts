@@ -148,9 +148,11 @@ export function proposalOf(
   return null;
 }
 
-// Shown when the AI provider refuses for quota (rate limit or daily quota). The question is
-// saved, the answer isn't; the browser drops what had streamed of it.
-export const FREE_LIMIT_MESSAGE = "DocChat has reached today's free AI limit. Try again tomorrow.";
+// Shown when the AI provider refuses for quota (a rate limit, a daily quota or a used-up
+// prepaid balance). The question is saved, the answer isn't; the browser drops what had
+// streamed of it.
+export const AI_LIMIT_MESSAGE =
+  "DocChat's AI service is busy right now. Try again in a few minutes.";
 
 // Chat titles: the first question, cut at a word to about 60 characters. No model call.
 export const TITLE_MAX_CHARS = 60;
