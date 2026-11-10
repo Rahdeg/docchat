@@ -3,7 +3,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ABOUT_ANSWER } from "@/features/chat/about";
-import { FREE_LIMIT_MESSAGE } from "@/features/chat/message";
+import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -400,7 +400,7 @@ describe("POST /api/chat", () => {
 
       expect(response.status).toBe(200);
       expect(mocks.saveUserMessage).toHaveBeenCalled();
-      expect(all).toContainEqual({ type: "error", errorText: FREE_LIMIT_MESSAGE });
+      expect(all).toContainEqual({ type: "error", errorText: AI_LIMIT_MESSAGE });
       expect(all.some((c) => c.type === "finish")).toBe(false);
       // onEnd runs after the stream closes: give it the chance to (wrongly) save.
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -415,7 +415,7 @@ describe("POST /api/chat", () => {
     const all = await chunks(await post(body()));
 
     expect(mocks.saveUserMessage).toHaveBeenCalled();
-    expect(all).toContainEqual({ type: "error", errorText: FREE_LIMIT_MESSAGE });
+    expect(all).toContainEqual({ type: "error", errorText: AI_LIMIT_MESSAGE });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mocks.saveAnswer).not.toHaveBeenCalled();
   });

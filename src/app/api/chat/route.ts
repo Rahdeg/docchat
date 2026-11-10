@@ -22,7 +22,7 @@ import {
 import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "@/features/chat/find-rules";
 import {
   chatTitle,
-  FREE_LIMIT_MESSAGE,
+  AI_LIMIT_MESSAGE,
   messageText,
   type ChatMessagePart,
   type ChatMetadata,
@@ -103,7 +103,7 @@ async function answerQuestion(
     parts: [{ type: "text", text: question.data }],
   };
 
-  // Before any model call: the free tier's daily quota is shared by every user.
+  // Before any model call: each call is paid for, so one user's day is capped.
   const limit = await checkDailyLimit(userId);
   if (!limit.ok) {
     log("quota.hit", { userId, limit: "daily" }, "warn");
@@ -454,7 +454,7 @@ function citationsChunk(citations: Citation[], final: boolean): InferUIMessageCh
 }
 
 function errorMessage(error: unknown): string {
-  if (isQuotaError(error)) return FREE_LIMIT_MESSAGE;
+  if (isQuotaError(error)) return AI_LIMIT_MESSAGE;
   return "Something went wrong while writing the answer. Try again.";
 }
 
