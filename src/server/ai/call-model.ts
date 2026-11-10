@@ -67,7 +67,7 @@ export function statusOf(error: unknown): number | undefined {
   return failureOf(error)?.statusCode;
 }
 
-// A free-tier daily quota is used up: retrying today won't help.
+// A per-day quota (requests per day per model) is used up: retrying today won't help.
 export function isDailyQuotaError(error: unknown): boolean {
   const failure = failureOf(error);
   return failure?.statusCode === 429 && /PerDay/.test(failure.responseBody ?? "");

@@ -102,7 +102,7 @@ input schema has a user field). Each call counts against the MCP rate limit firs
 
   | Limit               | Per user       | Where                                                            |
   | ------------------- | -------------- | ---------------------------------------------------------------- |
-  | Questions (answers) | 10 or 50 a day | `POST /api/chat`, `CHAT_DAILY_LIMIT` (`src/server/ai/limits.ts`) |
+  | Questions (answers) | 25 or 50 a day | `POST /api/chat`, `CHAT_DAILY_LIMIT` (`src/server/ai/limits.ts`) |
   | Searches            | 30 a minute    | `POST /api/chat` questions and MCP `search_documents`            |
   | Uploads             | 20 an hour     | `POST /api/documents/upload` (or `/upload/local`), one per file  |
   | MCP calls           | 60 a minute    | Every MCP tool call                                              |
@@ -116,6 +116,13 @@ input schema has a user field). Each call counts against the MCP rate limit firs
   dropped, an allowlist `beforeSend` that scrubs messages; `monitoring.test.ts` checks it).
   Server logs are typed JSON events with fixed fields (`src/server/log.ts`), never free text.
   Vercel Web Analytics and Speed Insights are cookie-free and run only on Vercel.
+- **Where document text goes.** Passages and questions go to the Gemini API
+  (`EMBEDDING_PROVIDER=google`, `CHAT_PROVIDER=google`) on its **paid tier**, where Google
+  doesn't use prompts or responses to improve its products. The key must belong to a Google
+  Cloud project with billing on (Tier 1 or above): a key from a free-tier project would put
+  users' documents under the free tier's terms. The eval judge (`gemma-4-26b-a4b-it`) has no
+  paid tier, so it only ever reads the eval's fictional fixtures. The AI Gateway
+  (`gateway`) is an optional alternative (`docs/launch-checklist.md`).
 - **Test doubles never reach production.** The fake AI providers and the local file store
   (`EMBEDDING_PROVIDER=fake`, `CHAT_PROVIDER=fake`, `STORAGE_DRIVER=local`) are rejected by env
   validation unless `NODE_ENV=test` or `CI` is set, and never on Vercel. The server also refuses

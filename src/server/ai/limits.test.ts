@@ -14,11 +14,11 @@ describe("checkDailyLimit", () => {
     expect(CHAT_DAILY_LIMIT).toBe(3);
   });
 
-  it("defaults to 10 a day on the Gemini free tier and 50 on the gateway", () => {
-    expect(dailyLimitFrom({ CHAT_PROVIDER: "google" })).toBe(10);
-    expect(dailyLimitFrom({})).toBe(10);
+  it("defaults to 25 a day on Gemini and 50 on the gateway", () => {
+    expect(dailyLimitFrom({ CHAT_PROVIDER: "google" })).toBe(25);
+    expect(dailyLimitFrom({})).toBe(25);
     expect(dailyLimitFrom({ CHAT_PROVIDER: "gateway" })).toBe(50);
-    expect(dailyLimitFrom({ CHAT_PROVIDER: "google", CHAT_DAILY_LIMIT: 25 })).toBe(25);
+    expect(dailyLimitFrom({ CHAT_PROVIDER: "google", CHAT_DAILY_LIMIT: 12 })).toBe(12);
   });
 
   it("allows answers until the limit, then refuses with the reset time", async () => {

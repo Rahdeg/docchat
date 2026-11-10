@@ -18,7 +18,7 @@ follow:
 2. Why proposals need the user's approval, and how that's enforced.
 3. How a proposed task's source is checked.
 4. When a task may carry a due date.
-5. Limits: steps, the daily limit and the free tier.
+5. Limits: steps, the daily limit and the provider's quota.
 6. How we know it works: the agent eval.
 
 ## Decision
@@ -76,7 +76,7 @@ approved, tasks } }`. The browser sends only the decision and, for "Add", which 
   card says to ask again.
 - **The reply is a fixed line**, "Added 5 tasks. See them on the Tasks page." ("Added 1 task" in
   the singular) or "No tasks were added.", with no model call. A model-written confirmation would
-  cost a free-tier request per approval, and a quota failure after the tasks were saved would
+  cost a model request per approval, and a quota failure after the tasks were saved would
   contradict "save nothing". It also avoids sending Gemini's tool-call history (thought
   signatures) back after a round trip through the database.
 
@@ -127,10 +127,10 @@ user picks on the card are theirs and are always kept.
   so a run that keeps searching still ends with tasks or an explanation.
 - **Every call counts.** Each step writes a `chat` row to `ai_usage` (`onStepEnd`), so the daily
   limit (`CHAT_DAILY_LIMIT`) counts steps, not questions, and the run stops as soon as the limit
-  is reached (`stopWhen`). On the Gemini free tier a task request usually takes two or three of
-  the day's 20 requests.
+  is reached (`stopWhen`). A task request usually takes two or three calls: about a cent on
+  Gemini's paid tier (ADR 0006, section 8).
 - **Quota mid-run saves nothing.** If the provider refuses for quota, the route shows
-  `FREE_LIMIT_MESSAGE` and saves no answer. Tasks are never saved during a run anyway.
+  `AI_LIMIT_MESSAGE` and saves no answer. Tasks are never saved during a run anyway.
 - At most 20 tasks per proposal (schema and `checkProposal`) and per approval; 24 passages per run.
 
 ### 6. The agent eval

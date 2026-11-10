@@ -7,8 +7,8 @@ import { SAMPLE_NAME, SAMPLE_PDF } from "./paths";
 // "Ask about this", the agent's tasks (approve and cancel) and the Tasks page by hand.
 //
 // In CI they run with the fake AI providers and the local file store (docs/adr/0009), so they
-// cost no AI quota. Locally, the steps that call the chat model skip unless CHAT_PROVIDER=fake
-// or E2E_LIVE_AI=1: the Gemini free tier allows 20 requests a day.
+// cost nothing. Locally, the steps that call the chat model skip unless CHAT_PROVIDER=fake or
+// E2E_LIVE_AI=1: every real call is paid for.
 //
 // One user, so one file, in order: later steps use the document the first one uploads. Titles
 // carry a run id, so reruns against the same account don't trip over earlier rows.

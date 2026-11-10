@@ -9,8 +9,8 @@ import { UNRELATED_ANSWER } from "@/features/chat/message";
 import { hasChatKey, hasEmbeddingKey } from "./models";
 
 // Real answers: indexes fixtures with EMBEDDING_PROVIDER and asks CHAT_PROVIDER. Runs only with
-// DATABASE_URL, both providers' keys and LIVE_CHAT_TESTS=1: the Gemini free tier allows 20
-// answers a day, and this file uses 4. CI skips it. Modules load lazily so CI never connects.
+// DATABASE_URL, both providers' keys and LIVE_CHAT_TESTS=1: every answer is paid for, and this
+// file uses 4. CI skips it. Modules load lazily so CI never connects.
 const canRun =
   !!process.env.DATABASE_URL && hasEmbeddingKey && hasChatKey && !!process.env.LIVE_CHAT_TESTS;
 
@@ -22,7 +22,7 @@ type Modules = {
   indexDocument: typeof import("@/server/ingest/index-document").indexDocument;
 };
 
-// Model calls are paced and may be retried on the free tier.
+// Model calls are paced and may be retried (429s, Google's 503s under load).
 describe.skipIf(!canRun)("answerQuestion (integration)", { timeout: 180_000 }, () => {
   const user = `test_answers_${randomUUID()}`;
   let m: Modules;

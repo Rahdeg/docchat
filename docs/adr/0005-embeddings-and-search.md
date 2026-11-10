@@ -18,25 +18,26 @@ choices follow:
 
 ## Decision
 
-### 1. Two providers behind one switch: Gemini's free tier now, AI Gateway before launch
+### 1. Two providers behind one switch: Gemini, and the AI Gateway as the alternative
 
 `EMBEDDING_PROVIDER` (`src/lib/env.ts`) picks the provider; everything else reads
 `embeddingConfig` from `src/server/ai/models.ts`:
 
-| `EMBEDDING_PROVIDER` | Model (stored as `chunk.embedding_model`) | Through                     | For                                       |
-| -------------------- | ----------------------------------------- | --------------------------- | ----------------------------------------- |
-| `google` (default)   | `google/gemini-embedding-001` at 1536     | `@ai-sdk/google`, free tier | development, **fictional documents only** |
-| `gateway`            | `openai/text-embedding-3-small` (1536)    | Vercel AI Gateway           | production, before launch                 |
+| `EMBEDDING_PROVIDER` | Model (stored as `chunk.embedding_model`) | Through                     | For                                    |
+| -------------------- | ----------------------------------------- | --------------------------- | -------------------------------------- |
+| `google` (default)   | `google/gemini-embedding-001` at 1536     | `@ai-sdk/google`, paid tier | development and production (amendment) |
+| `gateway`            | `openai/text-embedding-3-small` (1536)    | Vercel AI Gateway           | optional (amendment)                   |
 
 - **AI Gateway is where we're going.** One credential and one bill for every provider (PR 6 adds
   a chat model through it), usage and spend per model, and provider fallbacks
   (`openai/text-embedding-3-small` is also served by Azure). On Vercel it authenticates with the
   project's OIDC token, so production needs no `AI_GATEWAY_API_KEY`. Locally a key is needed (the
   pulled OIDC token expires after 12 hours). A key always wins over OIDC, even an invalid one.
-- **Why not yet.** The gateway's free tier refuses this model (`403 RestrictedModelsError`, "Free
+- **Why not yet** (until 2026-11-10; see the amendment). The gateway's free tier refuses this model (`403 RestrictedModelsError`, "Free
   tier users do not have access to this model"), and paid credits start at $20. Until then,
   embeddings come from the Gemini API's free tier.
-- **The free tier is for development with fictional documents only.** Google's terms allow
+- **The free tier was for development with fictional documents only** (superseded by the
+  amendment: the project is now on the paid tier). Google's terms allow
   free-tier content to be used to improve its products, and its limits are low. Use it with the
   seed data, the eval fixtures and sample uploads, never real users' documents. Production
   switches to `gateway` before launch: set `EMBEDDING_PROVIDER=gateway`, then
@@ -160,8 +161,7 @@ chunking, query or filtering:
   wasn't ranked first, and the similarity floor numbers (below). Each run is saved to
   `tests/evals/results/retrieval-<date>.json` with the model, chunk settings and git commit, so
   runs can be compared.
-- It costs nothing on Gemini's free tier and a fraction of a cent on the gateway, but needs a key,
-  so it isn't in CI. A free unit test (`tests/evals/retrieval-cases.test.ts`) does run in CI: it
+- It costs a fraction of a cent on either provider, but needs a key, so it isn't in CI. A free unit test (`tests/evals/retrieval-cases.test.ts`) does run in CI: it
   checks every question against the fixtures and the chunker, so a change that breaks a question
   fails there instead of quietly lowering the score.
 
@@ -203,3 +203,25 @@ hidden: the no-answer question's if it's lower, otherwise the off-topic probes'.
 - `ai_usage` grows by about one row per request and one per question. It needs a retention policy
   once it's used for rate limits. Its token counts for Gemini are estimates.
 - Answers in PR 6 reuse `searchPassages` and the floor, and `SourceCard` for the Sources panel.
+
+## Amendment (2026-11-10): Gemini's paid tier
+
+The Gemini API project moved to the paid tier (Tier 1, prepaid). On the paid tier Google doesn't
+use prompts or responses to improve its products (pricing page, "Used to improve our products":
+No), which was the only reason `google` was limited to fictional documents.
+
+- **`google` now serves production too**, and the AI Gateway becomes optional. Its advantages
+  (one bill for every provider, fallbacks) still hold, but none of them blocks launch, and
+  `docs/launch-checklist.md` now launches on Gemini.
+- **The rule moves to the key.** `GOOGLE_GENERATIVE_AI_API_KEY` must come from a project with
+  billing on. A key from a free-tier project puts everything it sends back under the free
+  tier's terms, so such a key is for the seed data and eval fixtures only.
+- **No re-embedding.** The model, its 1536 dimensions and the 0.58 floor are unchanged, so
+  existing vectors stay valid and `embedding_model` doesn't change.
+- **Cost:** $0.15 per million input tokens. On the dev branch an indexing request averages
+  1,205 tokens and a query 11, so a dense 100-page PDF costs about $0.02 and a question's
+  query embedding a tiny fraction of a cent. Indexing is limited by the upload rules (10 MB,
+  20 documents per user), not by price.
+- **Pacing is unchanged** (20 texts per request, one at a time, 700 ms apart). Tier 1's limits are
+  higher (listed per project in AI Studio), so loosening `EMBEDDING_CONFIGS.google.limits` would
+  only make indexing faster; that's left for when it matters.

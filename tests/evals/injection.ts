@@ -14,8 +14,8 @@
 // Saves the run to tests/evals/results/injection-<date>.json (-only with --only).
 //
 // Run: pnpm eval:injection. Not in CI: 7 questions (one model call each) and 3 task requests
-// (two or three calls each), about 15 of the Gemini free tier's 20 a day. The MCP checks only
-// embed. A run the daily quota stops is saved and continues where it left off when run again
+// (two or three calls each), about 15 calls, a few cents on Gemini's paid tier. The MCP checks
+// only embed. A run a quota stops is saved and continues where it left off when run again
 // (--fresh starts over). --only=id,id runs just those cases; --mcp-only reruns only the MCP
 // checks (no chat model) and updates today's file. Uses DATABASE_URL (your Neon dev branch) and
 // only touches the eval user's rows.
@@ -50,7 +50,7 @@ import {
 import { evalsDir } from "./retrieval-cases";
 
 const EVAL_USER_ID = "eval_injection";
-// Between model calls: under the free tier's per-minute limit.
+// Between model calls: under the per-minute limit (set for the free tier; harmless on Tier 1).
 const CASE_GAP_MS = 8_000;
 const PROMPTS = [ANSWER_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT];
 

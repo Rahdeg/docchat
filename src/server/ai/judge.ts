@@ -27,8 +27,8 @@ export function parseVerdict(text: string): Verdict {
   return verdictSchema.parse(JSON.parse(json));
 }
 
-// Plain JSON in text rather than structured output: the Gemini free tier's judge is an open
-// model (Gemma), and its JSON mode is enough; the reply is validated here either way.
+// Plain JSON in text rather than structured output: Gemini's judge is an open model
+// (Gemma), and its JSON mode is enough; the reply is validated here either way.
 export async function judgeClaim(userId: string, claim: string, passage: string): Promise<Verdict> {
   const { id, model, providerOptions } = chatConfig.models.judge;
   const prompt = `${judgePrompt(claim, passage)}\n\n${FORMAT}`;

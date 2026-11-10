@@ -7,7 +7,8 @@
 
 PR 5 found the passages that answer a question (ADR 0005). PR 6 writes the answer: streamed,
 written only from the user's documents, with a numbered citation on every claim that opens the
-exact sentence it rests on. Seven choices follow (the last two added after manual testing):
+exact sentence it rests on. Eight choices follow (sections 6 and 7 added after manual testing,
+8 when the Gemini project moved to the paid tier):
 
 1. Which model writes answers, and how it's called.
 2. How the model gives its citations, including the sentence behind each one.
@@ -16,6 +17,7 @@ exact sentence it rests on. Seven choices follow (the last two added after manua
 5. How we know it works: the answer eval.
 6. Unrelated questions and questions about DocChat itself, and the similarity floor.
 7. Living within the free tier's quota, and showing the working for calculations.
+8. The Gemini paid tier: cost per answer and the daily limit.
 
 ## Decision
 
@@ -25,7 +27,7 @@ exact sentence it rests on. Seven choices follow (the last two added after manua
 `src/server/ai/models.ts`, as `EMBEDDING_PROVIDER` does for embeddings. Each provider has three
 models, one per job:
 
-| Job                                     | `google` (free tier, development)           | `gateway` (production)        |
+| Job                                     | `google` (paid tier since section 8)        | `gateway` (optional)          |
 | --------------------------------------- | ------------------------------------------- | ----------------------------- |
 | Answer                                  | `gemini-3.6-flash`, thinking `low`          | `anthropic/claude-sonnet-5.5` |
 | Rewrite a follow-up into a search query | `gemini-3.5-flash-lite`, thinking `minimal` | `anthropic/claude-haiku-5.5`  |
@@ -35,10 +37,11 @@ models, one per job:
   2026-10-28), but its free tier was overloaded all that day: requests timed out after 60 s or
   got 503 "high demand". `gemini-3.6-flash` answered in about 3 s. `CHAT_ANSWER_MODEL` swaps the
   answer model without a code change, so trying 3.8 again is one env variable.
-- **The free tier allows 20 requests a day per model, for the whole project** (429
+- **The free tier allowed 20 requests a day per model, for the whole project** (until section 8; 429
   `GenerateRequestsPerDayPerProjectPerModel-FreeTier`; it resets at midnight Pacific). That's 20
   answers a day across every user, which binds long before `CHAT_DAILY_LIMIT` (50 per user, as
-  asked; 10 on the free tier since section 7) does. Fine for development with fictional documents; production uses the gateway.
+  asked; 10 on the free tier since section 7) does. Fine for development with fictional
+  documents. Section 8 moves the project to the paid tier.
 - **The judge is an open model (Gemma) on the same API**, so the eval's judge calls draw on a
   different quota than the answers they judge.
 - **Every generation writes an `ai_usage` row** (`chat`, `rewrite` or `judge`, with input and
@@ -251,7 +254,7 @@ run of it; the 2026-10-28 numbers were from a Flash-Lite stand-in). Judge `gemma
   limit that outlasts the 20 s of retries is also told "tomorrow", which overstates the wait but
   keeps one message.
 - **`CHAT_DAILY_LIMIT` defaults to 10 per user on `google`** and 50 on `gateway`, so one user
-  can't spend all of the project's 20 free answers.
+  can't spend all of the project's 20 free answers. (25 since section 8.)
 - **Follow-ups that read as standalone skip the rewrite.** `readsStandalone`
   (`src/server/ai/follow-up.ts`) searches a follow-up as asked when it has at least four words,
   doesn't open by leaning on the last turn ("and", "what about"), and has no word pointing back
@@ -270,12 +273,44 @@ run of it; the 2026-10-28 numbers were from a Flash-Lite stand-in). Judge `gemma
   4 + (8 - 5) = **7 weeks** [1]", judged supported, check passed. That's one answer: run the
   full eval after the quota resets for the numbers to publish.
 
+### 8. The Gemini paid tier: cost per answer and the daily limit (2026-11-10)
+
+The project moved to Gemini's paid tier (Tier 1, prepaid, a £9.49 balance), with the same
+models. ADR 0005's amendment covers what that means for documents; this section covers the cost.
+
+- **Prices** (pricing page, 2026-11-10, per million tokens): `gemini-3.6-flash` $0.75 in and
+  $3.75 out until 2026-12-31, then $1.50 and $7.50; thinking tokens count as output.
+  `gemini-3.5-flash-lite` (rewrites) $0.30 and $2.50. Gemma 4 has no paid tier: the judge stays
+  free of charge under the free tier's terms, which is fine because it only reads the eval's
+  fictional fixtures.
+- **Measured cost per answer.** The dev branch's `ai_usage` (62 `gemini-3.6-flash` calls) averages
+  2,215 tokens in and 448 out, thinking included (the provider counts it in `outputTokens`): about
+  **$0.003 an answer now, $0.007 from 2027**. The largest call (5,797 in, 3,893 out) costs about
+  $0.02, then $0.04. A rewrite costs about $0.0001.
+- **`CHAT_DAILY_LIMIT` on `google` goes from 10 to 25.** We treat the balance as about $10 of
+  usage (conversion and VAT). 25 calls is a working session (25 questions, or 8 to 12 task
+  requests at two or three calls each) and costs one user about $0.08 a day typically ($0.17 from 2027) and at most about $1, so a single user can't spend more than about a tenth of the
+  balance in a day. At 2027 prices the balance pays for about 1,500 typical answers. The limit
+  caps each user, not the total: with many active users the balance is what runs out, so watch
+  it in AI Studio and top it up.
+- **One provider-neutral refusal.** `FREE_LIMIT_MESSAGE` ("today's free AI limit. Try again
+  tomorrow.") becomes `AI_LIMIT_MESSAGE`: "DocChat's AI service is busy right now. Try again in
+  a few minutes." On the paid tier a quota refusal is a per-minute limit, Tier 1's spend-based
+  rate limit, or a used-up prepaid balance, none of which "tomorrow" describes. The handling from
+  section 7 is unchanged: the question is kept and no answer row is written.
+- **Unchanged:** pacing and retries (set for the free tier, harmless on Tier 1), the
+  `LIVE_CHAT_TESTS=1` gate (calls now cost money rather than quota), and the evals' resumable
+  runs (Gemma's daily quota can still stop a long answer eval).
+- **Checked with one live question** on the paid tier: `pnpm eval:answers --only=long-service-notice`
+  (`tests/evals/results/answers-2026-11-10-only.json`): cited, judged supported, quote matched,
+  answer check passed (7 weeks), in about 4 s. 3,263 tokens in and 799 out: about $0.005.
+
 ## Consequences
 
 - An answer costs one request (two for a follow-up, which is rewritten first) and nothing when
-  no passage matches. On the free tier that's 20 answers a day for everyone: enough to develop
-  with, not to launch with. Switch `CHAT_PROVIDER=gateway` before real users arrive, as for
-  embeddings (ADR 0005), and run `pnpm eval:answers` on it.
+  no passage matches. On Gemini's paid tier that's about $0.003 (section 8), and
+  `CHAT_DAILY_LIMIT` caps what one user can spend. The gateway is optional (ADR 0005,
+  amendment); switching to it needs a `pnpm eval:answers` run on its models.
 - Chips show the model's citations, checked: a chip always points at a passage that was
   retrieved, and its highlight is the model's quote when we could find it. The quote is the
   model's choice of sentence; the grounding score measures how often that choice holds up.
