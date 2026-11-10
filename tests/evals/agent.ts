@@ -12,7 +12,7 @@
 // Saves the run to tests/evals/results/agent-<date>.json (agent-<date>-only.json with --only).
 //
 // Run: pnpm eval:agent. Not in CI: each scenario is up to five chat model calls (usually two or
-// three), within the Gemini free tier's 20 a day. A run the daily quota stops is saved and
+// three), a few cents on Gemini's paid tier. A run a quota stops is saved and
 // continues where it left off when run again (--fresh starts over). --only=id,id runs just those
 // scenarios. Uses DATABASE_URL (your Neon dev branch) and only touches the eval user's rows.
 import "../../scripts/lib/load-env";
@@ -42,7 +42,7 @@ import { indexFixtures } from "./index-fixtures";
 import { evalsDir } from "./retrieval-cases";
 
 const EVAL_USER_ID = "eval_agent";
-// Between scenarios: under the free tier's per-minute limit.
+// Between scenarios: under the per-minute limit (set for the free tier; harmless on Tier 1).
 const SCENARIO_GAP_MS = 8_000;
 
 type ScenarioResult = {

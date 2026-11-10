@@ -7,7 +7,7 @@ import { hasChatKey, hasEmbeddingKey } from "@/server/ai/models";
 
 // POST /api/chat against the real database: only Clerk is faked. The ownership block needs
 // DATABASE_URL; the reload block also embeds and answers for real, so it needs both providers'
-// keys and LIVE_CHAT_TESTS=1 (the Gemini free tier allows 20 answers a day). CI has neither.
+// keys and LIVE_CHAT_TESTS=1 (every answer is paid for). CI has neither.
 // Modules load lazily so CI never connects.
 const hasDatabase = !!process.env.DATABASE_URL;
 const canAnswer = hasDatabase && hasEmbeddingKey && hasChatKey && !!process.env.LIVE_CHAT_TESTS;
