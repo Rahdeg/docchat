@@ -6,10 +6,12 @@ import { env } from "@/lib/env";
 import { db } from "@/server/db";
 import { aiUsage } from "@/server/db/schema";
 
-// Answers per user per UTC day: CHAT_DAILY_LIMIT, or by provider. The Gemini free tier allows
-// about 20 answers a day for the whole project, so one user gets 10 of them; the gateway is paid.
-// The fake provider (CI's end-to-end tests) costs nothing.
-const DEFAULT_DAILY_LIMIT = { google: 10, gateway: 50, fake: 1_000 } as const;
+// Model calls per user per UTC day: CHAT_DAILY_LIMIT, or by provider. Both real providers are
+// paid, so the limit caps what one user can spend. On Gemini's paid tier a typical answer costs
+// about $0.003 (2,200 tokens in, 450 out, thinking included; $0.007 at the 2027 prices) and a
+// long one about $0.04, so 25 calls cost one user at most about $1 a day (docs/adr/0006,
+// amendment). The fake provider (CI's end-to-end tests) costs nothing.
+const DEFAULT_DAILY_LIMIT = { google: 25, gateway: 50, fake: 1_000 } as const;
 
 export function dailyLimitFrom(config: {
   CHAT_DAILY_LIMIT?: number;
