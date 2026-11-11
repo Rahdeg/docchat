@@ -8,7 +8,9 @@ import {
 } from "./security-headers";
 
 const devKey = `pk_test_${Buffer.from("moving-bunny-8224.clerk.accounts.dev$").toString("base64")}`;
-const liveKey = `pk_live_${Buffer.from("clerk.docchat.example.com$").toString("base64")}`;
+// The production instance's key (pk_live_ + base64 of its Frontend API host). Publishable keys
+// are public and built into every page.
+const liveKey = `pk_live_${Buffer.from("clerk.docchat.raheem.online$").toString("base64")}`;
 
 function directives(policy: string): Record<string, string[]> {
   return Object.fromEntries(
@@ -22,7 +24,7 @@ function directives(policy: string): Record<string, string[]> {
 describe("clerkFrontendApiHost", () => {
   it("reads the host from the publishable key", () => {
     expect(clerkFrontendApiHost(devKey)).toBe("moving-bunny-8224.clerk.accounts.dev");
-    expect(clerkFrontendApiHost(liveKey)).toBe("clerk.docchat.example.com");
+    expect(clerkFrontendApiHost(liveKey)).toBe("clerk.docchat.raheem.online");
   });
 
   it("refuses something that isn't a key", () => {
@@ -43,11 +45,11 @@ describe("contentSecurityPolicy", () => {
     expect(d["form-action"]).toEqual(["'self'"]);
     expect(d["connect-src"]).toEqual([
       "'self'",
-      "https://clerk.docchat.example.com",
+      "https://clerk.docchat.raheem.online",
       "https://*.protect.clerk.com:*",
       "https://vercel.com/api/blob/",
     ]);
-    expect(d["script-src"]).toContain("https://clerk.docchat.example.com");
+    expect(d["script-src"]).toContain("https://clerk.docchat.raheem.online");
     expect(d["script-src"]).not.toContain("'unsafe-eval'");
     // No wildcard hosts for scripts.
     expect(d["script-src"]).not.toContain("https:");
@@ -60,6 +62,47 @@ describe("contentSecurityPolicy", () => {
     expect(d["script-src"]).toContain("'unsafe-eval'");
     expect(d["connect-src"]).toContain("https://clerk-telemetry.com");
     expect(d["upgrade-insecure-requests"]).toBeUndefined();
+  });
+});
+
+// Every directive Clerk's CSP guide asks for (clerk.com/docs/guides/secure/best-practices/csp-headers),
+// with the Frontend API host taken from whichever key the build has.
+describe.each([
+  ["production", liveKey, "https://clerk.docchat.raheem.online"],
+  ["development", devKey, "https://moving-bunny-8224.clerk.accounts.dev"],
+])("Clerk's directives with a %s key", (_name, publishableKey, frontendApi) => {
+  const d = directives(contentSecurityPolicy({ publishableKey, development: false }));
+
+  it("allows its Frontend API, bot protection and fraud protection", () => {
+    expect(d["script-src"]).toEqual(
+      expect.arrayContaining([
+        "'self'",
+        "'unsafe-inline'",
+        frontendApi,
+        "https://challenges.cloudflare.com",
+        "https://*.protect.clerk.com",
+      ]),
+    );
+    expect(d["connect-src"]).toEqual(
+      expect.arrayContaining(["'self'", frontendApi, "https://*.protect.clerk.com:*"]),
+    );
+    expect(d["frame-src"]).toEqual(
+      expect.arrayContaining([
+        "'self'",
+        "https://challenges.cloudflare.com",
+        "https://*.protect.clerk.com",
+      ]),
+    );
+    expect(d["img-src"]).toEqual(expect.arrayContaining(["'self'", "https://img.clerk.com"]));
+    expect(d["worker-src"]).toEqual(expect.arrayContaining(["'self'", "blob:"]));
+    expect(d["style-src"]).toEqual(expect.arrayContaining(["'self'", "'unsafe-inline'"]));
+  });
+
+  it("allows no other Clerk instance", () => {
+    const clerkHosts = Object.values(d)
+      .flat()
+      .filter((value) => /clerk\.accounts\.dev|clerk\.docchat/.test(value));
+    expect(new Set(clerkHosts)).toEqual(new Set([frontendApi]));
   });
 });
 

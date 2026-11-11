@@ -6,15 +6,15 @@ describe("appOriginFrom", () => {
   it("prefers APP_URL", () => {
     expect(
       appOriginFrom({
-        APP_URL: "https://docchat.example.com",
+        APP_URL: "https://docchat.raheem.online",
         VERCEL_PROJECT_PRODUCTION_URL: "docchat.vercel.app",
       }),
-    ).toBe("https://docchat.example.com");
+    ).toBe("https://docchat.raheem.online");
   });
 
   it("drops a trailing slash", () => {
-    expect(appOriginFrom({ APP_URL: "https://docchat.example.com/" })).toBe(
-      "https://docchat.example.com",
+    expect(appOriginFrom({ APP_URL: "https://docchat.raheem.online/" })).toBe(
+      "https://docchat.raheem.online",
     );
   });
 
