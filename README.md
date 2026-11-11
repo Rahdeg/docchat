@@ -3,7 +3,11 @@
 Upload your documents, ask questions in plain language, and get answers that cite the exact
 sentence they came from, so you can check them instead of trusting them.
 
-**[Live app](https://docchat.raheem.online)** · Demo video: https://github.com/user-attachments/assets/52d3082d-f4b3-48c0-9626-05d04ae0ded8
+**[Live app](https://docchat.raheem.online)** · Demo video: 
+
+https://github.com/user-attachments/assets/b3fe4c3a-09d3-467a-a525-8d5982cb59f5
+
+.
 
 [Build thread on X](https://x.com/Walett25) 
 · [Portfolio](https://raheem.online)
