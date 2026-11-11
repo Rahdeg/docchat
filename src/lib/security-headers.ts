@@ -7,7 +7,10 @@
 type Header = { key: string; value: string };
 
 // Clerk's Frontend API host, from the publishable key: pk_test_ or pk_live_, then base64 of
-// "<host>$". Dev instances use *.clerk.accounts.dev; production uses clerk.<your domain>.
+// "<host>$". Dev instances use *.clerk.accounts.dev; production uses clerk.<your domain>
+// (clerk.docchat.raheem.online). So each build allows exactly the instance whose key it has:
+// Production's pk_live_ key, Preview's and Development's pk_test_ one. Both Clerk bundles
+// (clerk-js and @clerk/ui) load from this host.
 export function clerkFrontendApiHost(publishableKey: string): string {
   const encoded = publishableKey.replace(/^pk_(test|live)_/, "");
   const decoded = Buffer.from(encoded, "base64").toString("utf8").replace(/\$$/, "");
