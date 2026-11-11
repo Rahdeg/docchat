@@ -140,9 +140,9 @@ a question reaches the model.
 
 Counted on 11 Nov 2026 by `pnpm readme:tests`:
 
-- **474 Vitest tests** in 62 files (unit, component, and the evals' scoring and fixture checks), on every pull request.
+- **631 Vitest tests** in 62 files (unit, component, and the evals' scoring and fixture checks), on every pull request.
 - **9 integration test files** against a real Postgres (and, for some, a real model), run locally; CI has no database, so they skip there.
-- **55 Playwright tests** in 8 files (the signed-in flows, public pages, accessibility with axe, and the CSP), on every pull request against a production build with fake AI providers.
+- **55 Playwright tests** in 8 files (the signed-in flows, public pages, accessibility with axe, and the CSP), on every pull request against a production build with fake AI providers; a few that need the real services, such as an upload to Blob, skip there.
 
 <!-- tests:end -->
 

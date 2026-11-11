@@ -129,7 +129,7 @@ export function evalsSection(files: readonly ResultFile[]): string {
 }
 
 export type TestCounts = {
-  // What `vitest list` collects without a database: everything CI runs.
+  // Vitest tests that passed outside the integration files: what CI runs.
   unitTests: number;
   unitFiles: number;
   // *.integration.test.ts files, which skip without DATABASE_URL (and some without a model key).
@@ -147,7 +147,7 @@ export function testsSection(counts: TestCounts): string {
     "",
     `- **${plural(counts.unitTests, "Vitest test")}** in ${plural(counts.unitFiles, "file")} (unit, component, and the evals' scoring and fixture checks), on every pull request.`,
     `- **${plural(counts.integrationFiles, "integration test file")}** against a real Postgres (and, for some, a real model), run locally; CI has no database, so they skip there.`,
-    `- **${plural(counts.e2eTests, "Playwright test")}** in ${plural(counts.e2eFiles, "file")} (the signed-in flows, public pages, accessibility with axe, and the CSP), on every pull request against a production build with fake AI providers.`,
+    `- **${plural(counts.e2eTests, "Playwright test")}** in ${plural(counts.e2eFiles, "file")} (the signed-in flows, public pages, accessibility with axe, and the CSP), on every pull request against a production build with fake AI providers; a few that need the real services, such as an upload to Blob, skip there.`,
   ].join("\n");
 }
 
