@@ -63,9 +63,11 @@ export const env = createEnv({
     // Svix signing secret (whsec_…) of the Clerk webhook endpoint at /api/webhooks/clerk, which
     // deletes a user's data when Clerk sends user.deleted (docs/adr/0008).
     CLERK_WEBHOOK_SIGNING_SECRET: z.string().startsWith("whsec_"),
-    // The app's public origin, e.g. "https://docchat.example.com", without a path. The MCP
-    // server's URL is <APP_URL>/mcp, and OAuth tokens must be issued for exactly that URL
-    // (their audience), so it must match the URL registered in Clerk. Unset: Vercel's
+    // The app's public origin without a path: "https://docchat.raheem.online" in production.
+    // Metadata (metadataBase, so the Open Graph image), the sitemap, robots.txt and the MCP
+    // server's URL (<APP_URL>/mcp) come from it. OAuth tokens must be issued for exactly that
+    // URL (their audience), so it must match the URL registered in Clerk. Read at build time
+    // too (the public pages are static), so changing it needs a redeploy. Unset: Vercel's
     // production domain, then http://localhost:3000 (src/lib/app-url.ts).
     APP_URL: z
       .url()

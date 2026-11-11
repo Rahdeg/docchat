@@ -7,8 +7,105 @@ open, a Clerk sign-up allowlist keeps the app to invited users. The Vercel AI Ga
 optional: see "Optional: switch to the AI Gateway" at the end. Work through this list in order;
 each step says how to check it.
 
-Placeholders: `<domain>` is the production domain (e.g. `docchat.app`), `<neon-project>` is the
-Neon project id (`neonctl projects list`).
+The production domain is **`docchat.raheem.online`**, served by Clerk's **production** instance.
+Placeholder: `<neon-project>` is the Neon project id (`neonctl projects list`).
+
+## Production domain
+
+Every setting that must name `docchat.raheem.online`, in one place. The code reads the domain
+only from env (`APP_URL`, and the Clerk host inside the publishable key); nothing in it is
+hardcoded. The steps below point back here.
+
+### DNS (at the host for `raheem.online`)
+
+| Record                                              | Type  | Value                                                  |
+| --------------------------------------------------- | ----- | ------------------------------------------------------ |
+| `docchat`                                           | CNAME | the target Vercel shows for the domain (Vercel step 1) |
+| `clerk.docchat`                                     | CNAME | `frontend-api.clerk.services` (as Clerk lists it)      |
+| `accounts.docchat`                                  | CNAME | `accounts.clerk.services`                              |
+| `clkmail.docchat`                                   | CNAME | the `mail.….clerk.services` value Clerk lists          |
+| `clk._domainkey.docchat`, `clk2._domainkey.docchat` | CNAME | the DKIM values Clerk lists                            |
+
+Copy the values from the dashboards, not from this table. On Cloudflare DNS, set the Clerk
+records to **DNS only** (grey cloud): Clerk can't issue its certificates behind the proxy.
+
+- [ ] Check: `dig +short docchat.raheem.online` and `dig +short clerk.docchat.raheem.online CNAME`
+      both answer.
+
+### Vercel (the project → Settings)
+
+1. [ ] **Domains** → **Add**: `docchat.raheem.online`, environment **Production**, no redirect.
+       Add the DNS record it shows; wait for **Valid Configuration** and the certificate.
+2. [ ] **Environment Variables**, **Production** only:
+
+   | Variable                            | Value                                                 |
+   | ----------------------------------- | ----------------------------------------------------- |
+   | `APP_URL`                           | `https://docchat.raheem.online` (no trailing slash)   |
+   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | the production instance's `pk_live_…`                 |
+   | `CLERK_SECRET_KEY`                  | the production instance's `sk_live_…` (sensitive)     |
+   | `CLERK_WEBHOOK_SIGNING_SECRET`      | the production webhook endpoint's `whsec_…` (Clerk 5) |
+
+   `APP_URL` gives the metadata (`metadataBase`, so the Open Graph image's absolute URL),
+   `sitemap.xml`, `robots.txt`, the landing page's Claude Code command, the Settings card and
+   the MCP resource URL (`<APP_URL>/mcp`, the OAuth audience). The publishable key names
+   `clerk.docchat.raheem.online`, which is what the CSP allows (`src/lib/security-headers.ts`);
+   there is no CSP variable to set. Leave `CSP_REPORT_ONLY` unset.
+
+   **Preview** and **Development** keep the development instance's `pk_test_`/`sk_test_` keys
+   and webhook secret, and leave `APP_URL` unset. (Unset, it falls back to Vercel's production
+   domain, which is `docchat.raheem.online` once it's added, so previews show the production
+   MCP URL, as `docs/adr/0008` intends.)
+
+3. [ ] **Redeploy** production. The keys, `APP_URL` and the CSP are built into the deployment, so
+       they change only on a new build.
+4. [ ] **Deployment Protection**: the production domain must stay public. Claude connects to
+       `/mcp` from its own servers, and crawlers fetch `/robots.txt` and `/opengraph-image`.
+5. [ ] The project's `*.vercel.app` production URL still answers, but Clerk's production instance
+       works only on `docchat.raheem.online`, so sign-in fails there. Optional: **Domains** →
+       that domain → **Edit** → redirect (308) to `docchat.raheem.online`.
+
+### Clerk (the production instance)
+
+1. [ ] **Domains**: application domain `docchat.raheem.online`. That makes the Frontend API
+       `clerk.docchat.raheem.online` and the Account Portal `accounts.docchat.raheem.online`.
+       Add Clerk's DNS records (above) and wait until each shows **Verified** and the
+       certificates are issued.
+2. [ ] **Paths** (Configure → Developers → Paths): sign-in `/sign-in`, sign-up `/sign-up`, and
+       after sign-out `/`, all on the application domain. Clerk's emails and the Account Portal
+       link back through these.
+3. [ ] **SSO connections**, for each social provider offered, in that provider's OAuth app: - Google Cloud → **Credentials** → the OAuth client: **Authorized JavaScript origins**
+       `https://docchat.raheem.online`; **Authorized redirect URIs** the URI Clerk shows
+       (`https://clerk.docchat.raheem.online/v1/oauth_callback`). **OAuth consent screen** →
+       authorized domain `raheem.online`, home page `https://docchat.raheem.online`. - GitHub → **Developer settings** → the OAuth app: homepage
+       `https://docchat.raheem.online`, callback URL the one Clerk shows (same as above).
+4. [ ] **MCP server** (Agents → MCP servers): `https://docchat.raheem.online/mcp`, exactly
+       `APP_URL` + `/mcp`, no trailing slash. Then the rest of `docs/security.md` → "Clerk
+       dashboard" with `sk_live_…`: `aud_claim_enabled`, CIMD on, DCR off, default scopes.
+5. [ ] **Webhooks** → endpoint `https://docchat.raheem.online/api/webhooks/clerk`, `user.deleted`
+       only; its signing secret goes into Vercel Production (Vercel step 2).
+6. [ ] **API keys**: the `pk_live_…`/`sk_live_…` pair for Vercel step 2. Check the publishable key
+       names the right host:
+       `node -e 'console.log(Buffer.from(process.argv[1].slice(8),"base64").toString())' pk_live_…`
+       prints `clerk.docchat.raheem.online$`.
+
+### Elsewhere
+
+- [ ] **Sentry** → Project Settings → General → **Allowed Domains**: `docchat.raheem.online`
+      (step 4).
+
+### Check after the redeploy
+
+```bash
+curl -sI https://docchat.raheem.online | grep -i '^content-security-policy' | tr ';' '\n' | grep clerk
+# script-src and connect-src list https://clerk.docchat.raheem.online, and no clerk.accounts.dev
+curl -s https://docchat.raheem.online/robots.txt | grep -i sitemap
+# Sitemap: https://docchat.raheem.online/sitemap.xml
+curl -s https://docchat.raheem.online/sitemap.xml | grep -o '<loc>[^<]*'
+curl -s https://docchat.raheem.online | grep -o '<meta property="og:image" content="[^"]*'
+# https://docchat.raheem.online/opengraph-image…
+curl -s https://docchat.raheem.online/.well-known/oauth-protected-resource/mcp
+# "resource":"https://docchat.raheem.online/mcp", authorization server https://clerk.docchat.raheem.online
+```
 
 ## 0. Before you start
 
@@ -68,27 +165,14 @@ In the Vercel dashboard → the project → **Settings** → **Environment Varia
 
 - [ ] Clerk dashboard → the application → instance switcher (top) → **Create production
       instance** (clone the development settings).
-- [ ] **Domains**: set `<domain>`, then add the DNS records Clerk lists (the `clerk.`,
-      `accounts.`, `clkmail.` and DKIM CNAMEs) at your DNS host. Wait until every record shows
-      verified, and Clerk has issued certificates.
+- [ ] Work through "Production domain" above: DNS, then Clerk 1 to 6, then Vercel 1 to 5. Keep
+      the `pk_test_`/`sk_test_` keys in Preview and Development, and in the GitHub secrets for CI
+      (the e2e job signs in to the development instance).
 - [ ] **SSO connections**: the development instance uses Clerk's shared OAuth credentials; the
-      production instance needs your own. For each social provider you offer (Google,
-      GitHub…), create an OAuth app with the redirect URI Clerk shows, and paste its client id
-      and secret.
-- [ ] **API keys**: copy `pk_live_…` and `sk_live_…` into Vercel **Production** as
-      `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`. The publishable key is built
-      into the pages and the CSP (it names the Clerk host), so redeploy afterwards. Keep the
-      `pk_test_`/`sk_test_` keys in Preview and Development, and in the GitHub secrets for CI.
-- [ ] **Webhook**: production instance → **Webhooks** → **Add endpoint**:
-      `https://<domain>/api/webhooks/clerk`, subscribed to `user.deleted` only. Copy its
-      signing secret into Vercel Production as `CLERK_WEBHOOK_SIGNING_SECRET`.
-- [ ] **MCP server**: set `APP_URL=https://<domain>` in Vercel Production (tokens are checked
-      for exactly `<APP_URL>/mcp`). Then repeat `docs/security.md` → "Clerk dashboard steps" on
-      the production instance with `sk_live_…`: register `https://<domain>/mcp`, turn on CIMD,
-      and set the default scopes (the `curl -X PATCH …/oauth_application_settings` call).
+      production instance needs your own (Clerk 3 above has the URLs).
 - [ ] **Remove the sign-up allowlist**: production instance → **Configure** → **Restrictions** →
       **Allowlist** → off. Keep the blocklist and bot protection on. Do this last, after
-      step 4 passes.
+      step 6 passes.
 
 ## 4. Sentry (if not already on)
 
@@ -104,7 +188,7 @@ In the Vercel dashboard → the project → **Settings** → **Environment Varia
 - [ ] **Project Settings** → **Security & Privacy**: turn on **Data Scrubber**, **Use Default
       Scrubbers** and **Prevent Storing of IP Addresses**. The app already scrubs before
       sending (`src/lib/monitoring.ts`); this is a second net.
-- [ ] **Project Settings** → **General** → **Allowed Domains**: `<domain>`, plus the Vercel
+- [ ] **Project Settings** → **General** → **Allowed Domains**: `docchat.raheem.online`, plus the Vercel
       preview pattern if Preview reports.
 - [ ] Don't install Sentry's Vercel integration. It sets its own env vars and options.
 - [ ] Redeploy. Check: open the site, and in the browser console run
@@ -119,9 +203,9 @@ In the Vercel dashboard → the project → **Settings** → **Environment Varia
 
 ## 6. Smoke test on production
 
-Use a fresh browser profile on `https://<domain>`:
+Use a fresh browser profile on `https://docchat.raheem.online`:
 
-- [ ] `curl -s https://<domain>/api/health` → `{"status":"ok"}`.
+- [ ] `curl -s https://docchat.raheem.online/api/health` → `{"status":"ok"}`.
 - [ ] `/` loads signed out, with the eval numbers. Sign up with a new email (the allowlist is
       off now), then land on `/library`.
 - [ ] Upload a short PDF: it reaches **Ready**. Vercel logs show
@@ -132,8 +216,8 @@ Use a fresh browser profile on `https://<domain>`:
 - [ ] Ask something it doesn't cover: "Your documents don't say…".
 - [ ] "Turn this into tasks" on an answer with deadlines: untick one, **Add**, and the tasks are
       on `/tasks`. Cancel on a second request adds nothing.
-- [ ] Settings shows `https://<domain>/mcp`. Connect it from Claude
-      (`claude mcp add --transport http docchat https://<domain>/mcp`) and search a document.
+- [ ] Settings shows `https://docchat.raheem.online/mcp`. Connect it from Claude
+      (`claude mcp add --transport http docchat https://docchat.raheem.online/mcp`) and search a document.
 - [ ] Delete the test account (user menu → Manage account → Delete account). The webhook
       removes its rows and files: the Clerk webhook's log shows a 200 for `user.deleted`.
 - [ ] AI Studio → **Usage & Billing** shows the requests and the balance going down. Sentry shows

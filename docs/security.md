@@ -143,7 +143,7 @@ Make these changes on the **development** instance for local work and again on t
 **production** instance before launch. The code doesn't change any of them.
 
 1. **MCP server.** Agents → MCP servers → **Add MCP server** (or **Get started**). MCP URL:
-   `http://localhost:3000/mcp` on development; `https://<your domain>/mcp` on production,
+   `http://localhost:3000/mcp` on development; `https://docchat.raheem.online/mcp` on production,
    exactly as `APP_URL` + `/mcp` (no trailing slash). Select **Allow public clients to connect**.
 2. **Audience claims.** `verifyMcpToken` refuses any token without `aud`, and Clerk only adds
    `aud` (from the client's RFC 8707 `resource`) when the instance's OAuth application settings
@@ -173,7 +173,7 @@ Make these changes on the **development** instance for local work and again on t
    - Keep the consent screen on (it is always on for CIMD clients).
 4. **Account deletion.** User & authentication → **Allow users to delete their accounts**: on,
    so the Delete account button shows in the profile (Settings → Manage account).
-5. **Webhook.** Webhooks → **Add endpoint**: `https://<your domain>/api/webhooks/clerk`,
+5. **Webhook.** Webhooks → **Add endpoint**: `https://docchat.raheem.online/api/webhooks/clerk`,
    subscribed to **`user.deleted`** only. Copy its **Signing Secret** (`whsec_…`) into
    `CLERK_WEBHOOK_SIGNING_SECRET`. For local testing, `clerk webhooks listen --forward-to
 http://localhost:3000/api/webhooks/clerk` relays events to your machine (use that relay
@@ -182,10 +182,10 @@ http://localhost:3000/api/webhooks/clerk` relays events to your machine (use tha
 ## Deploy
 
 1. Env vars on Vercel (Production): `CLERK_WEBHOOK_SIGNING_SECRET` (required),
-   `APP_URL=https://<your domain>` (defaults to the project's production domain),
+   `APP_URL=https://docchat.raheem.online` (defaults to the project's production domain),
    `MCP_ENABLED` (default `true`), `CSP_REPORT_ONLY` (leave unset).
 2. `pnpm db:migrate` against `main` before deploying (migration 0008).
 3. Do the Clerk dashboard steps above on the production instance.
 4. After deploying: the Clerk dashboard's MCP server page re-tests the connection; connect
-   Claude Desktop (Customize → Connectors → Add custom connector) to `https://<your domain>/mcp`;
+   Claude Desktop (Customize → Connectors → Add custom connector) to `https://docchat.raheem.online/mcp`;
    delete a throwaway account and check its rows are gone.
