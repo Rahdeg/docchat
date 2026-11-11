@@ -2,8 +2,8 @@
 #
 # Runs the app (Dockerfile) and Postgres 18 with pgvector, the same major and extension as Neon,
 # with a one-off service that applies the migrations first. Clerk, Vercel Blob and the AI
-# provider stay external: their keys come from .env.local, as for `pnpm dev` (README, "Run with
-# Docker"). The database settings below override the Neon ones in .env.local.
+# provider stay external: their keys come from .env.local, as for `pnpm dev` (docs/setup.md,
+# "Run with Docker"). The database settings below override the Neon ones in .env.local.
 name: docchat
 
 x-database: &database

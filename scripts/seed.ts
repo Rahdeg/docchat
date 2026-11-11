@@ -48,7 +48,7 @@ async function main() {
     chunked.map((chunks) => embedChunks(SEED_USER_ID, chunks)),
   ).catch((error: unknown) => {
     throw new Error(
-      "Couldn't embed the sample chunks. Check EMBEDDING_PROVIDER and its key in .env.local (README, Embeddings setup).",
+      "Couldn't embed the sample chunks. Check EMBEDDING_PROVIDER and its key in .env.local (docs/setup.md, Embeddings setup).",
       { cause: error },
     );
   });
