@@ -1,4 +1,6 @@
 # DocChat
+<img width="540" height="675" alt="docchat-demo-preview" src="https://github.com/user-attachments/assets/d3adc2af-02bd-4c11-a908-d023361e0df7" />
+
 
 Upload your documents, ask questions in plain language, and get answers that cite the exact
 sentence they came from, so you can check them instead of trusting them.
