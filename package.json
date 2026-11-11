@@ -21,7 +21,9 @@
     "eval:answers": "NODE_ENV=development tsx --conditions=react-server tests/evals/answers.ts",
     "eval:agent": "NODE_ENV=development tsx --conditions=react-server tests/evals/agent.ts",
     "eval:injection": "NODE_ENV=development tsx --conditions=react-server tests/evals/injection.ts",
-    "eval:summary": "tsx scripts/eval-summary.ts"
+    "eval:summary": "tsx scripts/eval-summary.ts",
+    "readme:evals": "tsx scripts/readme-evals.ts",
+    "readme:tests": "tsx scripts/readme-tests.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "4.0.105",

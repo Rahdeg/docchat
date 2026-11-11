@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # DocChat as a container: a Next.js standalone server on Node 24, as a non-root user. Built and
 # run by docker-compose.yml with a local Postgres (pgvector); Clerk, Vercel Blob and the AI
-# provider stay external, with their keys from .env.local (README, "Run with Docker").
+# provider stay external, with their keys from .env.local (docs/setup.md, "Run with Docker").
 
 ARG NODE_VERSION=24
 
