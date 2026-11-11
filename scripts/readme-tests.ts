@@ -1,6 +1,8 @@
-// Writes the README's test counts, dated, from the test runners' own list modes (nothing runs):
-// `vitest list` for unit and component tests and `playwright test --list` for e2e. Counts
-// change with every new test, so there's no drift check; rerun it before a release.
+// Writes the README's test counts, dated. Vitest: runs the tests CI runs (everything but the
+// *.integration.test.ts files, which need a database) with the JSON reporter and counts the
+// ones that passed; `vitest list` misses some, so it isn't used for the count. Integration
+// files are only counted. Playwright: `playwright test --list` (nothing runs). Counts change
+// with every new test, so there's no drift check; rerun it before a release.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,28 +12,32 @@ import { z } from "zod";
 
 import { testsSection, writeReadmeSection } from "./readme-lib";
 
-// No database or model keys: count what CI collects. Env validation would fail without them.
 const env: NodeJS.ProcessEnv = { ...process.env, SKIP_ENV_VALIDATION: "1" };
-delete env.DATABASE_URL;
 delete env.LIVE_CHAT_TESTS;
 
-const listSchema = z.array(z.object({ file: z.string() }));
+const integrationGlob = "**/*.integration.test.{ts,tsx}";
 const isIntegration = (file: string) => /\.integration\.test\.tsx?$/.test(file);
+
+const runSchema = z.object({
+  numPassedTests: z.number().int(),
+  numFailedTests: z.number().int(),
+  testResults: z.array(z.object({ name: z.string() })),
+});
+const filesSchema = z.array(z.object({ file: z.string() }));
 
 async function main() {
   const dir = mkdtempSync(join(tmpdir(), "readme-tests-"));
   try {
-    const testsJson = join(dir, "tests.json");
+    const runJson = join(dir, "run.json");
     const filesJson = join(dir, "files.json");
-    const run = (args: string[]) =>
+    const vitest = (args: string[]) =>
       execFileSync("vitest", args, { env, stdio: ["ignore", "ignore", "inherit"] });
-    run(["list", `--json=${testsJson}`]);
-    run(["list", "--filesOnly", `--json=${filesJson}`]);
+    vitest(["run", `--exclude=${integrationGlob}`, "--reporter=json", `--outputFile=${runJson}`]);
+    vitest(["list", "--filesOnly", `--json=${filesJson}`]);
 
-    const tests = listSchema
-      .parse(JSON.parse(readFileSync(testsJson, "utf8")))
-      .filter((test) => !isIntegration(test.file));
-    const files = listSchema.parse(JSON.parse(readFileSync(filesJson, "utf8")));
+    const run = runSchema.parse(JSON.parse(readFileSync(runJson, "utf8")));
+    if (run.numFailedTests > 0) throw new Error(`${run.numFailedTests} Vitest tests failed`);
+    const files = filesSchema.parse(JSON.parse(readFileSync(filesJson, "utf8")));
 
     const e2eList = execFileSync("playwright", ["test", "--list"], { env, encoding: "utf8" });
     const total = /Total: (\d+) tests? in (\d+) files?/.exec(e2eList);
@@ -40,8 +46,8 @@ async function main() {
     const changed = await writeReadmeSection(
       "tests",
       testsSection({
-        unitTests: tests.length,
-        unitFiles: new Set(tests.map((test) => test.file)).size,
+        unitTests: run.numPassedTests,
+        unitFiles: run.testResults.filter((result) => !isIntegration(result.name)).length,
         integrationFiles: files.filter((file) => isIntegration(file.file)).length,
         e2eTests: Number(total[1]),
         e2eFiles: Number(total[2]),
