@@ -6,7 +6,7 @@ import { createdAt, id, userId } from "./columns";
 import { aiUsageKind } from "./enums";
 
 // One row per model call, written after it returns (src/server/ai/usage.ts). Kept for cost
-// tracking and the daily chat limit (src/server/ai/limits.ts).
+// tracking. The free-tier limits count requests in usage_counter instead (docs/adr/0010).
 export const aiUsage = pgTable(
   "ai_usage",
   {
@@ -24,7 +24,7 @@ export const aiUsage = pgTable(
   },
   (t) => [
     index("ai_usage_user_id_idx").on(t.userId),
-    // The daily limit: one user's chat rows since midnight UTC.
+    // One user's usage of a kind over time (cost reports).
     index("ai_usage_user_id_kind_created_at_idx").on(t.userId, t.kind, t.createdAt),
   ],
 );
