@@ -6,9 +6,18 @@ import { z } from "zod";
 
 import { identifyUser, reportError } from "@/server/monitoring";
 
+import { limitMessage, type LimitFailure } from "./limit-messages";
+
 export type ActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
+  | {
+      ok: false;
+      error: string;
+      fieldErrors?: Record<string, string[] | undefined>;
+      // Set when a free-tier limit refused it (src/lib/limit-messages.ts): the browser shows
+      // it with showLimitToast. `error` is the same message, as text.
+      limit?: LimitFailure;
+    };
 
 type ActionContext = { userId: string };
 
@@ -16,6 +25,14 @@ type ActionContext = { userId: string };
 // generic "Something went wrong".
 export class ActionError extends Error {
   override name = "ActionError";
+}
+
+// Throw from a handler when a free-tier limit refuses: the result carries the typed failure.
+export class LimitError extends Error {
+  override name = "LimitError";
+  constructor(readonly failure: LimitFailure) {
+    super(limitMessage(failure));
+  }
 }
 
 // Wraps a Server Action: auth first, then Zod validation, then the handler. Export the result
@@ -43,6 +60,9 @@ export function authedAction<Schema extends z.ZodType, Data>(
     } catch (error) {
       // Let redirect() and notFound() through to Next.
       unstable_rethrow(error);
+      if (error instanceof LimitError) {
+        return { ok: false, error: error.message, limit: error.failure };
+      }
       if (error instanceof ActionError) return { ok: false, error: error.message };
       console.error(error);
       reportError(error, "server-action");

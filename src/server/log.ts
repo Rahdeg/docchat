@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { LimitCode } from "@/lib/limit-messages";
+
 // Structured server logs (docs/adr/0009): one JSON line per important event, for Vercel's
 // logs (or any log drain) to filter and count. Every event has a fixed set of fields: ids,
 // counts, durations, model names and error kinds. Never free text: no document text, passages,
@@ -30,8 +32,9 @@ export type LogEvents = {
   };
   "agent.approved": { userId: Id; chatId: Id; proposed: number; added: number };
   "agent.cancelled": { userId: Id; chatId: Id; proposed: number };
-  // A limit stopped a request: the provider's quota, the daily answer limit or a rate limit.
-  "quota.hit": { userId: Id; limit: "provider" | "daily" | "search" | "upload" | "mcp" };
+  // A limit stopped a request: the provider's quota, or one of ours (a LimitFailure code,
+  // src/lib/limit-messages.ts).
+  "quota.hit": { userId: Id; limit: "provider" | LimitCode };
 };
 
 type Level = "info" | "warn" | "error";

@@ -13,6 +13,7 @@ import { ABOUT_ANSWER, isAboutAnswer, isAboutDocChat } from "@/features/chat/abo
 import type { ChatUIMessage, PassageData } from "@/features/chat/message";
 import { PASSAGE_LIMIT } from "@/features/chat/find-rules";
 
+import { LIMITS } from "@/lib/limits";
 import { log, since } from "@/server/log";
 
 import { createModelCaller } from "./call-model";
@@ -35,8 +36,6 @@ import { recordGeneration } from "./usage";
 
 // Passages an answer reads.
 export const ANSWER_PASSAGES = PASSAGE_LIMIT;
-const ANSWER_MAX_OUTPUT_TOKENS = 1_500;
-const REWRITE_MAX_OUTPUT_TOKENS = 120;
 // A provider that stops responding fails the request instead of holding it open. The first
 // chunk includes thinking time and retries on a rate limit; the total stays under the chat
 // route's maxDuration.
@@ -73,7 +72,7 @@ export async function rewriteQuery(
         instructions: REWRITE_SYSTEM_PROMPT,
         prompt,
         providerOptions,
-        maxOutputTokens: REWRITE_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: LIMITS.rewriteMaxOutputTokens,
         maxRetries: 0,
         timeout: SHORT_CALL_TIMEOUT_MS,
       }),
@@ -191,7 +190,7 @@ export function streamAnswer({
     instructions: ANSWER_SYSTEM_PROMPT,
     messages,
     providerOptions,
-    maxOutputTokens: ANSWER_MAX_OUTPUT_TOKENS,
+    maxOutputTokens: LIMITS.maxOutputTokens,
     abortSignal,
     timeout: ANSWER_TIMEOUT,
     experimental_transform: citationTransform(filter),
