@@ -7,8 +7,7 @@ import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
-  checkDailyLimit: vi.fn(),
-  consumeRateLimit: vi.fn(),
+  consumeQuestion: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -25,8 +24,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
-vi.mock("@/server/ai/limits", () => ({ checkDailyLimit: mocks.checkDailyLimit }));
-vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
+vi.mock("@/server/rate-limit", () => ({ consumeQuestion: mocks.consumeQuestion }));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -158,8 +156,7 @@ const followUpHistory = [
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
-  mocks.checkDailyLimit.mockResolvedValue({ ok: true });
-  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 29 });
+  mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 29 });
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Rent" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-10-28T10:00:00Z"));
   mocks.listMessages.mockResolvedValue([]);
@@ -195,41 +192,59 @@ describe("POST /api/chat", () => {
     expect(mocks.saveUserMessage).not.toHaveBeenCalled();
   });
 
-  it("refuses with the daily limit message before any model call or write", async () => {
-    mocks.checkDailyLimit.mockResolvedValue({
-      ok: false,
-      message: "You've reached today's limit of 50 questions. It resets at midnight UTC.",
-    });
+  it.each([
+    [
+      { code: "QUESTIONS_PER_MINUTE", max: 5, retryAfterSeconds: 40 },
+      "You're asking quickly. Try again in 40 seconds.",
+    ],
+    [
+      { code: "QUESTIONS_PER_DAY", max: 30 },
+      "You've used today's 30 questions. They reset at midnight UTC.",
+    ],
+    [
+      { code: "GLOBAL_PAUSED" },
+      "DocChat is very busy today, so new questions are paused until tomorrow. Your documents are safe.",
+    ],
+  ] as const)(
+    "refuses %o with a typed 429 before any write, search or model call",
+    async (failure, error) => {
+      mocks.consumeQuestion.mockResolvedValue({ ok: false, failure });
 
-    const response = await post(body());
+      const response = await post(body());
 
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe(
-      "You've reached today's limit of 50 questions. It resets at midnight UTC.",
+      expect(response.status).toBe(429);
+      expect(await response.json()).toEqual({ error, limit: failure });
+      expect(mocks.consumeQuestion).toHaveBeenCalledWith(alice, { agent: false });
+      expect(mocks.ensureChat).not.toHaveBeenCalled();
+      expect(mocks.saveUserMessage).not.toHaveBeenCalled();
+      expect(mocks.searchPassages).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a question over MAX_QUESTION_CHARS before counting it", async () => {
+    const long = "a".repeat(501);
+    const response = await post(
+      body({ message: { id: questionId, role: "user", parts: [{ type: "text", text: long }] } }),
     );
-    expect(mocks.ensureChat).not.toHaveBeenCalled();
-    expect(mocks.searchPassages).not.toHaveBeenCalled();
-    expect(mocks.checkDailyLimit).toHaveBeenCalledWith(alice);
-    // Refused before it counted as a search.
-    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Questions can be up to 500 characters. Try a shorter one.",
+      limit: { code: "QUESTION_TOO_LONG", max: 500 },
+    });
+    expect(mocks.consumeQuestion).not.toHaveBeenCalled();
   });
 
-  it("refuses with the search rate limit message before saving or searching", async () => {
-    mocks.consumeRateLimit.mockResolvedValue({
-      ok: false,
-      retryAfterSeconds: 12,
-      message: "That's a lot of searches in a minute. Try again in 12 seconds.",
+  it("sends what's left of today's questions as the answer starts", async () => {
+    mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 7 });
+
+    const sent = await chunks(await post(body()));
+
+    expect(sent[0]).toEqual({
+      type: "start",
+      messageId: expect.any(String),
+      messageMetadata: { questionsLeft: 7 },
     });
-
-    const response = await post(body());
-
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe(
-      "That's a lot of searches in a minute. Try again in 12 seconds.",
-    );
-    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(alice, "search");
-    expect(mocks.ensureChat).not.toHaveBeenCalled();
-    expect(mocks.searchPassages).not.toHaveBeenCalled();
   });
 
   it("returns 404 for another user's chat, without saving or searching", async () => {

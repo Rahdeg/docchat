@@ -81,6 +81,8 @@ export const chatMetadataSchema = z.object({
   // Answers only. A stopped or failed answer keeps what was generated.
   status: z.enum(messageStatuses).optional(),
   feedback: z.enum(feedbackValues).nullable().optional(),
+  // Questions the user has left today, sent as an answer starts (null: no daily limit).
+  questionsLeft: z.number().int().nonnegative().nullable().optional(),
 });
 
 export type ChatMetadata = z.infer<typeof chatMetadataSchema>;
