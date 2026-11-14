@@ -65,6 +65,10 @@ jobs:
       EMBEDDING_PROVIDER: fake
       CHAT_PROVIDER: fake
       STORAGE_DRIVER: local
+      # The flows (and their retries) ask more than a day's free allowance; the limit steps
+      # test the defaults that matter there: 3 documents and 5 questions a minute.
+      QUESTIONS_PER_DAY: "500"
+      AGENT_RUNS_PER_DAY: "100"
       # Required by env validation, never used: uploads stay on disk, no webhooks arrive.
       BLOB_READ_WRITE_TOKEN: vercel_blob_rw_ci_unused
       CLERK_WEBHOOK_SIGNING_SECRET: whsec_ci_unused
