@@ -242,8 +242,8 @@ test("adds, ticks, edits and deletes a task by hand", async ({ page }) => {
 });
 
 // Free-tier limits (docs/adr/0010), with the defaults: 3 documents, 5 questions a minute. The
-// daily allowances (30 questions, 5 task requests) would stop reruns on the same day, so CI's
-// e2e job raises those two; run locally with the same QUESTIONS_PER_DAY and AGENT_RUNS_PER_DAY.
+// daily allowances would stop reruns on the same day, so playwright.config.ts raises those two
+// for the server it starts.
 
 test("at 3 documents the upload button is off and says why, and a 4th file shows the toast", async ({
   page,
@@ -301,7 +301,7 @@ test("at 3 documents the upload button is off and says why, and a 4th file shows
 
 test("asking past the per-minute limit says how long to wait", async ({ page }) => {
   test.skip(!aiAllowed, "Calls the chat model: set CHAT_PROVIDER=fake (CI) or E2E_LIVE_AI=1");
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await page.goto("/chat");
   await expect(page.getByRole("textbox", { name: /^Ask about / })).toBeEditable();
 
@@ -323,4 +323,17 @@ test("asking past the per-minute limit says how long to wait", async ({ page }) 
   await expect(toast).toHaveText(/You're asking quickly\. Try again in \d+ seconds?\./);
   // The refused question is back in the composer, ready to send when the wait is over.
   await expect(box).toHaveValue(new RegExp(`quick question \\d+ ${run}`));
+
+  // Wait out the whole minute: every question so far leaves the window, so the limit lifts
+  // (the refused question goes through) and a retry or rerun starts with the minute free.
+  const said = Number(/in (\d+) seconds?/.exec((await toast.textContent()) ?? "")?.[1] ?? 60);
+  expect(said).toBeLessThanOrEqual(60);
+  await toast.getByRole("button", { name: "Dismiss" }).click();
+  // A deliberate wall-clock wait: the limit is a 60-second window.
+  await page.waitForTimeout(61_000);
+  const send = page.getByRole("button", { name: "Send" });
+  await send.click();
+  await expect(send).toBeVisible({ timeout: 60_000 });
+  await expect(box).toHaveValue("");
+  await expect(toast).toBeHidden();
 });
