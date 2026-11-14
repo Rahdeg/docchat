@@ -129,7 +129,7 @@ describe.skipIf(!process.env.DATABASE_URL)("rate limits", { timeout: 60_000 }, (
       for (let i = 0; i < 4; i += 1) results.push(await consumeSteps(userId, steps));
 
       expect(results.map((r) => r.ok)).toEqual([true, true, true, false]);
-      expect(results[2]).toEqual({ ok: true, counts: { question: 3 } });
+      expect(results[2]).toMatchObject({ ok: true, counts: { question: 3 } });
       expect(results[3]).toEqual({
         ok: false,
         failure: { code: "QUESTIONS_PER_DAY", max: 3 },
@@ -181,6 +181,55 @@ describe.skipIf(!process.env.DATABASE_URL)("rate limits", { timeout: 60_000 }, (
       expect(await count(userId)).toEqual([]);
       const { rateLimitEvent, eq } = await load();
       expect(await db.$count(rateLimitEvent, eq(rateLimitEvent.userId, userId))).toBe(0);
+    });
+
+    it("gives back exactly what a released question counted", async () => {
+      const { consumeSteps, releaseReservation, db, rateLimitEvent, eq } = await load();
+      const steps: Step[] = [
+        { type: "window", bucket: "question" },
+        daily(userId, 30),
+        daily(globalSubject, 100),
+      ];
+      // One that stays counted, then one that's released.
+      expect((await consumeSteps(userId, steps)).ok).toBe(true);
+      const held = await consumeSteps(userId, steps);
+      expect(held.ok).toBe(true);
+      if (!held.ok) return;
+      expect(held.reservation.events).toHaveLength(1);
+      expect(held.reservation.counters.map((c) => c.subject)).toEqual([userId, globalSubject]);
+
+      await releaseReservation(held.reservation);
+
+      expect((await count(userId))[0]?.count).toBe(1);
+      expect((await count(globalSubject))[0]?.count).toBe(1);
+      expect(await db.$count(rateLimitEvent, eq(rateLimitEvent.userId, userId))).toBe(1);
+    });
+
+    it("never takes a counter below zero, nor touches another day", async () => {
+      const { releaseReservation, db, usageCounter, sql } = await load();
+      await db.insert(usageCounter).values({
+        userId,
+        kind: "question",
+        day: sql`(now() at time zone 'UTC')::date`,
+        count: 4,
+      });
+
+      await releaseReservation({
+        userId,
+        events: [],
+        counters: [{ subject: userId, kind: "question", day: "2000-01-01" }],
+      });
+      expect((await count(userId))[0]?.count).toBe(4);
+
+      const [today] = await count(userId);
+      for (let i = 0; i < 6; i += 1) {
+        await releaseReservation({
+          userId,
+          events: [],
+          counters: [{ subject: userId, kind: "question", day: today!.day }],
+        });
+      }
+      expect((await count(userId))[0]?.count).toBe(0);
     });
 
     it("checks without counting for an open step", async () => {

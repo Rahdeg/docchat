@@ -54,7 +54,7 @@ import { LIMITS } from "@/lib/limits";
 import { isQuotaError } from "@/server/ai/call-model";
 import { log } from "@/server/log";
 import { identifyUser, reportError } from "@/server/monitoring";
-import { consumeQuestion } from "@/server/rate-limit";
+import { consumeQuestion, releaseReservation } from "@/server/rate-limit";
 
 // Answers a question in a chat, streaming the answer with its sources and citations
 // (docs/adr/0006). A route handler rather than a Server Action because it streams.
@@ -121,10 +121,12 @@ async function answerQuestion(
   const taskMode = asksForTasks(question.data) && !isAboutDocChat(question.data);
 
   // Before any model call or embedding, and before anything is saved: the user's minute and
-  // day, a task request's daily allowance, and the global breaker (docs/adr/0010). Counted up
-  // front, so concurrent requests can't all slip in under a limit.
+  // day, a task request's daily allowance, and the global breaker (docs/adr/0010). Held up
+  // front, so concurrent requests can't all slip in under a limit, and given back in onEnd if
+  // the answer never starts streaming (the model failed or timed out first).
   const allowed = await consumeQuestion(userId, { agent: taskMode });
   if (!allowed.ok) return refuse(429, allowed.failure);
+  const { reservation, questionsLeft } = allowed;
 
   // Only the user's ready documents: another user's id, or one being read or removed, is
   // dropped, and nothing left means all documents (src/features/chat/scope.ts).
@@ -153,6 +155,11 @@ async function answerQuestion(
   let agent: AgentStream | null = null;
   // "quota": the provider refused for quota, and the answer isn't saved.
   let failure: "quota" | "error" | null = null;
+  // The model has begun its answer: text, or (task mode) a tool call. From here the question
+  // counts, however the answer ends.
+  let answerStarted = false;
+  // Sent with the finish, not the start: a question given back never shows as used.
+  const done = { status: "complete" as const, questionsLeft };
   function failWith(error: unknown): string {
     if (isQuotaError(error)) {
       if (failure !== "quota") log("quota.hit", { userId, limit: "provider" }, "warn");
@@ -164,17 +171,12 @@ async function answerQuestion(
   const stream = createUIMessageStream<ChatUIMessage>({
     originalMessages: [...history, userMessage],
     async execute({ writer }) {
-      // What's left of today's questions, for the composer (null: unlimited).
-      writer.write({
-        type: "start",
-        messageId,
-        messageMetadata: { questionsLeft: allowed.questionsLeft },
-      });
+      writer.write({ type: "start", messageId });
 
       // A question about DocChat itself: one canned line, no search and no model call.
       if (isAboutDocChat(question.data)) {
         writeText(writer, ABOUT_ANSWER);
-        writer.write({ type: "finish", messageMetadata: { status: "complete" } });
+        writer.write({ type: "finish", messageMetadata: done });
         return;
       }
 
@@ -204,7 +206,7 @@ async function answerQuestion(
           ),
         );
         writer.write(citationsChunk([], true));
-        writer.write({ type: "finish", messageMetadata: { status: "complete" } });
+        writer.write({ type: "finish", messageMetadata: done });
         return;
       }
 
@@ -259,8 +261,9 @@ async function answerQuestion(
 
       const reader = modelStream.getReader();
       for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { done: ended, value } = await reader.read();
+        if (ended) break;
+        if (!answerStarted && startsAnswer(value)) answerStarted = true;
         writer.write(value);
       }
 
@@ -270,7 +273,10 @@ async function answerQuestion(
       if (agent) writeProposal(writer, agent, proposal);
       writer.write({
         type: "finish",
-        messageMetadata: { status: failure ? "failed" : "complete" } satisfies ChatMetadata,
+        messageMetadata: {
+          status: failure ? "failed" : "complete",
+          questionsLeft,
+        } satisfies ChatMetadata,
       });
     },
     onError: (error) => {
@@ -283,6 +289,13 @@ async function answerQuestion(
     // provider refused for quota isn't saved: the question stays, to ask again tomorrow, and
     // nothing the agent proposed survives.
     async onEnd({ responseMessage, isAborted, isCancelled, outcome }) {
+      // Failed or timed out before the model wrote anything: the question doesn't count.
+      if (failure && !answerStarted) {
+        await releaseReservation(reservation).catch((error: unknown) => {
+          console.error(`Couldn't release the question for answer ${messageId}`, error);
+          reportError(error, "chat-release");
+        });
+      }
       if (failure === "quota") {
         console.warn(`Answer ${messageId} not saved: the AI provider refused for quota`);
         return;
@@ -373,6 +386,16 @@ async function answerApproval(userId: string, body: z.output<typeof approvalBody
   });
 
   return createUIMessageStreamResponse({ stream, consumeSseStream: consumeStream });
+}
+
+// The model's first output: answer text, or a tool call (the agent searching or proposing).
+// Step markers and errors don't count.
+function startsAnswer(chunk: InferUIMessageChunk<ChatUIMessage>): boolean {
+  return (
+    chunk.type === "text-delta" ||
+    chunk.type === "tool-input-start" ||
+    chunk.type === "tool-input-available"
+  );
 }
 
 // A canned answer, as one text part.

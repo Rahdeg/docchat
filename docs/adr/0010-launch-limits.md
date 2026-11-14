@@ -98,8 +98,12 @@ instances; we kept it and added to it rather than adding Redis or a paid service
   and the global breaker in that order; the first refusal rolls back everything counted before
   it. So a question refused by the user's own limit never uses up everyone's, and a question
   refused by the breaker doesn't use up the user's day.
-- **Counted up front**, before anything is saved, searched or sent to a model. That closes the
-  old race where usage was written after the answer.
+- **Held up front, kept once the answer starts.** A question is counted before anything is
+  saved, searched or sent to a model, which closes the old race where usage was written after
+  the answer. If the search or the model fails or times out before the answer starts streaming
+  (its first text, or the agent's first tool call), `releaseReservation` gives back exactly what
+  it counted: its window event, and one off each daily counter on the day it was counted. Once
+  the answer has started it counts, however it ends, including when the user presses Stop.
 
 What counts as a question: every new question and every "Try again" on `/chat`, including a
 task request (which also counts as an agent run) and a question about DocChat itself. Approving

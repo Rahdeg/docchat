@@ -8,6 +8,7 @@ import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   consumeQuestion: vi.fn(),
+  releaseReservation: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -24,7 +25,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
-vi.mock("@/server/rate-limit", () => ({ consumeQuestion: mocks.consumeQuestion }));
+vi.mock("@/server/rate-limit", () => ({
+  consumeQuestion: mocks.consumeQuestion,
+  releaseReservation: mocks.releaseReservation,
+}));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -140,6 +144,31 @@ function quotaError(quota = "GenerateRequestsPerDayPerProjectPerModel-FreeTier")
   });
 }
 
+// What consumeQuestion held for the question: given back if the answer never starts.
+const reservation = {
+  userId: alice,
+  events: ["e0000000-0000-4000-8000-000000000001"],
+  counters: [{ subject: alice, kind: "question", day: "2026-11-14" }],
+};
+
+// Writes `text`, then fails mid-answer.
+function modelFailingAfter(text: string) {
+  return new MockLanguageModelV4({
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: "text-start" as const, id: "t" },
+          { type: "text-delta" as const, id: "t", delta: text },
+          { type: "error" as const, error: new Error("socket hang up") },
+        ],
+      }),
+    }),
+  });
+}
+
+// Lets onEnd, which runs after the stream closes, finish.
+const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
 const followUpHistory = [
   {
     id: "a0000000-0000-4000-8000-000000000001",
@@ -156,7 +185,8 @@ const followUpHistory = [
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
-  mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 29 });
+  mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 29, reservation });
+  mocks.releaseReservation.mockResolvedValue(undefined);
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Rent" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-10-28T10:00:00Z"));
   mocks.listMessages.mockResolvedValue([]);
@@ -235,15 +265,75 @@ describe("POST /api/chat", () => {
     expect(mocks.consumeQuestion).not.toHaveBeenCalled();
   });
 
-  it("sends what's left of today's questions as the answer starts", async () => {
-    mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 7 });
+  it("sends what's left of today's questions with the finished answer", async () => {
+    mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 7, reservation });
 
     const sent = await chunks(await post(body()));
 
-    expect(sent[0]).toEqual({
-      type: "start",
-      messageId: expect.any(String),
-      messageMetadata: { questionsLeft: 7 },
+    expect(sent[0]).toEqual({ type: "start", messageId: expect.any(String) });
+    expect(sent.at(-1)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "complete", questionsLeft: 7 },
+    });
+  });
+
+  describe("counting a question only once its answer starts", () => {
+    it("keeps the count once the answer has streamed", async () => {
+      await chunks(await post(body()));
+      await settle();
+
+      expect(mocks.consumeQuestion).toHaveBeenCalledWith(alice, { agent: false });
+      expect(mocks.releaseReservation).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["fails", new Error("socket hang up")],
+      ["times out", Object.assign(new Error("The operation timed out."), { name: "TimeoutError" })],
+      ["refuses for quota", quotaError()],
+    ])(
+      "gives the question back when the model %s before writing anything",
+      async (_label, error) => {
+        mocks.models.answer.model = new MockLanguageModelV4({
+          doStream: async () => {
+            throw error;
+          },
+        });
+
+        const all = await chunks(await post(body()));
+        await settle();
+
+        expect(all.some((c) => c.type === "error")).toBe(true);
+        expect(mocks.releaseReservation).toHaveBeenCalledOnce();
+        expect(mocks.releaseReservation).toHaveBeenCalledWith(reservation);
+      },
+    );
+
+    it("gives it back when the search fails before any model call", async () => {
+      mocks.searchPassages.mockRejectedValue(new Error("connection reset"));
+
+      await chunks(await post(body()));
+      await settle();
+
+      expect(mocks.releaseReservation).toHaveBeenCalledWith(reservation);
+    });
+
+    it("keeps the count when the model fails after it started writing", async () => {
+      mocks.models.answer.model = modelFailingAfter("The rent is ");
+
+      const all = await chunks(await post(body()));
+      await settle();
+
+      expect(textOf(all)).toContain("The rent is");
+      expect(mocks.releaseReservation).not.toHaveBeenCalled();
+    });
+
+    it("keeps the count for an answer written without the model", async () => {
+      mocks.searchPassages.mockResolvedValue([]);
+
+      await chunks(await post(body()));
+      await settle();
+
+      expect(mocks.releaseReservation).not.toHaveBeenCalled();
     });
   });
 
