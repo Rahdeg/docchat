@@ -3,6 +3,7 @@ import "server-only";
 import { getDocumentProxy } from "unpdf";
 
 import type { FileKind } from "@/features/documents/upload-rules";
+import { limitMessage } from "@/lib/limit-messages";
 
 // A failure the user can act on. Its message is shown in the Library as is.
 export class IndexingError extends Error {
@@ -21,12 +22,18 @@ export const messages = {
 
 type OnPage = (pagesRead: number, pageCount: number) => Promise<void> | void;
 
+type ExtractOptions = {
+  // Runs after each page, for progress.
+  onPage?: OnPage;
+  // A PDF with more pages stops here, before any text is read (MAX_PAGES_PER_DOCUMENT).
+  maxPages?: number;
+};
+
 // Text of each page, normalised (see normalizeText). Markdown and text files are one page.
-// `onPage` runs after each page, for progress.
 export async function extractPages(
   bytes: Uint8Array,
   kind: FileKind,
-  onPage?: OnPage,
+  { onPage, maxPages }: ExtractOptions = {},
 ): Promise<string[]> {
   if (kind !== "pdf") {
     let text: string;
@@ -51,6 +58,11 @@ export async function extractPages(
   }
 
   try {
+    if (maxPages !== undefined && pdf.numPages > maxPages) {
+      throw new IndexingError(
+        limitMessage({ code: "TOO_MANY_PAGES", max: maxPages, pages: pdf.numPages }),
+      );
+    }
     const pages: string[] = [];
     for (let number = 1; number <= pdf.numPages; number += 1) {
       const page = await pdf.getPage(number);

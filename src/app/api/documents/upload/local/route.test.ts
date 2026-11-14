@@ -74,10 +74,31 @@ describe("PUT /api/documents/upload/local", () => {
 
     expect((await call("x", { "content-type": "text/plain" })).status).toBe(400);
 
-    mocks.consumeRateLimit.mockResolvedValueOnce({ ok: false, message: "slow down" });
+    mocks.consumeRateLimit.mockResolvedValueOnce({
+      ok: false,
+      failure: { code: "RATE_LIMITED", bucket: "upload", max: 20, retryAfterSeconds: 60 },
+    });
     expect((await call()).status).toBe(429);
 
     expect((await call(new Uint8Array(10 * 1024 * 1024 + 1))).status).toBe(413);
+    expect(mocks.putLocalFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a 4th document with the typed limit, before storing anything", async () => {
+    mocks.checkUploadPath.mockResolvedValueOnce({
+      ok: false,
+      error: "You've reached the free limit of 3 documents. Delete one to upload another.",
+      limit: { code: "DOCUMENT_LIMIT", max: 3 },
+    });
+
+    const response = await call();
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "You've reached the free limit of 3 documents. Delete one to upload another.",
+      limit: { code: "DOCUMENT_LIMIT", max: 3 },
+    });
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
     expect(mocks.putLocalFile).not.toHaveBeenCalled();
   });
 

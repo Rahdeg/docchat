@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import {
@@ -112,4 +112,24 @@ export async function listDocumentChunks(
     )
     .where(and(eq(chunk.userId, userId), eq(chunk.documentId, documentId)))
     .orderBy(asc(chunk.position));
+}
+
+// One of the user's documents (not a failed one) with this file, for the browser's check before
+// it uploads a file the user already has.
+export async function findByContentHash(
+  userId: string,
+  contentHash: string,
+): Promise<Pick<Document, "id" | "name"> | null> {
+  const [row] = await db
+    .select({ id: document.id, name: document.name })
+    .from(document)
+    .where(
+      and(
+        eq(document.userId, userId),
+        eq(document.contentHash, contentHash),
+        ne(document.status, "failed"),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }

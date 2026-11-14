@@ -1,8 +1,13 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { and, eq, TransactionRollbackError } from "drizzle-orm";
 
+import { claimContentHash } from "@/features/documents/mutations";
 import { fileKindOf, fileKindOfMimeType } from "@/features/documents/upload-rules";
+import { limitMessage } from "@/lib/limit-messages";
+import { LIMITS } from "@/lib/limits";
 import { chunkPages } from "@/server/ai/chunk";
 import { embedChunks } from "@/server/ai/embed";
 import { EMBEDDING_MODEL } from "@/server/ai/models";
@@ -60,13 +65,29 @@ export async function indexDocument(
     const bytes = doc.blobPathname ? await load(doc.blobPathname) : null;
     if (!bytes) throw new IndexingError(messages.missing);
 
+    // The same file again (the browser checks first; this is the check that holds): nothing is
+    // read or embedded twice.
+    const contentHash = createHash("sha256").update(bytes).digest("hex");
+    const copy = await claimContentHash(userId, documentId, contentHash);
+    if (copy) {
+      throw new IndexingError(
+        limitMessage({ code: "DUPLICATE_DOCUMENT", existingName: copy.name }),
+      );
+    }
+
     let lastWrite = 0;
-    const pages = await extractPages(bytes, kind, async (pagesRead, pageCount) => {
-      const now = Date.now();
-      if (pagesRead > 1 && pagesRead < pageCount && now - lastWrite < PROGRESS_INTERVAL_MS) return;
-      lastWrite = now;
-      // Also bumps updatedAt, so a long document that's still moving isn't "stuck".
-      await db.update(document).set({ pagesRead, pageCount }).where(stillIndexing);
+    const pages = await extractPages(bytes, kind, {
+      // Applies to everyone: it keeps one document within the indexing run's 300 s.
+      maxPages: LIMITS.maxPages,
+      onPage: async (pagesRead, pageCount) => {
+        const now = Date.now();
+        if (pagesRead > 1 && pagesRead < pageCount && now - lastWrite < PROGRESS_INTERVAL_MS) {
+          return;
+        }
+        lastWrite = now;
+        // Also bumps updatedAt, so a long document that's still moving isn't "stuck".
+        await db.update(document).set({ pagesRead, pageCount }).where(stillIndexing);
+      },
     });
 
     if (!pages.some((text) => text.length > 0)) {
