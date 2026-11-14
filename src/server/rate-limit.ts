@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq, gte, lt, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import type { LimitFailure } from "@/lib/limit-messages";
 import { isUnlimited, LIMITS, type Limits } from "@/lib/limits";
@@ -20,7 +20,9 @@ import { log } from "@/server/log";
 //   hour": the refusal says exactly when the oldest request leaves the window.
 // - Daily counters (usage_counter, one row per user, kind and UTC day) for "per day" and the
 //   global breaker: an atomic upsert that only counts up while under the limit.
-// A request's checks run in one transaction: if any refuses, none of them is counted.
+// A request's checks run in one transaction: if any refuses, none of them is counted. A question
+// is held up front (so a burst can't slip past a limit) and released if its answer never starts
+// (releaseReservation).
 
 export type RateLimitCheck = { ok: true } | { ok: false; failure: LimitFailure };
 
@@ -170,7 +172,7 @@ async function windowState(tx: Tx | typeof db, userId: string, bucket: RateLimit
 // A per-user, per-bucket advisory lock (released at commit) makes concurrent requests count one
 // after another, so a burst can't all get in under the limit. Also clears the user's events
 // that no window counts any more.
-async function consumeWindow(tx: Tx, userId: string, bucket: RateLimitBucket) {
+async function consumeWindow(tx: Tx, userId: string, bucket: RateLimitBucket): Promise<string> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${bucket}`}, 0))`,
   );
@@ -184,12 +186,16 @@ async function consumeWindow(tx: Tx, userId: string, bucket: RateLimitBucket) {
     );
   const { used, max, retryAfterSeconds } = await windowState(tx, userId, bucket);
   if (used >= max) throw new Refused(windowFailure(bucket, retryAfterSeconds));
-  await tx.insert(rateLimitEvent).values({ userId, bucket });
+  const [event] = await tx
+    .insert(rateLimitEvent)
+    .values({ userId, bucket })
+    .returning({ id: rateLimitEvent.id });
+  return event!.id;
 }
 
 // Counts one up, unless the counter is already at `max`. The upsert takes the row's lock, so
-// concurrent requests count one after another. Returns the new count.
-async function consumeDaily(tx: Tx, step: DailyStep): Promise<number> {
+// concurrent requests count one after another. Returns the new count and the day it counted.
+async function consumeDaily(tx: Tx, step: DailyStep): Promise<{ count: number; day: string }> {
   await tx
     .delete(usageCounter)
     .where(and(eq(usageCounter.userId, step.subject), lt(usageCounter.day, utcToday)));
@@ -201,9 +207,9 @@ async function consumeDaily(tx: Tx, step: DailyStep): Promise<number> {
       set: { count: sql`${usageCounter.count} + 1` },
       setWhere: sql`${usageCounter.count} < ${step.max}`,
     })
-    .returning({ count: usageCounter.count });
+    .returning({ count: usageCounter.count, day: usageCounter.day });
   if (!row) throw new Refused(step.failure);
-  return row.count;
+  return row;
 }
 
 async function dailyCount(tx: Tx | typeof db, subject: string, kind: UsageCounterKind) {
@@ -220,22 +226,31 @@ async function dailyCount(tx: Tx | typeof db, subject: string, kind: UsageCounte
   return row?.count ?? 0;
 }
 
+// What one request counted, so it can be given back: its window events and daily counters.
+export type Reservation = {
+  userId: string;
+  events: string[];
+  counters: { subject: string; kind: UsageCounterKind; day: string }[];
+};
+
 export type StepsResult =
-  | { ok: true; counts: Partial<Record<UsageCounterKind, number>> }
+  | { ok: true; counts: Partial<Record<UsageCounterKind, number>>; reservation: Reservation }
   | { ok: false; failure: LimitFailure };
 
 // Runs the steps in order in one transaction. The first refusal rolls back everything counted
 // before it. `counts` has the user's own daily counts after this request.
 export async function consumeSteps(userId: string, steps: Step[]): Promise<StepsResult> {
-  if (steps.length === 0) return { ok: true, counts: {} };
+  const reservation: Reservation = { userId, events: [], counters: [] };
+  if (steps.length === 0) return { ok: true, counts: {}, reservation };
   try {
     const counts = await db.transaction(async (tx) => {
       const counted: Partial<Record<UsageCounterKind, number>> = {};
       for (const step of steps) {
         if (step.type === "window") {
-          await consumeWindow(tx, userId, step.bucket);
+          reservation.events.push(await consumeWindow(tx, userId, step.bucket));
         } else if (step.type === "daily") {
-          const used = await consumeDaily(tx, step);
+          const { count: used, day } = await consumeDaily(tx, step);
+          reservation.counters.push({ subject: step.subject, kind: step.kind, day });
           if (step.subject === userId) counted[step.kind] = used;
         } else if ((await dailyCount(tx, step.subject, step.kind)) >= step.max) {
           throw new Refused(step.failure);
@@ -243,7 +258,7 @@ export async function consumeSteps(userId: string, steps: Step[]): Promise<Steps
       }
       return counted;
     });
-    return { ok: true, counts };
+    return { ok: true, counts, reservation };
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
     log("quota.hit", { userId, limit: error.failure.code }, "warn");
@@ -251,11 +266,52 @@ export async function consumeSteps(userId: string, steps: Step[]): Promise<Steps
   }
 }
 
-// One question on /chat. `questionsLeft` is what remains of the user's day (null: unlimited).
+// Gives back what a request counted: its window events go, and each daily counter it counted
+// goes down by one on the day it was counted (so a question held at 23:59 UTC and released after
+// midnight frees yesterday's slot, not today's). Call it once per reservation: a second call
+// would lower the counters again.
+export async function releaseReservation(reservation: Reservation): Promise<void> {
+  if (reservation.events.length === 0 && reservation.counters.length === 0) return;
+  await db.transaction(async (tx) => {
+    if (reservation.events.length > 0) {
+      await tx
+        .delete(rateLimitEvent)
+        .where(
+          and(
+            eq(rateLimitEvent.userId, reservation.userId),
+            inArray(rateLimitEvent.id, reservation.events),
+          ),
+        );
+    }
+    for (const { subject, kind, day } of reservation.counters) {
+      await tx
+        .update(usageCounter)
+        .set({ count: sql`greatest(${usageCounter.count} - 1, 0)` })
+        .where(
+          and(
+            eq(usageCounter.userId, subject),
+            eq(usageCounter.kind, kind),
+            eq(usageCounter.day, day),
+          ),
+        );
+    }
+  });
+}
+
+export type QuestionAllowed = {
+  ok: true;
+  // What remains of the user's day once this one counts (null: unlimited).
+  questionsLeft: number | null;
+  // Hand back with releaseReservation if the answer never starts.
+  reservation: Reservation;
+};
+
+// One question on /chat, held before any work. POST /api/chat releases it if the model fails or
+// times out before the answer starts streaming, so the user only pays for answers they got.
 export async function consumeQuestion(
   userId: string,
   options: { agent: boolean },
-): Promise<{ ok: true; questionsLeft: number | null } | { ok: false; failure: LimitFailure }> {
+): Promise<QuestionAllowed | { ok: false; failure: LimitFailure }> {
   const result = await consumeSteps(userId, questionSteps(userId, options));
   if (!result.ok) return result;
   return {
@@ -263,6 +319,7 @@ export async function consumeQuestion(
     questionsLeft: isUnlimited(userId)
       ? null
       : Math.max(0, LIMITS.questionsPerDay - (result.counts.question ?? 0)),
+    reservation: result.reservation,
   };
 }
 

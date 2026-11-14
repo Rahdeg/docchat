@@ -261,8 +261,9 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
 - Generate only through `src/server/ai/answer.ts` (`streamAnswer`, `rewriteQuery`,
   `answerQuestion`) and `judge.ts`. They pace and retry through `callChatModel`
   (`call-model.ts`) and write an `ai_usage` row per generation (`recordGeneration`: `chat`,
-  `rewrite`, `judge`). The route counts each question with `consumeQuestion` before anything is
-  saved, searched or sent to a model (`docs/adr/0010`).
+  `rewrite`, `judge`). The route holds each question with `consumeQuestion` before anything is
+  saved, searched or sent to a model, and gives it back (`releaseReservation`, in `onEnd`) only
+  if it failed before the answer started streaming (`docs/adr/0010`).
 - Document text goes to the model only through `answerMessages` / `formatSources`
   (`prompts.ts`): numbered `<source>` blocks in the latest user message, marked untrusted, with
   look-alike tags escaped. Never put document text in the system prompt.

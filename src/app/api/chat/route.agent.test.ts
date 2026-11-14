@@ -11,6 +11,7 @@ import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   consumeQuestion: vi.fn(),
+  releaseReservation: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -29,7 +30,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
-vi.mock("@/server/rate-limit", () => ({ consumeQuestion: mocks.consumeQuestion }));
+vi.mock("@/server/rate-limit", () => ({
+  consumeQuestion: mocks.consumeQuestion,
+  releaseReservation: mocks.releaseReservation,
+}));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -211,7 +215,12 @@ function quotaError() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
-  mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 20 });
+  mocks.consumeQuestion.mockResolvedValue({
+    ok: true,
+    questionsLeft: 20,
+    reservation: { userId: alice, events: [], counters: [] },
+  });
+  mocks.releaseReservation.mockResolvedValue(undefined);
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Move in" });
   mocks.getChat.mockResolvedValue({ id: chatId, userId: alice, title: "Move in" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-11-03T10:00:00Z"));
@@ -386,6 +395,18 @@ describe("POST /api/chat, task requests", () => {
     expect(all.find((c) => c.type === "error")?.errorText).toBe(AI_LIMIT_MESSAGE);
     expect(mocks.saveAnswer).not.toHaveBeenCalled();
     expect(mocks.answerProposal).not.toHaveBeenCalled();
+    // The run had started (it searched), so the question and the agent run still count.
+    expect(mocks.releaseReservation).not.toHaveBeenCalled();
+  });
+
+  it("gives the task request back when the model fails before its first step", async () => {
+    const script = scriptedModel([{ error: quotaError() }]);
+    mocks.models.answer.model = script.model;
+
+    await chunks(await post(ask("Turn this into tasks")));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(mocks.releaseReservation).toHaveBeenCalledOnce();
   });
 });
 
