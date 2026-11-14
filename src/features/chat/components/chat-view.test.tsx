@@ -11,7 +11,9 @@ import { asksForTasks, TURN_INTO_TASKS } from "../task-request";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("../actions", () => ({ rateAnswer: vi.fn() }));
-const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), custom: vi.fn(), dismiss: vi.fn() }),
+);
 vi.mock("sonner", () => ({ toast }));
 
 const { ChatView } = await import("./chat-view");
@@ -70,7 +72,14 @@ afterEach(() => {
 
 function renderChat(messages: ChatUIMessage[]) {
   return render(
-    <ChatView chatId={chatId} title="Inventory" initialMessages={messages} documents={documents} />,
+    <ChatView
+      maxQuestionChars={500}
+      questionsLeft={null}
+      chatId={chatId}
+      title="Inventory"
+      initialMessages={messages}
+      documents={documents}
+    />,
   );
 }
 
@@ -249,6 +258,8 @@ describe("a chat opened from Ask about this", () => {
   function renderLinked(props: { initialDocumentIds: string[]; notice?: string | null }) {
     return render(
       <ChatView
+        maxQuestionChars={500}
+        questionsLeft={null}
         chatId={chatId}
         title={null}
         initialMessages={[]}
@@ -299,6 +310,8 @@ describe("a saved chat reopened (reload or Recent chats)", () => {
   it("keeps its saved scope and sends it with the next question", async () => {
     render(
       <ChatView
+        maxQuestionChars={500}
+        questionsLeft={null}
         chatId={chatId}
         title="Inventory"
         initialMessages={[question]}
@@ -313,5 +326,74 @@ describe("a saved chat reopened (reload or Recent chats)", () => {
 
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(requests[0]).toMatchObject({ documentIds: [documents[0]!.id] });
+  });
+});
+
+describe("free-tier limits in the composer", () => {
+  function renderComposer(props: { questionsLeft: number | null; maxQuestionChars?: number }) {
+    return render(
+      <ChatView
+        chatId={chatId}
+        title={null}
+        initialMessages={[]}
+        documents={documents}
+        maxQuestionChars={props.maxQuestionChars ?? 500}
+        questionsLeft={props.questionsLeft}
+      />,
+    );
+  }
+
+  it("shows the questions left only once it's 10 or fewer", () => {
+    renderComposer({ questionsLeft: 11 });
+    expect(screen.queryByTestId("questions-left")).toBeNull();
+    cleanup();
+
+    renderComposer({ questionsLeft: 10 });
+    expect(screen.getByTestId("questions-left").textContent).toBe("10 questions left today");
+  });
+
+  it("stops sending once today's questions are used, and says when they reset", () => {
+    renderComposer({ questionsLeft: 0 });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "What is the rent?" } });
+
+    expect(screen.getByTestId("questions-left").textContent).toBe(
+      "No questions left today. They reset at midnight UTC.",
+    );
+    expect(screen.getByRole("button", { name: "Send" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("counts characters against the limit, which the textbox enforces", () => {
+    renderComposer({ questionsLeft: null, maxQuestionChars: 20 });
+    const box = screen.getByRole("textbox");
+
+    expect(box.getAttribute("maxlength")).toBe("20");
+    expect(box.getAttribute("aria-describedby")).toBe("composer-limits");
+    fireEvent.change(box, { target: { value: "What is the rent?" } });
+    expect(screen.getByTestId("question-chars").textContent).toBe("17 / 20 characters");
+  });
+
+  it("shows a refused question's wait time in a toast and puts the question back", async () => {
+    const limit = { code: "QUESTIONS_PER_MINUTE", max: 5, retryAfterSeconds: 40 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { error: "You're asking quickly. Try again in 40 seconds.", limit },
+          { status: 429 },
+        ),
+      ),
+    );
+    renderComposer({ questionsLeft: null });
+    const box = screen.getByRole("textbox");
+    fireEvent.change(box, { target: { value: "What is the rent?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(toast.custom).toHaveBeenCalled());
+    expect(toast.custom.mock.calls.at(-1)?.[1]).toMatchObject({ id: "limit-QUESTIONS_PER_MINUTE" });
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "You're asking quickly. Try again in 40 seconds.",
+    );
+    await waitFor(() => expect((box as HTMLTextAreaElement).value).toBe("What is the rent?"));
   });
 });

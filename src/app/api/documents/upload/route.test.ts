@@ -31,7 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: "user_alice" });
   mocks.countDocuments.mockResolvedValue(0);
-  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 19 });
+  mocks.consumeRateLimit.mockResolvedValue({ ok: true });
   mocks.handleUpload.mockImplementation(
     async ({
       body,
@@ -67,15 +67,13 @@ describe("POST /api/documents/upload", () => {
     expect(ok.status).toBe(200);
     expect(mocks.consumeRateLimit).toHaveBeenCalledWith("user_alice", "upload");
 
-    mocks.consumeRateLimit.mockResolvedValue({
-      ok: false,
-      retryAfterSeconds: 600,
-      message: "You've uploaded 20 files in the last hour. You can upload more in 10 minutes.",
-    });
+    const failure = { code: "RATE_LIMITED", bucket: "upload", max: 20, retryAfterSeconds: 600 };
+    mocks.consumeRateLimit.mockResolvedValue({ ok: false, failure });
     const limited = await POST(tokenRequest(`users/user_alice/${uuid}-b.pdf`));
     expect(limited.status).toBe(429);
     expect(await limited.json()).toEqual({
       error: "You've uploaded 20 files in the last hour. You can upload more in 10 minutes.",
+      limit: failure,
     });
   });
 
@@ -85,15 +83,17 @@ describe("POST /api/documents/upload", () => {
     expect(response.status).toBe(400);
   });
 
-  it("refuses once the user has 20 documents", async () => {
-    mocks.countDocuments.mockResolvedValue(20);
+  it("refuses a token once the user has 3 documents, before any upload or rate count", async () => {
+    mocks.countDocuments.mockResolvedValue(3);
 
     const response = await POST(tokenRequest(`users/user_alice/${uuid}-a.pdf`));
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(429);
     expect(await response.json()).toEqual({
-      error: "You can keep up to 20 documents. Remove one to add another.",
+      error: "You've reached the free limit of 3 documents. Delete one to upload another.",
+      limit: { code: "DOCUMENT_LIMIT", max: 3 },
     });
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
   });
 
   it("allows only the file's own type, up to 10 MB, without overwriting", async () => {

@@ -10,8 +10,8 @@ import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
-  checkDailyLimit: vi.fn(),
-  consumeRateLimit: vi.fn(),
+  consumeQuestion: vi.fn(),
+  releaseReservation: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -30,8 +30,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
-vi.mock("@/server/ai/limits", () => ({ checkDailyLimit: mocks.checkDailyLimit }));
-vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
+vi.mock("@/server/rate-limit", () => ({
+  consumeQuestion: mocks.consumeQuestion,
+  releaseReservation: mocks.releaseReservation,
+}));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -213,8 +215,12 @@ function quotaError() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
-  mocks.checkDailyLimit.mockResolvedValue({ ok: true });
-  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 29 });
+  mocks.consumeQuestion.mockResolvedValue({
+    ok: true,
+    questionsLeft: 20,
+    reservation: { userId: alice, events: [], counters: [] },
+  });
+  mocks.releaseReservation.mockResolvedValue(undefined);
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Move in" });
   mocks.getChat.mockResolvedValue({ id: chatId, userId: alice, title: "Move in" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-11-03T10:00:00Z"));
@@ -349,16 +355,32 @@ describe("POST /api/chat, task requests", () => {
     expect(textOf(all)).toContain("couldn't finish picking out tasks");
   });
 
-  it("stops early once the daily limit is used up", async () => {
-    mocks.checkDailyLimit
-      .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValue({ ok: false, message: "limit" });
+  it("counts a task request as a question and an agent run, before any model call", async () => {
     const script = scriptedModel([{ tool: "searchDocuments", input: { query: "keys" } }]);
     mocks.models.answer.model = script.model;
 
-    await chunks(await post(ask("What should I do before I move in?")));
+    await chunks(await post(ask("Turn this into tasks")));
 
-    expect(script.calls()).toBe(1);
+    expect(mocks.consumeQuestion).toHaveBeenCalledTimes(1);
+    expect(mocks.consumeQuestion).toHaveBeenCalledWith(alice, { agent: true });
+  });
+
+  it("refuses a task request past today's agent runs with a typed 429", async () => {
+    const failure = { code: "AGENT_RUNS_PER_DAY", max: 5 };
+    mocks.consumeQuestion.mockResolvedValue({ ok: false, failure });
+    const script = scriptedModel([{ tool: "searchDocuments", input: { query: "keys" } }]);
+    mocks.models.answer.model = script.model;
+
+    const response = await post(ask("Turn this into tasks"));
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error:
+        "You've used today's 5 task requests. They reset at midnight UTC. You can still ask questions.",
+      limit: failure,
+    });
+    expect(script.calls()).toBe(0);
+    expect(mocks.saveUserMessage).not.toHaveBeenCalled();
   });
 
   it("shows the quota message and saves nothing when the quota runs out mid-run", async () => {
@@ -373,6 +395,18 @@ describe("POST /api/chat, task requests", () => {
     expect(all.find((c) => c.type === "error")?.errorText).toBe(AI_LIMIT_MESSAGE);
     expect(mocks.saveAnswer).not.toHaveBeenCalled();
     expect(mocks.answerProposal).not.toHaveBeenCalled();
+    // The run had started (it searched), so the question and the agent run still count.
+    expect(mocks.releaseReservation).not.toHaveBeenCalled();
+  });
+
+  it("gives the task request back when the model fails before its first step", async () => {
+    const script = scriptedModel([{ error: quotaError() }]);
+    mocks.models.answer.model = script.model;
+
+    await chunks(await post(ask("Turn this into tasks")));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(mocks.releaseReservation).toHaveBeenCalledOnce();
   });
 });
 
@@ -426,7 +460,8 @@ describe("POST /api/chat, approvals", () => {
     expect(all.find((c) => c.type === "tool-output-available")?.output).toEqual({ added: 1 });
     expect(textOf(all)).toBe("Added 1 task. See them on the Tasks page.");
     expect(script.calls()).toBe(0);
-    expect(mocks.checkDailyLimit).not.toHaveBeenCalled();
+    // Approving costs no model call, so it isn't counted as a question.
+    expect(mocks.consumeQuestion).not.toHaveBeenCalled();
     expect(mocks.saveAnswer).toHaveBeenCalledWith(
       alice,
       chatId,

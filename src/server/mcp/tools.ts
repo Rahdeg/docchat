@@ -16,7 +16,8 @@ import {
   utcDay,
   type TaskGroup,
 } from "@/features/tasks/task-rules";
-import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "@/features/chat/find-rules";
+import { QUERY_MIN_CHARS } from "@/features/chat/find-rules";
+import { LIMITS } from "@/lib/limits";
 import { APP_ORIGIN } from "@/lib/app-url";
 import { documentFileUrl, routes } from "@/lib/routes";
 import { matchQuote } from "@/server/ai/citations";
@@ -93,7 +94,7 @@ export const searchDocumentsInput = z.object({
     .string()
     .trim()
     .min(QUERY_MIN_CHARS)
-    .max(QUERY_MAX_CHARS)
+    .max(LIMITS.maxQuestionChars)
     .describe(
       "What to look for, in the documents' own words where possible, e.g. 'deposit' or 'notice period'.",
     ),

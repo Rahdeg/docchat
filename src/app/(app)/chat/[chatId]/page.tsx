@@ -7,7 +7,9 @@ import { ChatView } from "@/features/chat/components/chat-view";
 import { getChat, listMessages } from "@/features/chat/queries";
 import { startingScope } from "@/features/chat/scope";
 import { getDocument, listReadyDocuments } from "@/features/documents/queries";
+import { LIMITS } from "@/lib/limits";
 import { requireUserId } from "@/server/auth";
+import { questionsLeftToday } from "@/server/rate-limit";
 
 import { ChatSkeleton } from "../chat-skeleton";
 
@@ -28,9 +30,10 @@ async function Chat({ params, searchParams }: PageProps<"/chat/[chatId]">) {
 
   // An id with no chat yet is a new chat (see ../page.tsx). Someone else's chat looks the same:
   // empty, and posting to it fails.
-  const [chat, documents] = await Promise.all([
+  const [chat, documents, questionsLeft] = await Promise.all([
     getChat(userId, chatId),
     listReadyDocuments(userId),
+    questionsLeftToday(userId),
   ]);
   const messages = chat ? await listMessages(userId, chatId) : [];
 
@@ -57,6 +60,8 @@ async function Chat({ params, searchParams }: PageProps<"/chat/[chatId]">) {
       initialDocumentIds={scope.documentIds}
       notice={scope.notice}
       fromLink={linkedId !== null}
+      maxQuestionChars={LIMITS.maxQuestionChars}
+      questionsLeft={questionsLeft}
     />
   );
 }

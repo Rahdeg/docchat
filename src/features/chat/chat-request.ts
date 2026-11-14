@@ -1,7 +1,9 @@
 // What the chat composer sends to POST /api/chat. Shared, so both sides agree on it.
 import { z } from "zod";
 
-import { MAX_DOCUMENTS } from "../documents/upload-rules";
+// Documents one question can be limited to. A bound on the request, not a free-tier limit:
+// unlimited users can have more documents than MAX_DOCUMENTS_PER_USER.
+const MAX_SCOPE_DOCUMENTS = 100;
 
 import { approvalRequestSchema } from "./agent-parts";
 
@@ -19,7 +21,7 @@ export const questionRequestSchema = z.object({
       .max(1),
   }),
   // Leave out to search every ready document.
-  documentIds: z.array(z.uuid()).min(1).max(MAX_DOCUMENTS).optional(),
+  documentIds: z.array(z.uuid()).min(1).max(MAX_SCOPE_DOCUMENTS).optional(),
 });
 
 // "Add N tasks" or "Cancel" on the last answer's proposal (docs/adr/0007). Only the decision

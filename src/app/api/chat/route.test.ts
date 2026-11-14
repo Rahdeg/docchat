@@ -7,8 +7,8 @@ import { AI_LIMIT_MESSAGE } from "@/features/chat/message";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
-  checkDailyLimit: vi.fn(),
-  consumeRateLimit: vi.fn(),
+  consumeQuestion: vi.fn(),
+  releaseReservation: vi.fn(),
   ensureChat: vi.fn(),
   saveUserMessage: vi.fn(),
   deleteMessagesAfter: vi.fn(),
@@ -25,8 +25,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
-vi.mock("@/server/ai/limits", () => ({ checkDailyLimit: mocks.checkDailyLimit }));
-vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
+vi.mock("@/server/rate-limit", () => ({
+  consumeQuestion: mocks.consumeQuestion,
+  releaseReservation: mocks.releaseReservation,
+}));
 vi.mock("@/features/chat/mutations", () => ({
   ensureChat: mocks.ensureChat,
   saveUserMessage: mocks.saveUserMessage,
@@ -142,6 +144,31 @@ function quotaError(quota = "GenerateRequestsPerDayPerProjectPerModel-FreeTier")
   });
 }
 
+// What consumeQuestion held for the question: given back if the answer never starts.
+const reservation = {
+  userId: alice,
+  events: ["e0000000-0000-4000-8000-000000000001"],
+  counters: [{ subject: alice, kind: "question", day: "2026-11-14" }],
+};
+
+// Writes `text`, then fails mid-answer.
+function modelFailingAfter(text: string) {
+  return new MockLanguageModelV4({
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: "text-start" as const, id: "t" },
+          { type: "text-delta" as const, id: "t", delta: text },
+          { type: "error" as const, error: new Error("socket hang up") },
+        ],
+      }),
+    }),
+  });
+}
+
+// Lets onEnd, which runs after the stream closes, finish.
+const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
 const followUpHistory = [
   {
     id: "a0000000-0000-4000-8000-000000000001",
@@ -158,8 +185,8 @@ const followUpHistory = [
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
-  mocks.checkDailyLimit.mockResolvedValue({ ok: true });
-  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 29 });
+  mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 29, reservation });
+  mocks.releaseReservation.mockResolvedValue(undefined);
   mocks.ensureChat.mockResolvedValue({ id: chatId, userId: alice, title: "Rent" });
   mocks.saveUserMessage.mockResolvedValue(new Date("2026-10-28T10:00:00Z"));
   mocks.listMessages.mockResolvedValue([]);
@@ -195,41 +222,119 @@ describe("POST /api/chat", () => {
     expect(mocks.saveUserMessage).not.toHaveBeenCalled();
   });
 
-  it("refuses with the daily limit message before any model call or write", async () => {
-    mocks.checkDailyLimit.mockResolvedValue({
-      ok: false,
-      message: "You've reached today's limit of 50 questions. It resets at midnight UTC.",
-    });
+  it.each([
+    [
+      { code: "QUESTIONS_PER_MINUTE", max: 5, retryAfterSeconds: 40 },
+      "You're asking quickly. Try again in 40 seconds.",
+    ],
+    [
+      { code: "QUESTIONS_PER_DAY", max: 30 },
+      "You've used today's 30 questions. They reset at midnight UTC.",
+    ],
+    [
+      { code: "GLOBAL_PAUSED" },
+      "DocChat is very busy today, so new questions are paused until tomorrow. Your documents are safe.",
+    ],
+  ] as const)(
+    "refuses %o with a typed 429 before any write, search or model call",
+    async (failure, error) => {
+      mocks.consumeQuestion.mockResolvedValue({ ok: false, failure });
 
-    const response = await post(body());
+      const response = await post(body());
 
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe(
-      "You've reached today's limit of 50 questions. It resets at midnight UTC.",
+      expect(response.status).toBe(429);
+      expect(await response.json()).toEqual({ error, limit: failure });
+      expect(mocks.consumeQuestion).toHaveBeenCalledWith(alice, { agent: false });
+      expect(mocks.ensureChat).not.toHaveBeenCalled();
+      expect(mocks.saveUserMessage).not.toHaveBeenCalled();
+      expect(mocks.searchPassages).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a question over MAX_QUESTION_CHARS before counting it", async () => {
+    const long = "a".repeat(501);
+    const response = await post(
+      body({ message: { id: questionId, role: "user", parts: [{ type: "text", text: long }] } }),
     );
-    expect(mocks.ensureChat).not.toHaveBeenCalled();
-    expect(mocks.searchPassages).not.toHaveBeenCalled();
-    expect(mocks.checkDailyLimit).toHaveBeenCalledWith(alice);
-    // Refused before it counted as a search.
-    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Questions can be up to 500 characters. Try a shorter one.",
+      limit: { code: "QUESTION_TOO_LONG", max: 500 },
+    });
+    expect(mocks.consumeQuestion).not.toHaveBeenCalled();
   });
 
-  it("refuses with the search rate limit message before saving or searching", async () => {
-    mocks.consumeRateLimit.mockResolvedValue({
-      ok: false,
-      retryAfterSeconds: 12,
-      message: "That's a lot of searches in a minute. Try again in 12 seconds.",
+  it("sends what's left of today's questions with the finished answer", async () => {
+    mocks.consumeQuestion.mockResolvedValue({ ok: true, questionsLeft: 7, reservation });
+
+    const sent = await chunks(await post(body()));
+
+    expect(sent[0]).toEqual({ type: "start", messageId: expect.any(String) });
+    expect(sent.at(-1)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "complete", questionsLeft: 7 },
+    });
+  });
+
+  describe("counting a question only once its answer starts", () => {
+    it("keeps the count once the answer has streamed", async () => {
+      await chunks(await post(body()));
+      await settle();
+
+      expect(mocks.consumeQuestion).toHaveBeenCalledWith(alice, { agent: false });
+      expect(mocks.releaseReservation).not.toHaveBeenCalled();
     });
 
-    const response = await post(body());
+    it.each([
+      ["fails", new Error("socket hang up")],
+      ["times out", Object.assign(new Error("The operation timed out."), { name: "TimeoutError" })],
+      ["refuses for quota", quotaError()],
+    ])(
+      "gives the question back when the model %s before writing anything",
+      async (_label, error) => {
+        mocks.models.answer.model = new MockLanguageModelV4({
+          doStream: async () => {
+            throw error;
+          },
+        });
 
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe(
-      "That's a lot of searches in a minute. Try again in 12 seconds.",
+        const all = await chunks(await post(body()));
+        await settle();
+
+        expect(all.some((c) => c.type === "error")).toBe(true);
+        expect(mocks.releaseReservation).toHaveBeenCalledOnce();
+        expect(mocks.releaseReservation).toHaveBeenCalledWith(reservation);
+      },
     );
-    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(alice, "search");
-    expect(mocks.ensureChat).not.toHaveBeenCalled();
-    expect(mocks.searchPassages).not.toHaveBeenCalled();
+
+    it("gives it back when the search fails before any model call", async () => {
+      mocks.searchPassages.mockRejectedValue(new Error("connection reset"));
+
+      await chunks(await post(body()));
+      await settle();
+
+      expect(mocks.releaseReservation).toHaveBeenCalledWith(reservation);
+    });
+
+    it("keeps the count when the model fails after it started writing", async () => {
+      mocks.models.answer.model = modelFailingAfter("The rent is ");
+
+      const all = await chunks(await post(body()));
+      await settle();
+
+      expect(textOf(all)).toContain("The rent is");
+      expect(mocks.releaseReservation).not.toHaveBeenCalled();
+    });
+
+    it("keeps the count for an answer written without the model", async () => {
+      mocks.searchPassages.mockResolvedValue([]);
+
+      await chunks(await post(body()));
+      await settle();
+
+      expect(mocks.releaseReservation).not.toHaveBeenCalled();
+    });
   });
 
   it("returns 404 for another user's chat, without saving or searching", async () => {

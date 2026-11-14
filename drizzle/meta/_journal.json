@@ -71,6 +71,13 @@
       "when": 1794004068751,
       "tag": "0009_chat_document_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794660244845,
+      "tag": "0010_launch_limits",
+      "breakpoints": true
     }
   ]
 }

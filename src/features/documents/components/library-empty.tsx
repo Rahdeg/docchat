@@ -3,9 +3,8 @@
 import { UploadIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { LibraryLimits } from "@/lib/limits";
 import { cn } from "@/lib/utils";
-
-import { MAX_DOCUMENTS } from "../upload-rules";
 
 const examples = [
   { title: "A tenancy agreement", question: "When can my landlord raise the rent?" },
@@ -14,7 +13,16 @@ const examples = [
 ];
 
 // First visit: a stack of paper inviting the first upload, and examples of what works well.
-export function LibraryEmpty({ onBrowse, dragging }: { onBrowse: () => void; dragging: boolean }) {
+export function LibraryEmpty({
+  onBrowse,
+  dragging,
+  limits,
+}: {
+  onBrowse: () => void;
+  dragging: boolean;
+  limits: LibraryLimits;
+}) {
+  const mb = Math.round(limits.maxFileBytes / (1024 * 1024));
   return (
     <div className="flex flex-1 flex-wrap items-center justify-center gap-14">
       <div className="relative h-[500px] w-[400px] max-w-full">
@@ -47,8 +55,9 @@ export function LibraryEmpty({ onBrowse, dragging }: { onBrowse: () => void; dra
               </Button>
             </div>
             <p className="text-[13px] text-muted-foreground">
-              Up to 10 MB each, {MAX_DOCUMENTS} documents in total. Scanned PDFs aren&apos;t
-              supported yet.
+              Up to {mb} MB and {limits.maxPages} pages each
+              {limits.maxDocuments === null ? "" : `, ${limits.maxDocuments} documents in total`}.
+              Scanned PDFs aren&apos;t supported yet.
             </p>
           </div>
         </div>

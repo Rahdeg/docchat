@@ -18,6 +18,9 @@ export const document = pgTable(
     // Path of the original file in the private Blob store (users/<userId>/<uuid>-<name>).
     // Null only for seeded sample rows, which have no file.
     blobPathname: text("blob_pathname"),
+    // SHA-256 of the file (hex), set when it's first read, so the same file uploaded again is
+    // caught before it's embedded twice. Null until then, and for rows from before 0010.
+    contentHash: text("content_hash"),
     status: documentStatus("status").notNull().default("uploaded"),
     error: text("error"),
     pageCount: integer("page_count"),
@@ -30,6 +33,7 @@ export const document = pgTable(
   (t) => [
     index("document_user_id_idx").on(t.userId),
     uniqueIndex("document_blob_pathname_idx").on(t.blobPathname),
+    index("document_user_id_content_hash_idx").on(t.userId, t.contentHash),
   ],
 );
 

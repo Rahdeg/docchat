@@ -180,10 +180,10 @@ Answers come from the provider in `CHAT_PROVIDER` (`docs/adr/0006`), which works
   question. `CHAT_ANSWER_MODEL` picks another answer model on the same provider, e.g.
   `CHAT_ANSWER_MODEL=gemini-3.8-flash` (the newest Flash, overloaded when it was first tried) or
   `gemini-3.5-flash-lite`.
-- `CHAT_DAILY_LIMIT` caps model calls per user per UTC day (default 25 with
-  `CHAT_PROVIDER=google`, 50 with `gateway`), checked before any model call: "You've reached
-  today's limit of N questions. It resets at midnight UTC." 25 calls cost one user about $0.08
-  a day typically and at most about $1, so a small prepaid balance lasts.
+- Free-tier limits (`src/lib/limits.ts`, `docs/adr/0010`, env vars in `.env.example`) are
+  counted before any model call: 5 questions a minute and 30 a UTC day per user, 5 task requests
+  a day, and 2,000 questions a day across everyone. Locally, add your own development-instance
+  Clerk id to `UNLIMITED_USER_IDS` to skip the per-user ones.
 - Every generation writes an `ai_usage` row (kind `chat`, `rewrite` or `judge`, input and output
   tokens).
 
@@ -222,8 +222,8 @@ deadlines?", "List my coursework deadlines" (`docs/adr/0007`).
   moving in") and the task shows **Add date**.
 - Under an ordinary answer that mentions duties, deadlines or dates, **Turn this into tasks** asks
   for them in one click.
-- A task request uses up to five model calls (usually two or three), and each counts towards
-  `CHAT_DAILY_LIMIT`. Approving or cancelling uses none.
+- A task request uses up to five model calls (usually two or three). It counts as one question
+  and one of the day's `AGENT_RUNS_PER_DAY`. Approving or cancelling counts as neither.
 
 **Tasks** (`/tasks`) lists them with what's overdue, due this week, later, or undated. Add your
 own with **Add a task** (and a date), tick tasks off, and use a task's **⋯** menu to edit, change

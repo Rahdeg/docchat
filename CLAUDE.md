@@ -99,13 +99,13 @@ src/server/ai/         AI SDK setup, chunking, retrieval, prompts, tools (server
 src/server/ingest/     text extraction and the indexing pipeline (server-only)
 src/server/mcp/        MCP server: token check (auth.ts), tools, untrusted-content wrapping
 src/server/account.ts  deleting a user's rows and files (the Clerk webhook)
-src/server/rate-limit.ts  sliding-window rate limits in Postgres (numbers in src/lib/rate-limits.ts)
+src/server/rate-limit.ts  limits counted in Postgres: sliding windows and daily counters (numbers in src/lib/limits.ts)
 src/server/blob.ts     the only place that calls the Vercel Blob SDK (or the local store, storage/)
 src/server/log.ts      structured logs: typed events, fixed fields
 src/server/monitoring.ts  identifyUser / reportError for Sentry (src/lib/monitoring.ts: options, scrubbing)
 src/instrumentation.ts  server start: test-double guard, Sentry init, onRequestError
-src/lib/               utilities (cn, env, format, routes, app-url, security-headers, rate-limits,
-                       monitoring, test-doubles) and authedAction() (action.ts)
+src/lib/               utilities (cn, env, format, routes, app-url, security-headers, limits,
+                       limit-messages, monitoring, test-doubles) and authedAction() (action.ts)
 src/proxy.ts           clerkMiddleware with optimistic redirects (Next 16 replaces middleware.ts)
 docs/adr/              architecture decision records
 docs/design/           HTML design mockups per area; match them when building that UI
@@ -192,8 +192,11 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   no upload-completed webhook (it can't reach localhost).
 - Blob paths are `users/<userId>/<uuid>-<name>`. The server checks the userId segment against the
   session in both the token route and `registerDocument`.
-- Limits live in `src/features/documents/upload-rules.ts`, shared by client and server: PDF, `.md`
-  and `.txt`, 10 MB, 20 documents per user. The server checks the stored file's real size and its
+- Upload rules live in `src/features/documents/upload-rules.ts`, shared by client and server: PDF,
+  `.md` and `.txt`; the numbers (`MAX_FILE_MB`, `MAX_DOCUMENTS_PER_USER`, `MAX_PAGES_PER_DOCUMENT`)
+  come from `src/lib/limits.ts` as `UploadLimits`. The document limit is checked when the upload
+  token is issued and again in `createDocument` under a per-user lock; never insert a document
+  elsewhere. The server checks the stored file's real size and its
   leading bytes, not the browser's claims.
 - Indexing runs in `after()` from the Library page's Server Actions, so it gets that page's
   **`maxDuration` (300 s, `src/app/(app)/library/page.tsx`)**. Work that might take longer doesn't
@@ -253,14 +256,14 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   need `LIVE_CHAT_TESTS=1`, and `pnpm eval:answers` needs about 17 answers (it resumes a run a
   quota stopped). To recheck a few questions, pass `--only=<ids>` to either eval.
 - When the provider refuses for quota (429 / `RESOURCE_EXHAUSTED`, `isQuotaError`), the route
-  keeps the question, saves no answer and sends `AI_LIMIT_MESSAGE`. `CHAT_DAILY_LIMIT`
-  defaults to 25 on `google` (sized for a small prepaid budget) and 50 on `gateway`. A follow-up that reads as standalone
+  keeps the question, saves no answer and sends `AI_LIMIT_MESSAGE`. A follow-up that reads as standalone
   (`readsStandalone`, `src/server/ai/follow-up.ts`) skips the rewrite call.
 - Generate only through `src/server/ai/answer.ts` (`streamAnswer`, `rewriteQuery`,
   `answerQuestion`) and `judge.ts`. They pace and retry through `callChatModel`
   (`call-model.ts`) and write an `ai_usage` row per generation (`recordGeneration`: `chat`,
-  `rewrite`, `judge`). The daily limit (`CHAT_DAILY_LIMIT`) counts `chat` rows since midnight UTC
-  and is checked in the route before any model call.
+  `rewrite`, `judge`). The route holds each question with `consumeQuestion` before anything is
+  saved, searched or sent to a model, and gives it back (`releaseReservation`, in `onEnd`) only
+  if it failed before the answer started streaming (`docs/adr/0010`).
 - Document text goes to the model only through `answerMessages` / `formatSources`
   (`prompts.ts`): numbered `<source>` blocks in the latest user message, marked untrusted, with
   look-alike tags escaped. Never put document text in the system prompt.
@@ -298,8 +301,9 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   passages, quote matched with `matchQuote` (whole passage otherwise), dates only when a passage
   or the user states them or the due note counts from a stated date (`dueDateIsGrounded`). Never
   set a date the documents or the user didn't give.
-- Agent runs: at most `AGENT_MAX_STEPS` (5) model calls, each a `chat` `ai_usage` row, so the
-  daily limit counts calls. The reply to an approval is a fixed line, with no model call.
+- Agent runs: at most `AGENT_MAX_STEPS` (5) model calls, each a `chat` `ai_usage` row. A run counts
+  as a question and an agent run (`AGENT_RUNS_PER_DAY`). The reply to an approval is a fixed
+  line, with no model call, and isn't counted.
 - Task offsets (`source_start_offset`, `source_end_offset`) index into the chunk's content. A
   re-read document's tasks lose the chunk link and keep the quote (TODO: re-link by quote).
 - Before and after changing the agent prompt, tools or proposal checks, run `pnpm eval:agent`
@@ -320,8 +324,13 @@ against `pnpm dev` (reused if it's already running) or `E2E_BASE_URL`.
   search is one embedding recorded as `mcp-search`.
 - Document text returned by a tool goes through `documentContentBlock` (`content.ts`) under
   `UNTRUSTED_NOTICE`. Never return passage text outside a block.
-- Rate limits: every number lives in `src/lib/rate-limits.ts`; count with `consumeRateLimit`
-  (`src/server/rate-limit.ts`) before the work, and answer 429 with its message.
+- Limits (`docs/adr/0010`): every number lives in `src/lib/limits.ts`, each with an env var
+  (`.env.example`); never hardcode one elsewhere. Count with `src/server/rate-limit.ts`
+  (`consumeQuestion`, `consumeMcpCall`, `consumeRateLimit`) before the work. Refuse with a
+  typed `LimitFailure` (`src/lib/limit-messages.ts`): `LimitError` in actions, `{ error, limit }`
+  JSON in routes. The browser shows them with `showLimitToast`; word them only in
+  `limitMessage`. `UNLIMITED_USER_IDS` skips per-user counts, never input limits or the
+  global breaker.
 - The Clerk webhook (`/api/webhooks/clerk`, `user.deleted`) deletes through `deleteUserData`
   (`src/server/account.ts`). A new user-data table must be added to `deleteUserRows` (and to
   `schema.test.ts`'s list).

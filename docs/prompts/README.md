@@ -12,3 +12,4 @@ plan's PR 5.
 | --- | ------------------------------------------------------------ |
 | 5   | [Embeddings, search and a retrieval eval](pr05-retrieval.md) |
 | 10  | [README and portfolio polish](pr10-readme-launch.md)         |
+| 11  | [Launch limits](pr11-launch-limits.md)                       |

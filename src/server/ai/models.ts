@@ -155,7 +155,8 @@ export const CHAT_CONFIGS: Record<ChatProvider, ChatConfig> = {
   //
   // Prices per million tokens (2026-11-10): gemini-3.6-flash $0.75 in, $3.75 out (thinking
   // counts as output), doubling on 2027-01-01; gemini-3.5-flash-lite $0.30 in, $2.50 out.
-  // CHAT_DAILY_LIMIT caps one user's calls (src/server/ai/limits.ts). Google still answers 503
+  // QUESTIONS_PER_DAY and AGENT_RUNS_PER_DAY cap one user's calls (src/lib/limits.ts), and
+  // GLOBAL_QUESTIONS_PER_DAY everyone's. Google still answers 503
   // under load, so requests are spaced out and retried.
   google: {
     models: {

@@ -2,7 +2,7 @@ import type { AuthInfo } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  consumeRateLimit: vi.fn(),
+  consumeMcpCall: vi.fn(),
   listDocuments: vi.fn(),
   listDocumentChunks: vi.fn(),
   listTasks: vi.fn(),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   searchPassages: vi.fn(),
 }));
 
-vi.mock("@/server/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
+vi.mock("@/server/rate-limit", () => ({ consumeMcpCall: mocks.consumeMcpCall }));
 vi.mock("@/features/documents/queries", () => ({
   listDocuments: mocks.listDocuments,
   listDocumentChunks: mocks.listDocumentChunks,
@@ -79,7 +79,7 @@ async function call(name: string, args: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.consumeRateLimit.mockResolvedValue({ ok: true, remaining: 10 });
+  mocks.consumeMcpCall.mockResolvedValue({ ok: true });
 });
 
 describe("/mcp auth", () => {
@@ -124,15 +124,13 @@ describe("tools/call", () => {
     await call("list_tasks", { userId: "user_bob" });
 
     expect(mocks.listTasks).toHaveBeenCalledWith(alice);
-    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(alice, "mcp");
+    expect(mocks.consumeMcpCall).toHaveBeenCalledWith(alice, { search: false });
   });
 
   it("refuses once the user's MCP rate limit is used up, without running the tool", async () => {
-    mocks.consumeRateLimit.mockResolvedValue({
+    mocks.consumeMcpCall.mockResolvedValue({
       ok: false,
-      retryAfterSeconds: 30,
-      message:
-        "Your AI app has made 60 requests to DocChat in the last minute. Try again in 30 seconds.",
+      failure: { code: "RATE_LIMITED", bucket: "mcp", max: 60, retryAfterSeconds: 30 },
     });
 
     const r = await call("list_documents", {});
@@ -142,6 +140,22 @@ describe("tools/call", () => {
       text: "Your AI app has made 60 requests to DocChat in the last minute. Try again in 30 seconds.",
     });
     expect(mocks.listDocuments).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      { code: "MCP_SEARCHES_PER_DAY", max: 200 },
+      "Your AI app has used today's 200 DocChat searches. They reset at midnight UTC.",
+    ],
+    [
+      { code: "GLOBAL_PAUSED" },
+      "DocChat is very busy today, so new questions are paused until tomorrow. Your documents are safe.",
+    ],
+  ] as const)("refuses a search past %o without embedding anything", async (failure, text) => {
+    mocks.consumeMcpCall.mockResolvedValue({ ok: false, failure });
+
+    expect(await call("search_documents", { query: "deposit" })).toEqual({ isError: true, text });
+    expect(mocks.searchPassages).not.toHaveBeenCalled();
   });
 
   it("lists documents with their status", async () => {
@@ -191,7 +205,7 @@ describe("tools/call", () => {
       usageKind: "mcp-search",
     });
     // Counted as an MCP call and as a search.
-    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(alice, "search");
+    expect(mocks.consumeMcpCall).toHaveBeenCalledWith(alice, { search: true });
     expect(r.text).toContain("document content (untrusted)");
     expect(r.text).toContain("[1] Tenancy agreement.pdf, page 3");
     expect(r.text).toContain(
