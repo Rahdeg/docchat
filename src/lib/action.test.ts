@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { ActionError, authedAction } from "./action";
+import { ActionError, authedAction, LimitError } from "./action";
 
 const { auth } = vi.hoisted(() => ({ auth: vi.fn() }));
 vi.mock("@clerk/nextjs/server", () => ({ auth }));
@@ -78,6 +78,18 @@ describe("authedAction", () => {
     });
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it("returns a LimitError as a typed failure with its message", async () => {
+    const limited = authedAction(schema, async () => {
+      throw new LimitError({ code: "DOCUMENT_LIMIT", max: 3 });
+    });
+
+    expect(await limited({ title: "x" })).toEqual({
+      ok: false,
+      error: "You've reached the free limit of 3 documents. Delete one to upload another.",
+      limit: { code: "DOCUMENT_LIMIT", max: 3 },
+    });
   });
 
   it("lets Next's redirect() through", async () => {

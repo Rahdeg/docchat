@@ -22,11 +22,11 @@ import { messageText, type ChatUIMessage, type PassageData } from "@/features/ch
 
 import { callChatModel, findAnswerPassages, rewriteQuery } from "./answer";
 import { CitationFilter, parseCitationBlock, resolveCitations, type Resolved } from "./citations";
-import { checkDailyLimit } from "./limits";
 import { chatConfig, MIN_SIMILARITY } from "./models";
 import { AGENT_SYSTEM_PROMPT, agentMessages, searchResultText } from "./prompts";
 import { checkProposal } from "./proposal";
 import { searchPassages } from "./retrieve";
+import { LIMITS } from "@/lib/limits";
 import { log, since } from "@/server/log";
 
 import { recordGeneration } from "./usage";
@@ -36,14 +36,14 @@ import { recordGeneration } from "./usage";
 // approval. proposeTasks has no execute: the SDK can only ask for approval, and the only way a
 // task is saved is the approve request (createAgentTasks), after the user clicks "Add".
 
-// Model calls per run. Each one counts towards the daily limit.
+// Model calls per run. A run is one question and one task request (AGENT_RUNS_PER_DAY,
+// src/lib/limits.ts), counted before it starts.
 export const AGENT_MAX_STEPS = 5;
 // Passages read before the first step: a checklist needs more than one answer does.
 export const AGENT_PASSAGES = 8;
 const SEARCH_PASSAGES = 5;
 // Sources one run can number.
 const RUN_MAX_PASSAGES = 24;
-const AGENT_MAX_OUTPUT_TOKENS = 4_000;
 const AGENT_TIMEOUT = { firstChunkMs: 75_000, stepMs: 60_000, totalMs: 105_000 };
 
 const pacedStream: LanguageModelMiddleware = {
@@ -208,13 +208,13 @@ export function streamAgent({
     messages,
     tools,
     toolApproval: { proposeTasks: "user-approval" },
-    // Stops after AGENT_MAX_STEPS model calls, or as soon as the user's daily limit is used up.
-    stopWhen: [isStepCount(AGENT_MAX_STEPS), async () => !(await checkDailyLimit(userId)).ok],
+    // Stops after AGENT_MAX_STEPS model calls.
+    stopWhen: isStepCount(AGENT_MAX_STEPS),
     // The last step can only propose: no more searching.
     prepareStep: ({ stepNumber }) =>
       stepNumber === AGENT_MAX_STEPS - 1 ? { activeTools: ["proposeTasks"] } : {},
     providerOptions,
-    maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
+    maxOutputTokens: LIMITS.agentMaxOutputTokens,
     abortSignal,
     timeout: AGENT_TIMEOUT,
     experimental_transform: agentTransform(filter, run, {
