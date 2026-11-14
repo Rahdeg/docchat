@@ -6,6 +6,7 @@ import { HeroComposition } from "@/features/public/components/compositions";
 import { MetricCards } from "@/features/public/components/metric-cards";
 import { inkLink, outlineLink } from "@/features/public/components/site-header";
 import { MCP_URL } from "@/lib/app-url";
+import { LIMITS } from "@/lib/limits";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +95,13 @@ export default function LandingPage() {
               See how it works
             </Link>
           </div>
-          <p className="text-sm text-muted-foreground">
-            PDF, Markdown and text files. Your files stay private.
+          {/* From src/lib/limits.ts at build time, so it can't drift from what's enforced. */}
+          <p className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <span data-testid="free-limits" className="font-medium text-foreground">
+              Free: up to {LIMITS.maxDocuments} documents and {LIMITS.questionsPerDay} questions a
+              day.
+            </span>
+            <span>PDF, Markdown and text files. Your files stay private.</span>
           </p>
         </div>
         <HeroComposition />

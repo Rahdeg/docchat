@@ -98,16 +98,28 @@ input schema has a user field). Each call counts against the MCP rate limit firs
     find what a new third party needs, then add that host and turn it off.
   - Checked by `pnpm test:e2e` (`tests/e2e/security.spec.ts`, and `signed-in.spec.ts` with a
     Clerk test user) against a production build: no CSP violations on any page.
-- **Rate limits** (`src/lib/rate-limits.ts`, enforced by `src/server/rate-limit.ts` in Postgres):
+- **Free-tier limits and rate limits** (`docs/adr/0010`; every number in `src/lib/limits.ts`,
+  each with an env var; counted in Postgres by `src/server/rate-limit.ts`, before any work):
 
-  | Limit               | Per user       | Where                                                            |
-  | ------------------- | -------------- | ---------------------------------------------------------------- |
-  | Questions (answers) | 25 or 50 a day | `POST /api/chat`, `CHAT_DAILY_LIMIT` (`src/server/ai/limits.ts`) |
-  | Searches            | 30 a minute    | `POST /api/chat` questions and MCP `search_documents`            |
-  | Uploads             | 20 an hour     | `POST /api/documents/upload` (or `/upload/local`), one per file  |
-  | MCP calls           | 60 a minute    | Every MCP tool call                                              |
+  | Limit           | Default                    | Where                                                                 |
+  | --------------- | -------------------------- | --------------------------------------------------------------------- |
+  | Documents       | 3 per user, any state      | Upload token routes, then `createDocument` under a per-user lock      |
+  | File size       | 10 MB                      | Upload token routes (Blob's `maximumSizeInBytes`), `registerDocument` |
+  | Pages           | 50 per PDF                 | `indexDocument`, before any text is read or embedded                  |
+  | Duplicates      | one copy of a file         | Browser check, then `indexDocument` (SHA-256 under a lock)            |
+  | Questions       | 5 a minute, 30 a UTC day   | `POST /api/chat` (new questions and "Try again")                      |
+  | Task requests   | 5 a UTC day                | `POST /api/chat` in task mode (also a question)                       |
+  | All questions   | 2,000 a UTC day, all users | `POST /api/chat`; also pauses MCP `search_documents`                  |
+  | Re-reads        | 10 an hour                 | `retryDocument`                                                       |
+  | Uploads         | 20 an hour                 | `POST /api/documents/upload` (or `/upload/local`), one per file       |
+  | MCP calls       | 60 a minute                | Every MCP tool call                                                   |
+  | MCP searches    | 30 a minute, 200 a UTC day | MCP `search_documents`                                                |
+  | Question length | 500 characters             | `POST /api/chat`, MCP `search_documents`                              |
 
-  Each refusal is a 429 (or an MCP error result) saying when to try again.
+  Each refusal is a typed `LimitFailure` (`src/lib/limit-messages.ts`): a 429 (400/413 for input
+  limits) with `{ error, limit }`, a failed action result with `limit`, or an MCP error result,
+  saying which limit and when it frees up. `UNLIMITED_USER_IDS` skips the per-user counts, never
+  the input limits or the global breaker.
 
 - **Monitoring without personal data** (`docs/adr/0009`). Sentry runs only with `SENTRY_DSN`,
   for errors only. It never receives document text, passages, prompts, answers, file names,

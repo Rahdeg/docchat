@@ -127,17 +127,20 @@ curl -s https://docchat.raheem.online/.well-known/oauth-protected-resource/mcp
 
 ## 1. The daily limit and the budget
 
-`CHAT_DAILY_LIMIT` (model calls per user per UTC day; an answer is one, a task request up to
-five) defaults to **25** on `google` (`src/server/ai/limits.ts`, sized in `docs/adr/0006`
-section 8).
+The free-tier limits (`src/lib/limits.ts`, `docs/adr/0010`): **30 questions** per user per UTC
+day (5 a minute), **5 task requests** (up to five model calls each) and **2,000 questions** a
+day across everyone, the global breaker.
 
 - [ ] Check the cost against the balance. A typical answer is about $0.003 now and $0.007 from
-      1 January 2027, when `gemini-3.6-flash` doubles in price; a long one up to $0.04. So 25
-      calls cost one user about $0.08 to $0.17 a day typically and at most about $1. The real
+      1 January 2027, when `gemini-3.6-flash` doubles in price; a long one up to $0.04. So one
+      user's 30 questions and 5 task requests (at most about 55 calls) cost about $0.20 a day
+      ($0.40 from 2027), and the 2,000-question breaker caps everyone at roughly $6–14 a day. The real
       numbers: `psql "$DATABASE_URL" -c "select model, count(*), avg(input_tokens), avg(output_tokens) from ai_usage where kind = 'chat' group by 1"`.
-- [ ] The limit caps each user, not the total. With N active users, the balance lasts about
-      balance ÷ (N × daily cost). Top up before opening sign-ups widely, or set a lower
-      `CHAT_DAILY_LIMIT` in Vercel Production (no code change, just a redeploy).
+- [ ] Size the breaker to the balance: it lasts at least balance ÷ (breaker × cost per answer)
+      days. Top up before opening sign-ups widely, or set a lower `GLOBAL_QUESTIONS_PER_DAY` or
+      `QUESTIONS_PER_DAY` in Vercel Production (no code change, just a redeploy).
+- [ ] Set `UNLIMITED_USER_IDS` to your own **production** Clerk user id (Clerk dashboard →
+      production instance → Users), for demos. The global breaker still applies to you.
 - [ ] Optional: re-run the evals for fresh public numbers (the models haven't changed, so the
       current ones still hold). A full run of all four costs well under $1:
       `corepack pnpm eval:retrieval && corepack pnpm eval:answers && corepack pnpm eval:agent && corepack pnpm eval:injection && corepack pnpm eval:summary`,
@@ -148,13 +151,14 @@ section 8).
 In the Vercel dashboard → the project → **Settings** → **Environment Variables**, for
 **Production** (and **Preview**, if previews should match):
 
-| Variable                       | Value                                   |
-| ------------------------------ | --------------------------------------- |
-| `EMBEDDING_PROVIDER`           | `google` (or unset: it's the default)   |
-| `CHAT_PROVIDER`                | `google` (or unset)                     |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | a key from the paid project (step 0)    |
-| `CHAT_DAILY_LIMIT`             | unset for 25, or the number from step 1 |
-| `AI_GATEWAY_API_KEY`           | unset (only for the optional gateway)   |
+| Variable                       | Value                                     |
+| ------------------------------ | ----------------------------------------- |
+| `EMBEDDING_PROVIDER`           | `google` (or unset: it's the default)     |
+| `CHAT_PROVIDER`                | `google` (or unset)                       |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | a key from the paid project (step 0)      |
+| `UNLIMITED_USER_IDS`           | your production Clerk user id (step 1)    |
+| Limits (`.env.example`)        | unset for the defaults in `docs/adr/0010` |
+| `AI_GATEWAY_API_KEY`           | unset (only for the optional gateway)     |
 
 - [ ] Redeploy production (**Deployments** → the latest → **Redeploy**, or
       `vercel --prod`). Env changes take effect only on a new deployment.
@@ -234,7 +238,7 @@ deployment → **Instant Rollback**. Env vars are not part of that rollback; the
   model (e.g. `gemini-3.8-flash`) and redeploy. Embeddings stay as they are. Run
   `pnpm eval:answers` on it when you can.
 - **The balance is running out faster than expected:** top it up in AI Studio, and lower
-  `CHAT_DAILY_LIMIT` (down to `1` while you look into it) and redeploy. Pausing new sign-ups
+  `GLOBAL_QUESTIONS_PER_DAY` (down to a few dozen while you look into it) and redeploy. Pausing new sign-ups
   (turn the allowlist back on) also helps. Uploads keep working while answers are limited, as
   long as some balance is left for embeddings (a fraction of a cent per document).
 - **Never fall back to a free-tier key** once real users' documents are in: it would send them
@@ -259,8 +263,9 @@ Nothing at launch needs it.
    results, the summary JSON and the floor together as `chore(evals): gateway models, calibrated
 floor`. Optionally `EMBEDDING_PROVIDER=gateway corepack pnpm db:backfill-embeddings` so `dev`
    matches.
-3. **Set the daily limit.** `CHAT_DAILY_LIMIT` defaults to 50 on the gateway. Pick a number from
-   the evals' `ai_usage` rows and set it in Vercel.
+3. **Check the limits.** The question limits (`docs/adr/0010`) were sized for Gemini's prices.
+   From the evals' `ai_usage` rows, work out the gateway's cost per answer and set
+   `QUESTIONS_PER_DAY` and `GLOBAL_QUESTIONS_PER_DAY` in Vercel to match.
 4. **Switch production.** In Vercel Production set `EMBEDDING_PROVIDER=gateway`,
    `CHAT_PROVIDER=gateway` and the limit; leave `AI_GATEWAY_API_KEY` unset (Vercel uses OIDC; a
    key always wins over OIDC). Keep `GOOGLE_GENERATIVE_AI_API_KEY` if you might switch back.
