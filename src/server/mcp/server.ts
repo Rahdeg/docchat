@@ -5,7 +5,8 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import type { z } from "zod";
 
 import { APP_ORIGIN, MCP_RESOURCE_METADATA_PATH } from "@/lib/app-url";
-import { consumeRateLimit } from "@/server/rate-limit";
+import { limitMessage } from "@/lib/limit-messages";
+import { consumeMcpCall } from "@/server/rate-limit";
 
 import { REQUIRED_SCOPES, userIdFrom, verifyMcpToken } from "./auth";
 import { UNTRUSTED_NOTICE } from "./content";
@@ -39,7 +40,7 @@ type Tool<Schema extends z.ZodType> = {
   // Clients use these to decide whether to ask the user before a call.
   readOnly: boolean;
   run: (userId: string, input: z.output<Schema>) => Promise<ToolResult>;
-  // Also counted as a search (RATE_LIMITS.search): it embeds a query.
+  // Also counted as a search (searches per minute, MCP searches per day): it embeds a query.
   search?: boolean;
 };
 
@@ -100,20 +101,19 @@ function textResult({ text, isError }: ToolResult) {
   return { content: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) };
 }
 
-// Runs a tool for the verified user: the rate limits first, then the tool. Input arrives
-// already validated against the tool's schema. Errors become a short message, never a stack.
+// Runs a tool for the verified user: the limits first, then the tool. Every call counts against
+// the minute's tool calls; a search also against the minute's searches and the day's MCP
+// searches, and waits while the global breaker is tripped (docs/adr/0010). So a connected app
+// gets no more than DocChat's own pages do. Input arrives already validated against the tool's
+// schema. Errors become a short message, never a stack.
 export async function runTool<Schema extends z.ZodType>(
   definition: Tool<Schema>,
   authInfo: AuthInfo | undefined,
   input: z.output<Schema>,
 ): Promise<ToolResult> {
   const userId = userIdFrom(authInfo);
-  const calls = await consumeRateLimit(userId, "mcp");
-  if (!calls.ok) return { text: calls.message, isError: true };
-  if (definition.search) {
-    const searches = await consumeRateLimit(userId, "search");
-    if (!searches.ok) return { text: searches.message, isError: true };
-  }
+  const allowed = await consumeMcpCall(userId, { search: !!definition.search });
+  if (!allowed.ok) return { text: limitMessage(allowed.failure), isError: true };
   try {
     return await definition.run(userId, input);
   } catch (error) {
