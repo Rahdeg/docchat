@@ -9,7 +9,7 @@ const fixture = (name: string) => new Uint8Array(readFileSync(`tests/fixtures/${
 describe("extractPages", () => {
   it("returns the text of each PDF page and reports progress per page", async () => {
     const onPage = vi.fn();
-    const pages = await extractPages(fixture("two-pages.pdf"), "pdf", onPage);
+    const pages = await extractPages(fixture("two-pages.pdf"), "pdf", { onPage });
 
     expect(pages).toHaveLength(2);
     expect(pages[0]).toContain("The rent is 950 pounds a month");
@@ -18,6 +18,17 @@ describe("extractPages", () => {
       [1, 2],
       [2, 2],
     ]);
+  });
+
+  it("stops a PDF over the page limit before reading any page", async () => {
+    const onPage = vi.fn();
+
+    await expect(
+      extractPages(fixture("two-pages.pdf"), "pdf", { onPage, maxPages: 1 }),
+    ).rejects.toEqual(new IndexingError("This PDF has 2 pages. The free limit is 1."));
+    expect(onPage).not.toHaveBeenCalled();
+    // At the limit is fine.
+    expect(await extractPages(fixture("two-pages.pdf"), "pdf", { maxPages: 2 })).toHaveLength(2);
   });
 
   it("returns empty pages for a PDF with no text", async () => {

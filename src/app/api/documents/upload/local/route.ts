@@ -2,7 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 import { checkUploadPath } from "@/features/documents/upload-policy";
-import { fileKinds, MAX_FILE_BYTES } from "@/features/documents/upload-rules";
+import { fileKinds, fileTooLarge } from "@/features/documents/upload-rules";
+import { limitMessage, type LimitFailure } from "@/lib/limit-messages";
+import { LIMITS } from "@/lib/limits";
 import { putLocalFile, storageDriver } from "@/server/blob";
 import { consumeRateLimit } from "@/server/rate-limit";
 
@@ -13,6 +15,9 @@ import { consumeRateLimit } from "@/server/rate-limit";
 // registerDocument's job, which checks the stored file again. 404 with any other driver.
 
 const query = z.object({ pathname: z.string().min(1).max(512) });
+
+const refuse = (failure: LimitFailure, status: number) =>
+  Response.json({ error: limitMessage(failure), limit: failure }, { status });
 
 export async function PUT(request: Request): Promise<Response> {
   if (storageDriver !== "local") return new Response("Not found", { status: 404 });
@@ -25,22 +30,28 @@ export async function PUT(request: Request): Promise<Response> {
   const { pathname } = parsed.data;
 
   const check = await checkUploadPath(userId, pathname);
-  if (!check.ok) return Response.json({ error: check.error }, { status: 400 });
+  if (!check.ok) {
+    if (check.limit) return refuse(check.limit, 429);
+    return Response.json({ error: check.error }, { status: 400 });
+  }
 
   const contentType = request.headers.get("content-type")?.split(";")[0]?.trim();
   if (contentType !== fileKinds[check.kind].mimeType) {
     return Response.json({ error: "That file type doesn't match its name." }, { status: 400 });
   }
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_FILE_BYTES) {
-    return Response.json({ error: "That file is too large." }, { status: 413 });
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > LIMITS.maxFileBytes) {
+    return refuse(fileTooLarge(check.fileName, declared, LIMITS.maxFileBytes), 413);
   }
 
   // One per file, like the Blob token route.
   const limit = await consumeRateLimit(userId, "upload");
-  if (!limit.ok) return Response.json({ error: limit.message }, { status: 429 });
+  if (!limit.ok) return refuse(limit.failure, 429);
 
-  const bytes = await readCapped(request, MAX_FILE_BYTES);
-  if (!bytes) return Response.json({ error: "That file is too large." }, { status: 413 });
+  const bytes = await readCapped(request, LIMITS.maxFileBytes);
+  if (!bytes) {
+    return refuse(fileTooLarge(check.fileName, LIMITS.maxFileBytes + 1, LIMITS.maxFileBytes), 413);
+  }
 
   try {
     await putLocalFile(pathname, bytes, contentType);

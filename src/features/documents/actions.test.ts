@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   deleteDocument: vi.fn(),
   indexDocument: vi.fn(),
   peekRateLimit: vi.fn(),
+  consumeRateLimit: vi.fn(),
+  findByContentHash: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
@@ -21,10 +23,14 @@ vi.mock("@/server/blob", () => ({
   deleteBlob: mocks.deleteBlob,
 }));
 vi.mock("@/server/ingest/index-document", () => ({ indexDocument: mocks.indexDocument }));
-vi.mock("@/server/rate-limit", () => ({ peekRateLimit: mocks.peekRateLimit }));
+vi.mock("@/server/rate-limit", () => ({
+  peekRateLimit: mocks.peekRateLimit,
+  consumeRateLimit: mocks.consumeRateLimit,
+}));
 vi.mock("./queries", () => ({
   countDocuments: mocks.countDocuments,
   getDocumentByBlobPathname: mocks.getDocumentByBlobPathname,
+  findByContentHash: mocks.findByContentHash,
 }));
 vi.mock("./mutations", () => ({
   createDocument: mocks.createDocument,
@@ -32,7 +38,7 @@ vi.mock("./mutations", () => ({
   deleteDocument: mocks.deleteDocument,
 }));
 
-const { registerDocument, retryDocument, deleteDocument, uploadLimitReason } =
+const { registerDocument, retryDocument, deleteDocument, uploadLimitReason, findDuplicate } =
   await import("./actions");
 
 const alice = "user_alice";
@@ -47,13 +53,14 @@ function input(pathname = `users/${alice}/${uuid}-Lease.pdf`) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: alice });
-  mocks.countDocuments.mockResolvedValue(3);
+  mocks.countDocuments.mockResolvedValue(1);
+  mocks.consumeRateLimit.mockResolvedValue({ ok: true });
   mocks.getDocumentByBlobPathname.mockResolvedValue(null);
   mocks.readBlobHead.mockResolvedValue({ head: pdfHead, size: 2048 });
   mocks.deleteBlob.mockResolvedValue(undefined);
   mocks.createDocument.mockImplementation(async (_userId: string, values: { name: string }) => ({
-    id: docId,
-    ...values,
+    ok: true,
+    document: { id: docId, ...values },
   }));
 });
 
@@ -85,15 +92,26 @@ describe("registerDocument", () => {
     expect(mocks.createDocument).not.toHaveBeenCalled();
   });
 
-  it("refuses a 21st document and deletes the uploaded file", async () => {
-    mocks.countDocuments.mockResolvedValue(20);
+  const documentLimit = {
+    ok: false,
+    error: "You've reached the free limit of 3 documents. Delete one to upload another.",
+    limit: { code: "DOCUMENT_LIMIT", max: 3 },
+  };
 
-    expect(await registerDocument(input())).toEqual({
-      ok: false,
-      error: "You can keep up to 20 documents. Remove one to add another.",
-    });
+  it("refuses a 4th document with a typed result and deletes the uploaded file", async () => {
+    mocks.countDocuments.mockResolvedValue(3);
+
+    expect(await registerDocument(input())).toEqual(documentLimit);
     expect(mocks.deleteBlob).toHaveBeenCalledWith(input().blobPathname);
     expect(mocks.createDocument).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the locked insert finds the last slot taken (a race)", async () => {
+    mocks.createDocument.mockResolvedValue({ ok: false, max: 3 });
+
+    expect(await registerDocument(input())).toEqual(documentLimit);
+    expect(mocks.deleteBlob).toHaveBeenCalledWith(input().blobPathname);
+    expect(mocks.after).not.toHaveBeenCalled();
   });
 
   it("checks the stored file's real type, not its extension", async () => {
@@ -111,7 +129,13 @@ describe("registerDocument", () => {
 
     expect(await registerDocument(input())).toEqual({
       ok: false,
-      error: "Lease.pdf is larger than 10 MB.",
+      error: "Lease.pdf is 10.1 MB. The free limit is 10 MB per file.",
+      limit: {
+        code: "FILE_TOO_LARGE",
+        maxMb: 10,
+        sizeBytes: 10 * 1024 * 1024 + 1,
+        fileName: "Lease.pdf",
+      },
     });
     expect(mocks.deleteBlob).toHaveBeenCalled();
   });
@@ -127,12 +151,16 @@ describe("registerDocument", () => {
     const result = await registerDocument({ ...input(), mimeType: "text/html" });
 
     expect(result).toEqual({ ok: true, data: { id: docId, name: "Lease.pdf" } });
-    expect(mocks.createDocument).toHaveBeenCalledWith(alice, {
-      name: "Lease.pdf",
-      mimeType: "application/pdf",
-      sizeBytes: 2048,
-      blobPathname: input().blobPathname,
-    });
+    expect(mocks.createDocument).toHaveBeenCalledWith(
+      alice,
+      {
+        name: "Lease.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 2048,
+        blobPathname: input().blobPathname,
+      },
+      3,
+    );
     expect(mocks.indexDocument).not.toHaveBeenCalled();
     expect(mocks.after).toHaveBeenCalledTimes(1);
 
@@ -162,6 +190,20 @@ describe("retryDocument", () => {
     });
     expect(mocks.resetForRetry).toHaveBeenCalledWith(alice, docId);
     expect(mocks.after).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts against the re-read limit, and refuses past it without resetting", async () => {
+    const failure = { code: "RATE_LIMITED", bucket: "reindex", max: 10, retryAfterSeconds: 120 };
+    mocks.consumeRateLimit.mockResolvedValue({ ok: false, failure });
+
+    expect(await retryDocument({ id: docId })).toEqual({
+      ok: false,
+      error:
+        "You've asked DocChat to read documents again 10 times in the last hour. Try again in 2 minutes.",
+      limit: failure,
+    });
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(alice, "reindex");
+    expect(mocks.resetForRetry).not.toHaveBeenCalled();
   });
 
   it("does nothing when the document is already being read", async () => {
@@ -210,22 +252,44 @@ describe("uploadLimitReason", () => {
   });
 
   it("explains a refused upload without counting one", async () => {
-    mocks.peekRateLimit.mockResolvedValue({
-      ok: false,
-      retryAfterSeconds: 300,
-      message: "You've uploaded 20 files in the last hour. You can upload more in 5 minutes.",
-    });
+    const failure = { code: "RATE_LIMITED", bucket: "upload", max: 20, retryAfterSeconds: 300 };
+    mocks.peekRateLimit.mockResolvedValue({ ok: false, failure });
 
-    expect(await uploadLimitReason({})).toEqual({
-      ok: true,
-      data: "You've uploaded 20 files in the last hour. You can upload more in 5 minutes.",
-    });
+    expect(await uploadLimitReason({})).toEqual({ ok: true, data: failure });
     expect(mocks.peekRateLimit).toHaveBeenCalledWith(alice, "upload");
   });
 
+  it("names the document limit first", async () => {
+    mocks.countDocuments.mockResolvedValue(3);
+
+    expect(await uploadLimitReason({})).toEqual({
+      ok: true,
+      data: { code: "DOCUMENT_LIMIT", max: 3 },
+    });
+  });
+
   it("is null when uploads are allowed", async () => {
-    mocks.peekRateLimit.mockResolvedValue({ ok: true, remaining: 3 });
+    mocks.peekRateLimit.mockResolvedValue({ ok: true });
 
     expect(await uploadLimitReason({})).toEqual({ ok: true, data: null });
+  });
+});
+
+describe("findDuplicate", () => {
+  const hash = "a".repeat(64);
+
+  it("names the user's document with the same file", async () => {
+    mocks.findByContentHash.mockResolvedValue({ id: docId, name: "Lease.pdf" });
+
+    expect(await findDuplicate({ contentHash: hash })).toEqual({
+      ok: true,
+      data: { name: "Lease.pdf" },
+    });
+    expect(mocks.findByContentHash).toHaveBeenCalledWith(alice, hash);
+  });
+
+  it("rejects anything that isn't a SHA-256 hex digest", async () => {
+    expect((await findDuplicate({ contentHash: "nope" })).ok).toBe(false);
+    expect(mocks.findByContentHash).not.toHaveBeenCalled();
   });
 });
