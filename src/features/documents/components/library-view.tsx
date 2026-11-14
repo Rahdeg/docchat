@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { plural } from "@/lib/format";
+import { limitMessage } from "@/lib/limit-messages";
+import type { LibraryLimits } from "@/lib/limits";
 
 import {
   displayState,
@@ -16,7 +18,7 @@ import {
   type LibraryDocument,
   needsAttention,
 } from "../library-document";
-import { ACCEPTED_FILE_TYPES, displayName } from "../upload-rules";
+import { ACCEPTED_FILE_TYPES, atDocumentLimit, displayName } from "../upload-rules";
 import { AddFilesSheet } from "./add-files-sheet";
 import { DocumentCard } from "./document-card";
 import { stoppedMessage } from "./document-meta";
@@ -50,15 +52,36 @@ type LibraryViewProps = {
   documents: LibraryDocument[];
   // Where uploads go (src/server/blob.ts): Vercel Blob, or the local store in CI's e2e tests.
   storage?: "blob" | "local";
+  // Free-tier limits (src/lib/limits.ts). The server checks them again.
+  limits: LibraryLimits;
 };
 
-export function LibraryView({ userId, documents, storage }: LibraryViewProps) {
+// "2 of 3 documents", or why uploading is off. Named by the upload button (aria-describedby),
+// which stays focusable when disabled: a greyed-out button alone wouldn't say why.
+function LimitNote({ id, text, full }: { id: string; text: string; full: boolean }) {
+  return (
+    <p
+      id={id}
+      data-full={full || undefined}
+      className={
+        full
+          ? "max-w-[340px] rounded-md bg-status-problem px-3 py-2 text-[13px] text-status-problem-foreground"
+          : "text-[13px] text-muted-foreground"
+      }
+    >
+      {text}
+    </p>
+  );
+}
+
+export function LibraryView({ userId, documents, storage, limits }: LibraryViewProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listedIds = useMemo(() => new Set(documents.map((doc) => doc.id)), [documents]);
   const uploads = useUploads({
     userId,
     storage,
     documentCount: documents.length,
+    limits,
     listedIds,
   });
   const drag = usePageFileDrop((files) => void uploads.addFiles(files));
@@ -75,6 +98,16 @@ export function LibraryView({ userId, documents, storage }: LibraryViewProps) {
     attention: documents.filter((doc) => matchesFilter(doc, "attention")).length,
   };
   const activeUploads = uploads.items.filter((item) => item.state !== "failed").length;
+  // Uploads still on their way count towards the limit too, as they do on the server.
+  const pending = uploads.items.filter((item) => item.state !== "failed" && !item.documentId);
+  const used = documents.length + pending.length;
+  const full = atDocumentLimit(used, limits);
+  const limitNote =
+    limits.maxDocuments === null
+      ? null
+      : full
+        ? limitMessage({ code: "DOCUMENT_LIMIT", max: limits.maxDocuments })
+        : `${used} of ${limits.maxDocuments} documents`;
   const isEmpty = documents.length === 0 && uploads.items.length === 0;
 
   const search = query.trim().toLowerCase();
@@ -98,18 +131,28 @@ export function LibraryView({ userId, documents, storage }: LibraryViewProps) {
           </p>
         </div>
         {isEmpty ? null : (
-          <Button className="ml-auto hidden h-10 px-4 md:inline-flex" onClick={browse}>
-            <UploadIcon data-icon="inline-start" />
-            Upload files
-          </Button>
+          <div className="ml-auto hidden flex-col items-end gap-2 text-right md:flex">
+            <Button
+              className="h-10 px-4"
+              onClick={browse}
+              disabled={full}
+              focusableWhenDisabled
+              aria-describedby={limitNote ? "document-limit" : undefined}
+            >
+              <UploadIcon data-icon="inline-start" />
+              Upload files
+            </Button>
+            {limitNote ? <LimitNote id="document-limit" text={limitNote} full={full} /> : null}
+          </div>
         )}
       </header>
 
       {isEmpty ? (
-        <LibraryEmpty onBrowse={browse} dragging={drag.dragging} />
+        <LibraryEmpty onBrowse={browse} dragging={drag.dragging} limits={limits} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-3">
+          {/* "Open library" in a limit toast lands here. */}
+          <div id="documents" className="flex scroll-mt-6 flex-wrap items-center gap-3">
             <Tabs
               value={filter}
               onValueChange={(value) => setFilter(value as Filter)}
@@ -199,8 +242,17 @@ export function LibraryView({ userId, documents, storage }: LibraryViewProps) {
           )}
 
           {/* Phones: a full-width upload button fixed to the bottom. */}
-          <div className="fixed inset-x-0 bottom-0 z-10 bg-linear-to-b from-background/0 via-background via-30% to-background px-4 pt-3 pb-7 md:hidden">
-            <Button className="h-12 w-full text-[15px]" onClick={browse}>
+          <div className="fixed inset-x-0 bottom-0 z-10 flex flex-col gap-2 bg-linear-to-b from-background/0 via-background via-30% to-background px-4 pt-3 pb-7 md:hidden">
+            {limitNote ? (
+              <LimitNote id="document-limit-phone" text={limitNote} full={full} />
+            ) : null}
+            <Button
+              className="h-12 w-full text-[15px]"
+              onClick={browse}
+              disabled={full}
+              focusableWhenDisabled
+              aria-describedby={limitNote ? "document-limit-phone" : undefined}
+            >
               <UploadIcon data-icon="inline-start" />
               Upload files
             </Button>

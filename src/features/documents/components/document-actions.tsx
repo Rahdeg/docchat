@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { showLimitToast } from "@/components/limit-toast";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -44,7 +45,8 @@ export function useDocumentActions(doc: LibraryDocument, name: string) {
     startRetry(async () => {
       const result = await retryDocument({ id: doc.id });
       if (!result.ok) {
-        toast.error(result.error);
+        if (result.limit) showLimitToast(result.limit);
+        else toast.error(result.error);
         return;
       }
       router.refresh();
