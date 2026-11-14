@@ -22,18 +22,20 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
+import { showLimitToast } from "@/components/limit-toast";
 import { Message, MessageContent } from "@/components/ui/message";
 import type { ReadyDocument } from "@/features/documents/queries";
 import { displayName } from "@/features/documents/upload-rules";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { plural } from "@/lib/format";
+import { DAILY_RESET, limitMessage, parseLimitBody } from "@/lib/limit-messages";
 import { chatUrl, routes } from "@/lib/routes";
 
 import type { ApprovedTask } from "../agent-parts";
 import { proposalState } from "../agent-view";
 import { answerSources } from "../answer-sources";
 import type { ApprovalRequestBody, QuestionRequestBody } from "../chat-request";
-import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "../find-rules";
+import { QUERY_MIN_CHARS } from "../find-rules";
 import {
   chatTitle,
   AI_LIMIT_MESSAGE,
@@ -60,7 +62,14 @@ type ChatViewProps = {
   notice?: string | null;
   // Opened from "Ask about this" (?documentId=…): focus the composer and drop the query.
   fromLink?: boolean;
+  // Free-tier limits (src/lib/limits.ts): the longest question, and what's left of today's
+  // questions (null: no daily limit). The server checks both again.
+  maxQuestionChars: number;
+  questionsLeft: number | null;
 };
+
+// The composer starts counting down from here.
+const SHOW_QUESTIONS_LEFT_AT = 10;
 
 // The citation the reader is looking at: which answer, which chip.
 type Active = { messageId: string; number: number };
@@ -73,6 +82,8 @@ export function ChatView({
   initialDocumentIds = [],
   notice = null,
   fromLink = false,
+  maxQuestionChars,
+  questionsLeft: initialQuestionsLeft,
 }: ChatViewProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -86,6 +97,9 @@ export function ChatView({
   // Approvals already sent: each goes up once, even if a reply leaves it unsettled. One the
   // server refused is taken off, so the card can be answered again.
   const sentApprovals = useRef(new Set<string>());
+  const [questionsLeft, setQuestionsLeft] = useState(initialQuestionsLeft);
+  // What the last request was, so a refusal can put a new question back in the composer.
+  const lastSend = useRef<"question" | "tasks" | "retry">("question");
 
   const [transport] = useState(
     () =>
@@ -148,6 +162,8 @@ export function ChatView({
     },
     onFinish: ({ isAbort, message }) => {
       if (isAbort) setStoppedIds((ids) => [...ids, message.id]);
+      const left = message.metadata?.questionsLeft;
+      if (left !== undefined) setQuestionsLeft(left);
       // The first answer stores the chat: show it in the sidebar. Added tasks change the
       // sidebar's count of open tasks.
       const found = proposalOf(message);
@@ -156,6 +172,21 @@ export function ChatView({
       }
     },
     onError: (failure) => {
+      // A free-tier limit refused the question before anything was saved: say so in a toast,
+      // and take the question back off the page (a new one goes back in the composer).
+      const limit = parseLimitBody(failure.message);
+      if (limit) {
+        showLimitToast(limit);
+        if (limit.code === "QUESTIONS_PER_DAY") setQuestionsLeft(0);
+        if (lastSend.current === "retry") return;
+        setMessages((all) => {
+          const last = all.at(-1);
+          if (last?.role !== "user") return all;
+          if (lastSend.current === "question") setInput(messageText(last));
+          return all.slice(0, -1);
+        });
+        return;
+      }
       // An approval the server refused (out of date, already answered): the card asks again.
       setMessages((all) => {
         const answered = answeredApproval(all);
@@ -171,7 +202,16 @@ export function ChatView({
 
   const busy = status === "submitted" || status === "streaming";
   const question = input.trim();
-  const canSend = documents.length > 0 && question.length >= QUERY_MIN_CHARS && !busy;
+  const outOfQuestions = questionsLeft === 0;
+  const canSend =
+    documents.length > 0 &&
+    question.length >= QUERY_MIN_CHARS &&
+    question.length <= maxQuestionChars &&
+    !outOfQuestions &&
+    !busy;
+  // A limit refusal is shown as a toast and in words here, never as the raw response body.
+  const errorLimit = error ? parseLimitBody(error.message) : null;
+  const errorText = errorLimit ? limitMessage(errorLimit) : error?.message;
 
   // From "Ask about this": the link has done its job, so a refresh starts plain. The scope
   // itself is saved on the chat with the first question.
@@ -204,6 +244,7 @@ export function ChatView({
     if (!canSend) return;
     clearError();
     setActive(null);
+    lastSend.current = "question";
     void sendMessage({ text: question }, { body: requestBody() });
     setInput("");
   }
@@ -230,6 +271,7 @@ export function ChatView({
   function turnIntoTasks() {
     clearError();
     setActive(null);
+    lastSend.current = "tasks";
     void sendMessage({ text: TURN_INTO_TASKS }, { body: requestBody() });
   }
 
@@ -300,6 +342,7 @@ export function ChatView({
                   onRetry={() => {
                     clearError();
                     setActive(null);
+                    lastSend.current = "retry";
                     void regenerate({ messageId: message.id, body: requestBody() });
                   }}
                 />
@@ -319,7 +362,7 @@ export function ChatView({
         >
           {error ? (
             <p role="alert" className="mb-2 text-[13px] text-destructive">
-              {error.message}
+              {errorText}
             </p>
           ) : null}
           <InputGroup className="h-auto gap-2.5 rounded-[14px] border-border-strong bg-card p-3 shadow-composer paper">
@@ -328,7 +371,8 @@ export function ChatView({
               aria-label={prompt}
               placeholder={prompt}
               rows={2}
-              maxLength={QUERY_MAX_CHARS}
+              maxLength={maxQuestionChars}
+              aria-describedby="composer-limits"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={onKeyDown}
@@ -364,7 +408,34 @@ export function ChatView({
               )}
             </InputGroupAddon>
           </InputGroup>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
+          <div
+            id="composer-limits"
+            className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground"
+          >
+            {questionsLeft !== null && questionsLeft <= SHOW_QUESTIONS_LEFT_AT ? (
+              <span
+                data-testid="questions-left"
+                className={outOfQuestions ? "font-medium text-status-problem-foreground" : ""}
+              >
+                {outOfQuestions
+                  ? `No questions left today. They reset at ${DAILY_RESET}.`
+                  : `${plural(questionsLeft, "question")} left today`}
+              </span>
+            ) : null}
+            {input.length > 0 ? (
+              <span
+                data-testid="question-chars"
+                className={
+                  input.length >= maxQuestionChars
+                    ? "font-medium text-status-problem-foreground"
+                    : ""
+                }
+              >
+                {input.length} / {maxQuestionChars} characters
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-center text-xs text-muted-foreground">
             Answers come only from your documents. Check the passages before relying on them.
           </p>
         </form>

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LibraryView } from "@/features/documents/components/library-view";
 import { listDocuments } from "@/features/documents/queries";
+import { libraryLimits } from "@/lib/limits";
 import { requireUserId } from "@/server/auth";
 import { storageDriver } from "@/server/blob";
 
@@ -26,7 +27,14 @@ export default function LibraryPage() {
 async function Library() {
   const userId = await requireUserId();
   const documents = await listDocuments(userId);
-  return <LibraryView userId={userId} documents={documents} storage={storageDriver} />;
+  return (
+    <LibraryView
+      userId={userId}
+      documents={documents}
+      storage={storageDriver}
+      limits={libraryLimits(userId)}
+    />
+  );
 }
 
 // Prerendered, so fixed sizes only (no random widths or current time).

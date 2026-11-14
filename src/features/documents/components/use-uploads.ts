@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { registerDocument, uploadLimitReason } from "../actions";
+import { showLimitToast } from "@/components/limit-toast";
+import { limitMessage } from "@/lib/limit-messages";
+
+import { findDuplicate, registerDocument, uploadLimitReason } from "../actions";
 import {
   buildBlobPathname,
   checkFile,
@@ -14,6 +17,7 @@ import {
   type FileKind,
   fileKinds,
   SNIFF_BYTES,
+  type UploadLimits,
 } from "../upload-rules";
 
 // Files that go up at the same time; the rest wait their turn.
@@ -40,8 +44,9 @@ type UseUploadsOptions = {
   // Where files go: straight to Vercel Blob, or (CI's end-to-end tests only) to our own route
   // for the local store (docs/adr/0009).
   storage?: "blob" | "local";
-  // Documents the user already has, for the client-side limit check.
+  // Documents the user already has, and the limits, for the client-side checks.
   documentCount: number;
+  limits: UploadLimits;
   // Ids currently listed, so registered uploads hand over to their document row.
   listedIds: ReadonlySet<string>;
 };
@@ -50,6 +55,7 @@ export function useUploads({
   userId,
   storage = "blob",
   documentCount,
+  limits,
   listedIds,
 }: UseUploadsOptions) {
   const router = useRouter();
@@ -102,7 +108,8 @@ export function useUploads({
         });
         if (!result.ok) {
           update(item.key, { state: "failed", error: result.error });
-          toast.error(result.error);
+          if (result.limit) showLimitToast(result.limit);
+          else toast.error(result.error);
           return;
         }
         update(item.key, { documentId: result.data.id });
@@ -111,12 +118,16 @@ export function useUploads({
         controllers.current.delete(item.key);
         if (controller.signal.aborted) return;
         console.error(error);
-        // The token route's reason doesn't survive the Blob client: ask whether it was the
-        // upload limit, and otherwise keep this general.
+        // The token route's reason doesn't survive the Blob client: ask whether it was a limit
+        // (documents or the upload rate), and otherwise keep this general.
         const limited = await uploadLimitReason({}).catch(() => null);
-        const message =
-          (limited?.ok && limited.data) ||
-          `Couldn't upload ${item.file.name}. Check your connection and try again.`;
+        const failure = limited?.ok ? limited.data : null;
+        if (failure) {
+          update(item.key, { state: "failed", error: limitMessage(failure) });
+          showLimitToast(failure);
+          return;
+        }
+        const message = `Couldn't upload ${item.file.name}. Check your connection and try again.`;
         update(item.key, { state: "failed", error: message });
         toast.error(message);
       }
@@ -146,11 +157,13 @@ export function useUploads({
       let count =
         documentCount + items.filter((item) => item.state !== "failed" && !item.documentId).length;
       const accepted: UploadItem[] = [];
+      const hashes = new Map<string, string>();
 
       for (const file of files) {
-        const check = checkFile(file, count);
+        const check = checkFile(file, count, limits);
         if (!check.ok) {
-          toast.error(check.error);
+          if (check.limit) showLimitToast(check.limit);
+          else toast.error(check.error);
           continue;
         }
         const head = new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer());
@@ -158,6 +171,20 @@ export function useUploads({
           toast.error(contentMismatchMessage(file.name, check.kind));
           continue;
         }
+        // A file the user already has (or picked twice): say so instead of uploading it. The
+        // server checks the stored file's hash again before reading it.
+        const hash = await sha256(file);
+        const existingName = hash
+          ? (hashes.get(hash) ??
+            (await findDuplicate({ contentHash: hash })
+              .then((result) => (result.ok ? result.data?.name : undefined))
+              .catch(() => undefined)))
+          : undefined;
+        if (existingName) {
+          showLimitToast({ code: "DUPLICATE_DOCUMENT", existingName });
+          continue;
+        }
+        if (hash) hashes.set(hash, file.name);
         accepted.push({
           key: crypto.randomUUID(),
           file,
@@ -173,7 +200,7 @@ export function useUploads({
       waiting.current.push(...accepted);
       pump();
     },
-    [documentCount, items, pump],
+    [documentCount, items, limits, pump],
   );
 
   // Leaving the page cancels uploads still in flight.
@@ -211,4 +238,11 @@ async function uploadLocal(
   );
   if (!response.ok) throw new Error(`Local upload failed (${response.status})`);
   return { pathname };
+}
+
+// The file's SHA-256 as hex, or null where the browser can't hash (an insecure context).
+async function sha256(file: File): Promise<string | null> {
+  if (!globalThis.crypto?.subtle) return null;
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
