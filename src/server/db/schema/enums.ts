@@ -4,7 +4,6 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 import { feedbackValues, messageStatuses } from "@/features/chat/message";
 import { taskCreators } from "@/features/tasks/task-rules";
-import { rateLimitBuckets } from "@/lib/rate-limits";
 
 export const documentStatus = pgEnum("document_status", [
   "uploaded",
@@ -37,5 +36,16 @@ export const messageFeedback = pgEnum("message_feedback", feedbackValues);
 // it), or the user's connected AI app over MCP (create_task, docs/adr/0008).
 export const taskCreatedBy = pgEnum("task_created_by", taskCreators);
 
-// What a rate-limit event counts (src/lib/rate-limits.ts).
+// What a rate-limit event counts, over a sliding window (src/server/rate-limit.ts; the numbers
+// are in src/lib/limits.ts): MCP tool calls, searches that embed a query (MCP), upload tokens,
+// questions on /chat, and re-reading a document. "search" also counted /chat questions before
+// "question" existed.
+export const rateLimitBuckets = ["mcp", "search", "upload", "question", "reindex"] as const;
+export type RateLimitBucket = (typeof rateLimitBuckets)[number];
 export const rateLimitBucket = pgEnum("rate_limit_bucket", rateLimitBuckets);
+
+// What a daily usage counter counts (src/server/rate-limit.ts): questions on /chat (per user,
+// and across everyone for the global breaker), task requests, and MCP searches.
+export const usageCounterKinds = ["question", "agent-run", "mcp-search"] as const;
+export type UsageCounterKind = (typeof usageCounterKinds)[number];
+export const usageCounterKind = pgEnum("usage_counter_kind", usageCounterKinds);

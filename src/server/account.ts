@@ -13,6 +13,7 @@ import {
   message,
   rateLimitEvent,
   task,
+  usageCounter,
 } from "@/server/db/schema";
 
 import { deleteBlobsWithPrefix } from "./blob";
@@ -24,7 +25,15 @@ import { deleteBlobsWithPrefix } from "./blob";
 export const clerkUserIdSchema = z.string().regex(/^user_[A-Za-z0-9]+$/);
 
 export type DeletedRows = Record<
-  "tasks" | "messages" | "chats" | "chunks" | "pages" | "documents" | "aiUsage" | "rateLimits",
+  | "tasks"
+  | "messages"
+  | "chats"
+  | "chunks"
+  | "pages"
+  | "documents"
+  | "aiUsage"
+  | "rateLimits"
+  | "usageCounters",
   number
 >;
 
@@ -59,6 +68,12 @@ export async function deleteUserRows(userId: string): Promise<DeletedRows> {
           .delete(rateLimitEvent)
           .where(eq(rateLimitEvent.userId, userId))
           .returning({ id: rateLimitEvent.id }),
+      ),
+      usageCounters: await count(
+        tx
+          .delete(usageCounter)
+          .where(eq(usageCounter.userId, userId))
+          .returning({ day: usageCounter.day }),
       ),
     };
   });

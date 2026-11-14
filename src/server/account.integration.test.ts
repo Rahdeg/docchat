@@ -64,6 +64,9 @@ describe.skipIf(!process.env.DATABASE_URL)("deleteUserData", { timeout: 60_000 }
       .insert(schema.aiUsage)
       .values({ userId, kind: "embed-query", model: "test/model", tokens: 3 });
     await db.insert(schema.rateLimitEvent).values({ userId, bucket: "search" });
+    await db
+      .insert(schema.usageCounter)
+      .values({ userId, kind: "question", day: "2026-11-14", count: 2 });
   }
 
   async function counts(userId: string) {
@@ -77,6 +80,7 @@ describe.skipIf(!process.env.DATABASE_URL)("deleteUserData", { timeout: 60_000 }
       documents: schema.document,
       aiUsage: schema.aiUsage,
       rateLimits: schema.rateLimitEvent,
+      usageCounters: schema.usageCounter,
     };
     const result: Record<string, number> = {};
     for (const [name, table] of Object.entries(tables)) {
@@ -107,6 +111,7 @@ describe.skipIf(!process.env.DATABASE_URL)("deleteUserData", { timeout: 60_000 }
       documents: 1,
       aiUsage: 1,
       rateLimits: 1,
+      usageCounters: 1,
     });
     expect(Object.values(await counts(gone)).every((n) => n === 0)).toBe(true);
     expect(Object.values(await counts(kept)).every((n) => n === 1)).toBe(true);

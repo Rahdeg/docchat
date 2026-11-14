@@ -57,6 +57,7 @@ const deletion = {
     documents: 1,
     aiUsage: 7,
     rateLimits: 2,
+    usageCounters: 1,
   },
   files: 1,
 };
