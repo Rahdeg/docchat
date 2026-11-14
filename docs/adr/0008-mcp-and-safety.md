@@ -152,7 +152,9 @@ passkeys and the clipboard, HSTS, and an enforced CSP.
 
 ### 7. Rate limits, the injection eval and dependency checks
 
-- **Rate limits** live in one file (`src/lib/rate-limits.ts`): 30 searches a minute (our chat and
+- **Rate limits** (amended by `docs/adr/0010`: the numbers now live in `src/lib/limits.ts`
+  with the free-tier limits, and /chat questions have their own bucket) live in one file
+  (`src/lib/rate-limits.ts`): 30 searches a minute (our chat and
   MCP search share them; both embed), 20 uploads an hour, 60 MCP calls a minute, on top of the
   daily answer limit. They're counted in Postgres (`rate_limit_event`), not Redis: we already
   have it, the volumes are small, and a per-user advisory lock makes a burst count one at a time.

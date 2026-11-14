@@ -7,6 +7,9 @@ import { TEST_DOUBLE_RULE, testDoublesAllowed } from "./test-doubles";
 const notInProduction = (double: string) => (value: string) =>
   value !== double || testDoublesAllowed();
 
+// A free-tier limit (src/lib/limits.ts): a positive whole number, or unset for the default.
+const limitNumber = z.coerce.number().int().positive().optional();
+
 // Variables become required in the PR that wires up their service.
 // Each TODO marks where to drop `.optional()` in that PR.
 export const env = createEnv({
@@ -56,10 +59,34 @@ export const env = createEnv({
     // Optional: a different answer model on CHAT_PROVIDER, e.g. "gemini-3.8-flash" or
     // "anthropic/claude-opus-5.5". For trying a model, or when the default's quota is used up.
     CHAT_ANSWER_MODEL: z.string().trim().min(1).max(100).optional(),
-    // Model calls one user may make per UTC day (an answer is one, a task request up to five).
-    // Every call is paid for, so this caps one person's spend. Unset: 25 on "google", 50 on
-    // "gateway" (src/server/ai/limits.ts).
-    CHAT_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
+    // Free-tier limits (src/lib/limits.ts, docs/adr/0010). Each is optional: unset uses the
+    // default there. Read at build time too (the landing page shows two of them).
+    MAX_DOCUMENTS_PER_USER: limitNumber,
+    MAX_FILE_MB: limitNumber,
+    MAX_PAGES_PER_DOCUMENT: limitNumber,
+    QUESTIONS_PER_MINUTE: limitNumber,
+    QUESTIONS_PER_DAY: limitNumber,
+    AGENT_RUNS_PER_DAY: limitNumber,
+    MAX_QUESTION_CHARS: limitNumber,
+    MAX_OUTPUT_TOKENS: limitNumber,
+    AGENT_MAX_OUTPUT_TOKENS: limitNumber,
+    HISTORY_MESSAGES: limitNumber,
+    GLOBAL_QUESTIONS_PER_DAY: limitNumber,
+    MCP_SEARCHES_PER_DAY: limitNumber,
+    REINDEX_PER_HOUR: limitNumber,
+    // Clerk user ids (user_…), comma-separated, that skip the per-user limits.
+    UNLIMITED_USER_IDS: z
+      .string()
+      .refine(
+        (value) =>
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean)
+            .every((id) => /^user_[A-Za-z0-9]+$/.test(id)),
+        "Clerk user ids (user_…), comma-separated.",
+      )
+      .optional(),
     // Svix signing secret (whsec_…) of the Clerk webhook endpoint at /api/webhooks/clerk, which
     // deletes a user's data when Clerk sends user.deleted (docs/adr/0008).
     CLERK_WEBHOOK_SIGNING_SECRET: z.string().startsWith("whsec_"),
@@ -110,7 +137,20 @@ export const env = createEnv({
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
     CHAT_PROVIDER: process.env.CHAT_PROVIDER,
     CHAT_ANSWER_MODEL: process.env.CHAT_ANSWER_MODEL,
-    CHAT_DAILY_LIMIT: process.env.CHAT_DAILY_LIMIT,
+    MAX_DOCUMENTS_PER_USER: process.env.MAX_DOCUMENTS_PER_USER,
+    MAX_FILE_MB: process.env.MAX_FILE_MB,
+    MAX_PAGES_PER_DOCUMENT: process.env.MAX_PAGES_PER_DOCUMENT,
+    QUESTIONS_PER_MINUTE: process.env.QUESTIONS_PER_MINUTE,
+    QUESTIONS_PER_DAY: process.env.QUESTIONS_PER_DAY,
+    AGENT_RUNS_PER_DAY: process.env.AGENT_RUNS_PER_DAY,
+    MAX_QUESTION_CHARS: process.env.MAX_QUESTION_CHARS,
+    MAX_OUTPUT_TOKENS: process.env.MAX_OUTPUT_TOKENS,
+    AGENT_MAX_OUTPUT_TOKENS: process.env.AGENT_MAX_OUTPUT_TOKENS,
+    HISTORY_MESSAGES: process.env.HISTORY_MESSAGES,
+    GLOBAL_QUESTIONS_PER_DAY: process.env.GLOBAL_QUESTIONS_PER_DAY,
+    MCP_SEARCHES_PER_DAY: process.env.MCP_SEARCHES_PER_DAY,
+    REINDEX_PER_HOUR: process.env.REINDEX_PER_HOUR,
+    UNLIMITED_USER_IDS: process.env.UNLIMITED_USER_IDS,
     CLERK_WEBHOOK_SIGNING_SECRET: process.env.CLERK_WEBHOOK_SIGNING_SECRET,
     APP_URL: process.env.APP_URL,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,

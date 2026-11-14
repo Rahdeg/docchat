@@ -1,8 +1,14 @@
 // Upload rules shared by the browser (fast feedback) and the server (the real checks in the
-// token route and registerDocument). No server-only imports: this file ships to the client.
+// token route and registerDocument). No server-only imports: this file ships to the client. The
+// numbers come from src/lib/limits.ts (server only), passed in as UploadLimits.
 
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
-export const MAX_DOCUMENTS = 20;
+import { limitMessage, type LimitFailure } from "@/lib/limit-messages";
+
+export type UploadLimits = {
+  // Null: no document limit (UNLIMITED_USER_IDS).
+  maxDocuments: number | null;
+  maxFileBytes: number;
+};
 
 // How many leading bytes the type sniffer needs.
 export const SNIFF_BYTES = 8 * 1024;
@@ -43,18 +49,44 @@ export function displayName(fileName: string): string {
   return fileKindOf(fileName) ? fileName.replace(/\.[^.]+$/, "") : fileName;
 }
 
-export type RuleCheck = { ok: true; kind: FileKind } | { ok: false; error: string };
+export type RuleCheck =
+  { ok: true; kind: FileKind } | { ok: false; error: string; limit?: LimitFailure };
 
-export const limitReachedMessage = `You can keep up to ${MAX_DOCUMENTS} documents. Remove one to add another.`;
+export function atDocumentLimit(documentCount: number, limits: UploadLimits): boolean {
+  return limits.maxDocuments !== null && documentCount >= limits.maxDocuments;
+}
+
+const refuse = (limit: LimitFailure): RuleCheck => ({
+  ok: false,
+  error: limitMessage(limit),
+  limit,
+});
+
+export function fileTooLarge(fileName: string, sizeBytes: number, maxFileBytes: number) {
+  return {
+    code: "FILE_TOO_LARGE",
+    maxMb: Math.round(maxFileBytes / (1024 * 1024)),
+    sizeBytes,
+    fileName,
+  } as const satisfies LimitFailure;
+}
 
 // Name, size and the per-user limit. `documentCount` is how many the user already has,
 // including uploads in progress.
-export function checkFile(file: { name: string; size: number }, documentCount: number): RuleCheck {
+export function checkFile(
+  file: { name: string; size: number },
+  documentCount: number,
+  limits: UploadLimits,
+): RuleCheck {
   const kind = fileKindOf(file.name);
   if (!kind) return { ok: false, error: `${file.name} isn't a PDF, Markdown or text file.` };
   if (file.size === 0) return { ok: false, error: `${file.name} is empty.` };
-  if (file.size > MAX_FILE_BYTES) return { ok: false, error: `${file.name} is larger than 10 MB.` };
-  if (documentCount >= MAX_DOCUMENTS) return { ok: false, error: limitReachedMessage };
+  if (file.size > limits.maxFileBytes) {
+    return refuse(fileTooLarge(file.name, file.size, limits.maxFileBytes));
+  }
+  if (atDocumentLimit(documentCount, limits)) {
+    return refuse({ code: "DOCUMENT_LIMIT", max: limits.maxDocuments! });
+  }
   return { ok: true, kind };
 }
 

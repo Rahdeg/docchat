@@ -19,7 +19,7 @@ import {
   type approvalBodySchema,
   type questionRequestSchema,
 } from "@/features/chat/chat-request";
-import { QUERY_MAX_CHARS, QUERY_MIN_CHARS } from "@/features/chat/find-rules";
+import { QUERY_MIN_CHARS } from "@/features/chat/find-rules";
 import {
   chatTitle,
   AI_LIMIT_MESSAGE,
@@ -49,11 +49,12 @@ import {
   streamAnswer,
   type AnswerStream,
 } from "@/server/ai/answer";
+import { limitMessage, type LimitFailure } from "@/lib/limit-messages";
+import { LIMITS } from "@/lib/limits";
 import { isQuotaError } from "@/server/ai/call-model";
-import { checkDailyLimit } from "@/server/ai/limits";
 import { log } from "@/server/log";
 import { identifyUser, reportError } from "@/server/monitoring";
-import { consumeRateLimit } from "@/server/rate-limit";
+import { consumeQuestion, releaseReservation } from "@/server/rate-limit";
 
 // Answers a question in a chat, streaming the answer with its sources and citations
 // (docs/adr/0006). A route handler rather than a Server Action because it streams.
@@ -66,7 +67,7 @@ import { consumeRateLimit } from "@/server/rate-limit";
 // the search and saving.
 export const maxDuration = 120;
 
-const questionSchema = z.string().trim().min(QUERY_MIN_CHARS).max(QUERY_MAX_CHARS);
+const questionSchema = z.string().trim().min(QUERY_MIN_CHARS);
 
 // Plain-text errors: the browser shows the body as the message.
 function fail(status: number, message: string) {
@@ -74,6 +75,15 @@ function fail(status: number, message: string) {
     status,
     headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+// A free-tier limit: JSON `{ error, limit }`, which the composer turns into a toast
+// (parseLimitBody, src/lib/limit-messages.ts).
+function refuse(status: number, failure: LimitFailure) {
+  return Response.json(
+    { error: limitMessage(failure), limit: failure },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function POST(request: Request) {
@@ -95,7 +105,10 @@ async function answerQuestion(
   const { chatId, trigger } = body;
   const question = questionSchema.safeParse(messageText(body.message));
   if (!question.success) {
-    return fail(400, `Ask with ${QUERY_MIN_CHARS} to ${QUERY_MAX_CHARS} characters.`);
+    return fail(400, `Ask with at least ${QUERY_MIN_CHARS} characters.`);
+  }
+  if (question.data.length > LIMITS.maxQuestionChars) {
+    return refuse(400, { code: "QUESTION_TOO_LONG", max: LIMITS.maxQuestionChars });
   }
   const userMessage: ChatUIMessage = {
     id: body.message.id,
@@ -103,15 +116,17 @@ async function answerQuestion(
     parts: [{ type: "text", text: question.data }],
   };
 
-  // Before any model call: each call is paid for, so one user's day is capped.
-  const limit = await checkDailyLimit(userId);
-  if (!limit.ok) {
-    log("quota.hit", { userId, limit: "daily" }, "warn");
-    return fail(429, limit.message);
-  }
-  // Every question embeds a search query: RATE_LIMITS.search (src/lib/rate-limits.ts).
-  const searches = await consumeRateLimit(userId, "search");
-  if (!searches.ok) return fail(429, searches.message);
+  // Task mode only when the user's own words ask for tasks: text in a document can never turn
+  // the tools on.
+  const taskMode = asksForTasks(question.data) && !isAboutDocChat(question.data);
+
+  // Before any model call or embedding, and before anything is saved: the user's minute and
+  // day, a task request's daily allowance, and the global breaker (docs/adr/0010). Held up
+  // front, so concurrent requests can't all slip in under a limit, and given back in onEnd if
+  // the answer never starts streaming (the model failed or timed out first).
+  const allowed = await consumeQuestion(userId, { agent: taskMode });
+  if (!allowed.ok) return refuse(429, allowed.failure);
+  const { reservation, questionsLeft } = allowed;
 
   // Only the user's ready documents: another user's id, or one being read or removed, is
   // dropped, and nothing left means all documents (src/features/chat/scope.ts).
@@ -134,16 +149,17 @@ async function answerQuestion(
   const index = stored.findIndex((m) => m.id === userMessage.id);
   const history = index === -1 ? stored : stored.slice(0, index);
 
-  // Task mode only when the user's own words ask for tasks: text in a document can never turn
-  // the tools on.
-  const taskMode = asksForTasks(question.data) && !isAboutDocChat(question.data);
-
   const messageId = randomUUID();
   let passages: PassageData[] = [];
   let answer: AnswerStream | null = null;
   let agent: AgentStream | null = null;
   // "quota": the provider refused for quota, and the answer isn't saved.
   let failure: "quota" | "error" | null = null;
+  // The model has begun its answer: text, or (task mode) a tool call. From here the question
+  // counts, however the answer ends.
+  let answerStarted = false;
+  // Sent with the finish, not the start: a question given back never shows as used.
+  const done = { status: "complete" as const, questionsLeft };
   function failWith(error: unknown): string {
     if (isQuotaError(error)) {
       if (failure !== "quota") log("quota.hit", { userId, limit: "provider" }, "warn");
@@ -160,7 +176,7 @@ async function answerQuestion(
       // A question about DocChat itself: one canned line, no search and no model call.
       if (isAboutDocChat(question.data)) {
         writeText(writer, ABOUT_ANSWER);
-        writer.write({ type: "finish", messageMetadata: { status: "complete" } });
+        writer.write({ type: "finish", messageMetadata: done });
         return;
       }
 
@@ -190,7 +206,7 @@ async function answerQuestion(
           ),
         );
         writer.write(citationsChunk([], true));
-        writer.write({ type: "finish", messageMetadata: { status: "complete" } });
+        writer.write({ type: "finish", messageMetadata: done });
         return;
       }
 
@@ -245,8 +261,9 @@ async function answerQuestion(
 
       const reader = modelStream.getReader();
       for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { done: ended, value } = await reader.read();
+        if (ended) break;
+        if (!answerStarted && startsAnswer(value)) answerStarted = true;
         writer.write(value);
       }
 
@@ -256,7 +273,10 @@ async function answerQuestion(
       if (agent) writeProposal(writer, agent, proposal);
       writer.write({
         type: "finish",
-        messageMetadata: { status: failure ? "failed" : "complete" } satisfies ChatMetadata,
+        messageMetadata: {
+          status: failure ? "failed" : "complete",
+          questionsLeft,
+        } satisfies ChatMetadata,
       });
     },
     onError: (error) => {
@@ -269,6 +289,13 @@ async function answerQuestion(
     // provider refused for quota isn't saved: the question stays, to ask again tomorrow, and
     // nothing the agent proposed survives.
     async onEnd({ responseMessage, isAborted, isCancelled, outcome }) {
+      // Failed or timed out before the model wrote anything: the question doesn't count.
+      if (failure && !answerStarted) {
+        await releaseReservation(reservation).catch((error: unknown) => {
+          console.error(`Couldn't release the question for answer ${messageId}`, error);
+          reportError(error, "chat-release");
+        });
+      }
       if (failure === "quota") {
         console.warn(`Answer ${messageId} not saved: the AI provider refused for quota`);
         return;
@@ -359,6 +386,16 @@ async function answerApproval(userId: string, body: z.output<typeof approvalBody
   });
 
   return createUIMessageStreamResponse({ stream, consumeSseStream: consumeStream });
+}
+
+// The model's first output: answer text, or a tool call (the agent searching or proposing).
+// Step markers and errors don't count.
+function startsAnswer(chunk: InferUIMessageChunk<ChatUIMessage>): boolean {
+  return (
+    chunk.type === "text-delta" ||
+    chunk.type === "tool-input-start" ||
+    chunk.type === "tool-input-available"
+  );
 }
 
 // A canned answer, as one text part.

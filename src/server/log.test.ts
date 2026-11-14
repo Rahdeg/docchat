@@ -31,7 +31,7 @@ describe("log", () => {
   it("writes warnings to stderr", () => {
     vi.stubEnv("LOG_IN_TESTS", "1");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    log("quota.hit", { userId: "user_a", limit: "daily" }, "warn");
+    log("quota.hit", { userId: "user_a", limit: "QUESTIONS_PER_DAY" }, "warn");
     expect(warn).toHaveBeenCalledOnce();
   });
 

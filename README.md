@@ -1,17 +1,17 @@
 # DocChat
-<img width="540" height="675" alt="docchat-demo-preview" src="https://github.com/user-attachments/assets/d3adc2af-02bd-4c11-a908-d023361e0df7" />
 
+<img width="540" height="675" alt="docchat-demo-preview" src="https://github.com/user-attachments/assets/d3adc2af-02bd-4c11-a908-d023361e0df7" />
 
 Upload your documents, ask questions in plain language, and get answers that cite the exact
 sentence they came from, so you can check them instead of trusting them.
 
-**[Live app](https://docchat.raheem.online)** · Demo video: 
+**[Live app](https://docchat.raheem.online)** · Demo video:
 
 https://github.com/user-attachments/assets/b3fe4c3a-09d3-467a-a525-8d5982cb59f5
 
 .
 
-[Build thread on X](https://x.com/Walett25) 
+[Build thread on X](https://x.com/Walett25)
 · [Portfolio](https://raheem.online)
 
 <!-- TODO(demo-video): replace "Demo video: coming soon" above with [Demo video](https://…). -->
@@ -36,6 +36,11 @@ https://github.com/user-attachments/assets/b3fe4c3a-09d3-467a-a525-8d5982cb59f5
   own model.
 - **Private files and real account deletion.** Files sit in a private Blob store and are served
   only after an ownership check. Deleting your account deletes your rows and files.
+- **Free-tier limits, enforced on the server.** Each account gets up to 3 documents (10 MB and
+  50 pages each), 30 questions a day (5 a minute) and 5 task requests a day, and a connected AI
+  app 200 searches a day. A global daily cap on questions keeps the bill bounded. Every refusal
+  says which limit was hit and when it resets, the Library and composer show what's left, and
+  each number is an env var ([ADR 0010](docs/adr/0010-launch-limits.md)).
 
 ## Measured, not promised
 
@@ -146,11 +151,11 @@ a question reaches the model.
 
 <!-- tests:start -->
 
-Counted on 11 Nov 2026 by `pnpm readme:tests`:
+Counted on 14 Nov 2026 by `pnpm readme:tests`:
 
-- **631 Vitest tests** in 62 files (unit, component, and the evals' scoring and fixture checks), on every pull request.
-- **9 integration test files** against a real Postgres (and, for some, a real model), run locally; CI has no database, so they skip there.
-- **55 Playwright tests** in 8 files (the signed-in flows, public pages, accessibility with axe, and the CSP), on every pull request against a production build with fake AI providers; a few that need the real services, such as an upload to Blob, skip there.
+- **678 Vitest tests** in 63 files (unit, component, and the evals' scoring and fixture checks), on every pull request.
+- **10 integration test files** against a real Postgres (and, for some, a real model), run locally; CI has no database, so they skip there.
+- **57 Playwright tests** in 8 files (the signed-in flows, public pages, accessibility with axe, and the CSP), on every pull request against a production build with fake AI providers; a few that need the real services, such as an upload to Blob, skip there.
 
 <!-- tests:end -->
 

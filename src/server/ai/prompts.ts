@@ -10,6 +10,7 @@ import {
   type ChatUIMessage,
 } from "@/features/chat/message";
 import { displayName } from "@/features/documents/upload-rules";
+import { LIMITS } from "@/lib/limits";
 
 import { MAX_PROPOSED_TASKS } from "@/features/chat/agent-parts";
 
@@ -73,21 +74,19 @@ export function answerPrompt(question: string, passages: readonly PromptPassage[
   ].join("\n\n");
 }
 
-// Earlier turns sent with a question, oldest first.
-const HISTORY_MESSAGES = 6;
-const HISTORY_MESSAGE_CHARS = 2_000;
-
+// Earlier turns sent with a question, oldest first: the last HISTORY_MESSAGES (src/lib/limits.ts),
+// each cut to historyMessageChars.
 // Earlier messages as plain text. Citation markers are removed: their numbers referred to that
 // answer's sources, not this one's.
 export function historyText(history: readonly ChatUIMessage[]) {
   return history
     .filter((message) => message.role === "user" || message.role === "assistant")
-    .slice(-HISTORY_MESSAGES)
+    .slice(-LIMITS.historyMessages)
     .map((message) => ({
       role: message.role as "user" | "assistant",
       text: messageText(message)
         .replace(/ ?\[\d+\]/g, "")
-        .slice(0, HISTORY_MESSAGE_CHARS)
+        .slice(0, LIMITS.historyMessageChars)
         .trim(),
     }))
     .filter((turn) => turn.text.length > 0);

@@ -13,6 +13,15 @@ loadEnvConfig(process.cwd());
 const ci = !!process.env.CI;
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
+// The flows (and their retries, and reruns on the same day) ask more than a day's free
+// allowance, so the server these tests start gets more of it. The limits the flows test keep
+// their defaults: 3 documents and 5 questions a minute (docs/adr/0010). An env var still wins.
+// A server you started yourself (E2E_BASE_URL, or a reused `pnpm dev`) keeps its own settings.
+const e2eLimits = {
+  QUESTIONS_PER_DAY: process.env.QUESTIONS_PER_DAY ?? "500",
+  AGENT_RUNS_PER_DAY: process.env.AGENT_RUNS_PER_DAY ?? "100",
+};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
@@ -48,5 +57,6 @@ export default defineConfig({
         url: baseURL,
         reuseExistingServer: !ci,
         timeout: 120_000,
+        env: e2eLimits,
       },
 });

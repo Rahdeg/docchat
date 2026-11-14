@@ -3,8 +3,10 @@ import { handleUpload } from "@vercel/blob/client";
 import { z } from "zod";
 
 import { checkUploadPath } from "@/features/documents/upload-policy";
-import { fileKinds, MAX_FILE_BYTES } from "@/features/documents/upload-rules";
+import { fileKinds } from "@/features/documents/upload-rules";
 import { env } from "@/lib/env";
+import { limitMessage, type LimitFailure } from "@/lib/limit-messages";
+import { LIMITS } from "@/lib/limits";
 import { consumeRateLimit } from "@/server/rate-limit";
 
 // Issues short-lived tokens so the browser can upload straight to the private Blob store
@@ -21,7 +23,11 @@ const tokenRequest = z.object({
 });
 
 class UploadRejected extends Error {}
-class UploadLimited extends Error {}
+class UploadLimited extends Error {
+  constructor(readonly failure: LimitFailure) {
+    super(limitMessage(failure));
+  }
+}
 
 export async function POST(request: Request): Promise<Response> {
   const { userId } = await auth();
@@ -40,14 +46,19 @@ export async function POST(request: Request): Promise<Response> {
         payload: { pathname, clientPayload: clientPayload ?? null, multipart },
       },
       onBeforeGenerateToken: async (tokenPathname) => {
+        // The document limit is checked here, before any upload or cost, and again (under a
+        // lock) when registerDocument creates the row.
         const check = await checkUploadPath(userId, tokenPathname);
-        if (!check.ok) throw new UploadRejected(check.error);
-        // One token per file: RATE_LIMITS.upload (src/lib/rate-limits.ts).
+        if (!check.ok) {
+          if (check.limit) throw new UploadLimited(check.limit);
+          throw new UploadRejected(check.error);
+        }
+        // One token per file (uploadsPerHour, src/lib/limits.ts).
         const limit = await consumeRateLimit(userId, "upload");
-        if (!limit.ok) throw new UploadLimited(limit.message);
+        if (!limit.ok) throw new UploadLimited(limit.failure);
         return {
           allowedContentTypes: [fileKinds[check.kind].mimeType],
-          maximumSizeInBytes: MAX_FILE_BYTES,
+          maximumSizeInBytes: LIMITS.maxFileBytes,
           // The path already has a random uuid (users/<userId>/<uuid>-<name>).
           addRandomSuffix: false,
           allowOverwrite: false,
@@ -60,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: error.message }, { status: 400 });
     }
     if (error instanceof UploadLimited) {
-      return Response.json({ error: error.message }, { status: 429 });
+      return Response.json({ error: error.message, limit: error.failure }, { status: 429 });
     }
     console.error(error);
     return Response.json({ error: "Couldn't start the upload." }, { status: 500 });

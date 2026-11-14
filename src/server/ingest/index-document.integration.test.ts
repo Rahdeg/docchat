@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { EMBEDDING_MODEL, hasEmbeddingKey } from "@/server/ai/models";
 
@@ -26,6 +26,13 @@ describe.skipIf(!canRun)("indexDocument (integration)", { timeout: 60_000 }, () 
     dbModule = await import("@/server/db");
     schema = await import("@/server/db/schema");
     orm = await import("drizzle-orm");
+  });
+
+  // Each test starts with no documents: the same fixture uploaded twice is a duplicate.
+  beforeEach(async () => {
+    await dbModule.db
+      .delete(schema.document)
+      .where(orm.inArray(schema.document.userId, [alice, bob]));
   });
 
   afterAll(async () => {
@@ -163,5 +170,25 @@ describe.skipIf(!canRun)("indexDocument (integration)", { timeout: 60_000 }, () 
     const { doc, chunks } = await load(created.id);
     expect(doc.status).toBe("uploaded");
     expect(chunks).toEqual([]);
+  });
+
+  it("refuses the same file a second time without embedding it", async () => {
+    const first = await createUpload(alice, "two-pages.pdf");
+    await indexDocument(alice, first.id, { load: async () => fixture("two-pages.pdf") });
+    const again = await createUpload(alice, "two-pages copy.pdf");
+
+    await indexDocument(alice, again.id, { load: async () => fixture("two-pages.pdf") });
+
+    const { doc, pages, chunks } = await load(again.id);
+    expect(doc).toMatchObject({
+      status: "failed",
+      error: 'You already have this file as "two-pages.pdf".',
+    });
+    expect(pages).toEqual([]);
+    expect(chunks).toEqual([]);
+    // Another user's identical file is theirs to keep.
+    const bobs = await createUpload(bob, "two-pages.pdf");
+    await indexDocument(bob, bobs.id, { load: async () => fixture("two-pages.pdf") });
+    expect((await load(bobs.id)).doc.status).toBe("ready");
   });
 });

@@ -68,6 +68,10 @@ test.describe("signed out", () => {
       await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
     }
     await expect(page.getByRole("img", { name: /an answer pointing to the clause/ })).toBeVisible();
+    // The free tier, next to the sign-up button, from src/lib/limits.ts (defaults here).
+    await expect(page.getByTestId("free-limits")).toHaveText(
+      "Free: up to 3 documents and 30 questions a day.",
+    );
 
     // Every card shows the date of the run it came from.
     const cards = page.locator("[data-metric]");

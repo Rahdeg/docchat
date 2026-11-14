@@ -7,12 +7,13 @@ import {
   contentMatchesKind,
   displayName,
   fileKindOf,
-  limitReachedMessage,
-  MAX_DOCUMENTS,
-  MAX_FILE_BYTES,
   parseBlobPathname,
   safeFileName,
 } from "./upload-rules";
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_DOCUMENTS = 3;
+const limits = { maxDocuments: MAX_DOCUMENTS, maxFileBytes: MAX_FILE_BYTES };
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 const uuid = "0b6f3a4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
@@ -24,13 +25,13 @@ describe("checkFile", () => {
     ["readme.markdown", "md"],
     ["minutes.txt", "txt"],
   ] as const)("accepts %s as %s", (name, kind) => {
-    expect(checkFile({ name, size: 1000 }, 0)).toEqual({ ok: true, kind });
+    expect(checkFile({ name, size: 1000 }, 0, limits)).toEqual({ ok: true, kind });
   });
 
   it.each(["photo.png", "contract.docx", "archive.pdf.zip", "no-extension"])(
     "rejects %s by type",
     (name) => {
-      expect(checkFile({ name, size: 1000 }, 0)).toEqual({
+      expect(checkFile({ name, size: 1000 }, 0, limits)).toEqual({
         ok: false,
         error: `${name} isn't a PDF, Markdown or text file.`,
       });
@@ -38,26 +39,50 @@ describe("checkFile", () => {
   );
 
   it("rejects files over 10 MB and accepts exactly 10 MB", () => {
-    expect(checkFile({ name: "big.pdf", size: MAX_FILE_BYTES + 1 }, 0)).toEqual({
+    expect(checkFile({ name: "big.pdf", size: MAX_FILE_BYTES + 1 }, 0, limits)).toEqual({
       ok: false,
-      error: "big.pdf is larger than 10 MB.",
+      error: "big.pdf is 10.1 MB. The free limit is 10 MB per file.",
+      limit: {
+        code: "FILE_TOO_LARGE",
+        maxMb: 10,
+        sizeBytes: MAX_FILE_BYTES + 1,
+        fileName: "big.pdf",
+      },
     });
-    expect(checkFile({ name: "edge.pdf", size: MAX_FILE_BYTES }, 0).ok).toBe(true);
+    expect(checkFile({ name: "big.pdf", size: 12.4 * 1024 * 1024 }, 0, limits)).toMatchObject({
+      error: "big.pdf is 12.4 MB. The free limit is 10 MB per file.",
+    });
+    expect(
+      checkFile({ name: "big.pdf", size: 6 * 1024 * 1024 }, 0, {
+        ...limits,
+        maxFileBytes: 5 * 1024 * 1024,
+      }),
+    ).toMatchObject({
+      error: "big.pdf is 6 MB. The free limit is 5 MB per file.",
+    });
+    expect(checkFile({ name: "edge.pdf", size: MAX_FILE_BYTES }, 0, limits).ok).toBe(true);
   });
 
   it("rejects empty files", () => {
-    expect(checkFile({ name: "empty.txt", size: 0 }, 0)).toEqual({
+    expect(checkFile({ name: "empty.txt", size: 0 }, 0, limits)).toEqual({
       ok: false,
       error: "empty.txt is empty.",
     });
   });
 
   it("enforces the per-user document limit", () => {
-    expect(checkFile({ name: "a.pdf", size: 10 }, MAX_DOCUMENTS - 1).ok).toBe(true);
-    expect(checkFile({ name: "a.pdf", size: 10 }, MAX_DOCUMENTS)).toEqual({
+    expect(checkFile({ name: "a.pdf", size: 10 }, MAX_DOCUMENTS - 1, limits).ok).toBe(true);
+    expect(checkFile({ name: "a.pdf", size: 10 }, MAX_DOCUMENTS, limits)).toEqual({
       ok: false,
-      error: limitReachedMessage,
+      error: "You've reached the free limit of 3 documents. Delete one to upload another.",
+      limit: { code: "DOCUMENT_LIMIT", max: 3 },
     });
+    // Users already over the limit keep their documents but can't add more.
+    expect(checkFile({ name: "a.pdf", size: 10 }, 6, limits).ok).toBe(false);
+    // Unlimited users have no document limit.
+    expect(checkFile({ name: "a.pdf", size: 10 }, 50, { ...limits, maxDocuments: null }).ok).toBe(
+      true,
+    );
   });
 
   it("lists every accepted extension and type for the file picker", () => {
